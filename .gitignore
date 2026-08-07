@@ -1,0 +1,27 @@
+# Claude Code local-only state
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Secrets / local environment
+.env
+.env.*
+!.env.example
+
+# Node tooling if introduced
+node_modules/
+coverage/
+
+# Build/release output
+dist/
+*.zip
+
+# User analytics / local exports
+exports/
+*.csv
+*.log
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
