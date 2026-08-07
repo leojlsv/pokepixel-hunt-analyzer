@@ -1,0 +1,52 @@
+{
+  "manifest_version": 3,
+  "name": "PokePixel Capture Counter",
+  "version": "0.3.0",
+  "description": "Contador de encontros, capturas e eficiência da Hunt do PokePixel em um painel lateral do Edge, sem armazenar logs individuais.",
+  "permissions": [
+    "storage",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "https://pokepixel.nietore.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Abrir/fechar PokePixel Capture Counter"
+  },
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+7",
+        "windows": "Ctrl+Shift+7"
+      }
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://pokepixel.nietore.com/*"
+      ],
+      "js": [
+        "hook.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://pokepixel.nietore.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    }
+  ]
+}

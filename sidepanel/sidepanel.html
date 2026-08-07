@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+  <title>PokePixel Hunt Counter</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+
+<body>
+  <main class="app">
+    <header class="header">
+      <div>
+        <h1>PokePixel Hunt Counter</h1>
+        <p class="muted">
+          Sessão agregada · sem histórico individual
+        </p>
+      </div>
+
+      <button
+        id="reset-button"
+        class="reset-button"
+        type="button"
+      >
+        Reset
+      </button>
+    </header>
+
+    <section class="section hunt-section">
+      <div class="section-title-row">
+        <h2>Hunt</h2>
+
+        <span
+          id="hunt-status"
+          class="status-badge"
+        >
+          Waiting
+        </span>
+      </div>
+
+      <div class="hunt-metrics">
+        <article class="hunt-metric hunt-time">
+          <span class="label">Tempo</span>
+          <strong id="hunt-time">00:00</strong>
+        </article>
+
+        <article class="hunt-metric">
+          <span class="label">EXP/h Treinador</span>
+          <strong id="trainer-exp-hour">—</strong>
+          <small>
+            Total:
+            <span id="trainer-exp-total">0</span>
+          </small>
+        </article>
+
+        <article class="hunt-metric">
+          <span class="label">Dólar/h</span>
+          <strong id="dollars-hour">—</strong>
+          <small>
+            Total:
+            <span id="dollars-total">0</span>
+          </small>
+        </article>
+      </div>
+    </section>
+
+    <section
+      class="summary-grid"
+      aria-label="Resumo de captura"
+    >
+      <article class="summary-card">
+        <span class="label">Seen</span>
+        <strong id="total-seen">0</strong>
+      </article>
+
+      <article class="summary-card">
+        <span class="label">Captured</span>
+        <strong id="total-captured">0</strong>
+      </article>
+
+      <article class="summary-card">
+        <span class="label">Failed</span>
+        <strong id="total-failed">0</strong>
+      </article>
+
+      <article class="summary-card accent-card">
+        <span class="label">Rare+ Failed</span>
+        <strong id="rare-plus-failed">0</strong>
+      </article>
+    </section>
+
+    <section
+      class="rate-row"
+      aria-label="Taxas de captura"
+    >
+      <div>
+        <span>Seen → Capture</span>
+        <strong id="seen-rate">—</strong>
+      </div>
+
+      <div>
+        <span>Attempt Rate</span>
+        <strong id="attempt-rate">—</strong>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-title-row">
+        <h2>By Rarity</h2>
+        <span class="muted">
+          Seen · Captured · Failed
+        </span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Rarity</th>
+              <th>Seen</th>
+              <th>Cap.</th>
+              <th>Fail</th>
+              <th>Rate</th>
+            </tr>
+          </thead>
+
+          <tbody id="rarity-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section shiny-section">
+      <div class="section-title-row">
+        <h2>Shiny</h2>
+      </div>
+
+      <div class="shiny-grid">
+        <div>
+          <span>Seen</span>
+          <strong id="shiny-seen">0</strong>
+        </div>
+
+        <div>
+          <span>Captured</span>
+          <strong id="shiny-captured">0</strong>
+        </div>
+
+        <div>
+          <span>Failed</span>
+          <strong id="shiny-failed">0</strong>
+        </div>
+      </div>
+    </section>
+
+    <p
+      id="unknown-warning"
+      class="warning"
+      hidden
+    >
+      Rarity desconhecida detectada.
+      O protocolo do jogo pode ter mudado.
+    </p>
+
+    <footer>
+      Ctrl+Shift+7 · contador de sessão
+    </footer>
+  </main>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
