@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs";
 import { IDBFactory } from "fake-indexeddb";
 
 import { normalizeEvent } from "../../domain/events.js";
-import { openDatabase } from "../../data/db.js";
+import { openDatabase, STORE_NAMES } from "../../data/db.js";
+import { createRepository } from "../../data/repository.js";
 import { createEncountersRepository } from "../../data/encountersRepository.js";
 import { createEventPipeline } from "../../services/eventPipeline.js";
 
@@ -107,4 +108,36 @@ test("the full event pipeline replays all 4000+ fixture events without throwing"
   assert.ok(encounters.length >= fixture.expected.eventCounts["combat.started"]);
 
   t.diagnostic(`persisted ${encounters.length} encounter rows`);
+});
+
+test("the Automatic Hunt lifecycle splits the fixture into its 3 real Hunts", async () => {
+  // This fixture contains 3 genuine, cleanly-separated Hunts
+  // (server_session_0001/0002/0003, each with its own zoneId, ~50min-1h40
+  // apart) — a real-data proof of domain/huntLifecycle.js's boundary
+  // decision, not just the synthetic cases in tests/unit/huntLifecycle.test.js.
+  const fixture = loadFixture();
+  const events = chronological(fixture.events);
+
+  const db = await openDatabase({ indexedDBFactory: new IDBFactory() });
+  const pipeline = createEventPipeline(db, { now: () => Date.now() });
+
+  for (const event of events) {
+    await pipeline.handle({
+      type: event.type,
+      seq: event.seq,
+      ts: event.ts,
+      socketId: 1,
+      data: event.data
+    });
+  }
+
+  const sessions = await createRepository(db, STORE_NAMES.SESSIONS).getAll();
+
+  assert.equal(sessions.length, 3);
+  assert.equal(sessions.filter((s) => s.status === "ended").length, 2);
+  assert.equal(sessions.filter((s) => s.status !== "ended").length, 1);
+  assert.deepEqual(
+    new Set(sessions.map((s) => s.serverSessionId)),
+    new Set(["server_session_0001", "server_session_0002", "server_session_0003"])
+  );
 });

@@ -58,8 +58,40 @@ Real encounters are now persisted to IndexedDB during a live Hunt, but the
 Side Panel still reads only the legacy `chrome.storage.session` counters —
 migrating the UI to the new data is Phase 3.
 
+### Added — Phase 3 (Current + Config)
+- **Automatic Hunt lifecycle** (`domain/huntLifecycle.js`,
+  docs/ARCHITECTURE.md §7): a local session starts on the first activity
+  and only ends automatically on a confirmed new `serverSessionId` (via
+  `combat.started`); an isolated `zoneId` change is tracked as a candidate
+  transition without ending the session. Proven against the real fixture —
+  its 3 genuine Hunts are correctly split into 3 local sessions.
+- `sessions` rows now carry `serverSessionId`/`zoneId`
+  (`domain/sessionTiming.js` `adoptServerContext`,
+  `data/sessionsRepository.js` `endCurrent`/`forceNewSession`/
+  `getCurrentReadOnly`).
+- `domain/sessionMetrics.js`: the Current view's full aggregation (status/
+  time, Trainer+Pokémon EXP/h, Dollar/h, Seen/Captured/Failed, rates,
+  rarity, shiny) computed from `sessions`/`encounters`, not a counter.
+- **Side Panel migrated to v1 data**: `sidepanel.js` reads IndexedDB
+  directly (own connection, `onversionchange`-safe) and polls every
+  second; `New Hunt`/`Pause`/`Resume`/`End Hunt` route through
+  `background.js` so every write stays serialized. Added a Pokémon EXP/h
+  card (previously missing). `preview.html`/`preview.js` mirror the new
+  layout with mock data, still independent of any `chrome.*` API.
+- **No Config UI, by design**: the Current view never surfaces
+  `auto_capture`/config internals (no field, no ID, no capsule UUID) — the
+  full snapshot is still captured from `combat.started` and persisted in
+  `configs` (`config_id`/`group_key` unaffected) purely for
+  history/comparison, it's just never rendered. There is no manual EXP
+  rate input either; `expRateLabel` stays at its documented `"unknown"`
+  default (`domain/config.js`).
+- **Legacy v0.3.0 pipeline retired**: `hook.js`/`content.js` no longer
+  emit/forward `counter.increment`/`hunt.loot`/`hunt.pause`/
+  `hunt.activity`; `background.js` no longer keeps a
+  `chrome.storage.session` counter. The toolbar badge now derives from v1
+  session/encounter data (`refreshBadge`) instead of that counter.
+
 ### Planned
-- Migrate the Side Panel to the Phase 1/2 data (Current + Config), Phase 3.
 - History, Compare and CSV/JSON export (Phase 4).
 
 ## [0.3.0]

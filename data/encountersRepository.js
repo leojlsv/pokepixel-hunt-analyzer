@@ -8,6 +8,7 @@
  */
 
 import { createRepository } from "./repository.js";
+import { promisifyRequest } from "./db.js";
 import { STORE_NAMES } from "./migrations.js";
 
 export function createEncountersRepository(db) {
@@ -41,5 +42,16 @@ export function createEncountersRepository(db) {
     return repo.getAll();
   }
 
-  return { create, update, get, getAll };
+  // Uses the `sessionId` index created in Fase 1's migration — needed by
+  // the Side Panel's Current view (domain/sessionMetrics.js) to fetch only
+  // the current session's encounters instead of the whole store.
+  function getBySessionId(sessionId) {
+    const store = db
+      .transaction(STORE_NAMES.ENCOUNTERS, "readonly")
+      .objectStore(STORE_NAMES.ENCOUNTERS);
+
+    return promisifyRequest(store.index("sessionId").getAll(sessionId));
+  }
+
+  return { create, update, get, getAll, getBySessionId };
 }

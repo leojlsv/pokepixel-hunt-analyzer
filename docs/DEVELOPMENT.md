@@ -24,6 +24,11 @@ Current should show Hunt status/time, Trainer and Pokémon EXP totals/h, Dollar 
 
 Actions: `New Hunt`, `Pause/Resume`, `End Hunt`.
 
+The legacy `Reset` action and its `chrome.storage.session` counter are
+retired once `Current` reads only from the v1 data; the toolbar badge
+then derives from the v1 session/encounters, not from the legacy
+counter.
+
 History is paginated session history and detail.
 Compare aggregates by `species + level + config`.
 Config prefers protocol-derived `auto_capture`; EXP rate remains manual/unknown until protocol support is proven.
@@ -128,10 +133,12 @@ No UI or WebSocket behavior change.
 
 ### Phase 3 — Current + Config
 - migrate current Side Panel to new source of truth;
-- session lifecycle;
+- automatic Hunt lifecycle and manual overrides (docs/ARCHITECTURE.md §7);
 - protocol `auto_capture` snapshot;
 - manual EXP rate;
-- preview update.
+- preview update;
+- retire the legacy Reset action/counter; toolbar badge moves to v1
+  session/encounter data.
 
 ### Phase 4 — History + Compare + Export
 - history and filters;

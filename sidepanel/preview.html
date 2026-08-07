@@ -34,18 +34,39 @@
       <div>
         <h1>PokePixel Hunt Counter</h1>
         <p class="muted">
-          Sessão agregada · sem histórico individual
+          Current · dados da sessão local (v1)
         </p>
       </div>
+    </header>
 
+    <section
+      class="actions-row"
+      aria-label="Ações da Hunt"
+    >
       <button
-        id="reset-button"
-        class="reset-button"
+        id="new-hunt-button"
+        class="action-button"
         type="button"
       >
-        Reset
+        New Hunt
       </button>
-    </header>
+
+      <button
+        id="pause-resume-button"
+        class="action-button"
+        type="button"
+      >
+        Pause
+      </button>
+
+      <button
+        id="end-hunt-button"
+        class="action-button"
+        type="button"
+      >
+        End Hunt
+      </button>
+    </section>
 
     <section class="section hunt-section">
       <div class="section-title-row">
@@ -71,6 +92,15 @@
           <small>
             Total:
             <span id="trainer-exp-total">0</span>
+          </small>
+        </article>
+
+        <article class="hunt-metric">
+          <span class="label">EXP/h Pokémon</span>
+          <strong id="pokemon-exp-hour">—</strong>
+          <small>
+            Total:
+            <span id="pokemon-exp-total">0</span>
           </small>
         </article>
 

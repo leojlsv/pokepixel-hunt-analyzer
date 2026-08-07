@@ -250,6 +250,38 @@ test("orphan: capture.failed with no active encounter creates an orphan row", ()
   assert.equal(create.row.captureResult, "failed");
 });
 
+test("orphan: capture.failed inherits quality/level/ivTotal/isShiny from the event itself", () => {
+  resetIds();
+  const state = createTrackerState();
+
+  const result = applyEvent(
+    state,
+    captureFailed("wild_9", { ts: 1000, seq: 1, quality: "rare" }),
+    nextId
+  );
+  const create = result.effects.find((e) => e.type === "encounter.create");
+
+  assert.equal(create.row.quality, "rare");
+  assert.equal(create.row.level, 90);
+  assert.equal(create.row.ivTotal, 6);
+  assert.equal(create.row.isShiny, false);
+});
+
+test("orphan: capture.success does NOT inherit quality/level from the creature", () => {
+  resetIds();
+  const state = createTrackerState();
+
+  const result = applyEvent(
+    state,
+    captureSuccess("wild_9", { ts: 1000, seq: 1, creatureQuality: "epic", creatureLevel: 5 }),
+    nextId
+  );
+  const create = result.effects.find((e) => e.type === "encounter.create");
+
+  assert.equal(create.row.quality, null);
+  assert.equal(create.row.level, null);
+});
+
 test("duplicate event (same socketId|eventType|seq) is ignored", () => {
   resetIds();
   let state = createTrackerState();

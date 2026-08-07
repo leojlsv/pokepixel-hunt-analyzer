@@ -51,3 +51,22 @@ test("getAll lists every persisted encounter", async () => {
   const all = await repo.getAll();
   assert.equal(all.length, 2);
 });
+
+test("getBySessionId returns only encounters for that session", async () => {
+  const db = await setup();
+  const repo = createEncountersRepository(db);
+
+  await repo.create({ encounterId: "e1", sessionId: "s1", state: "started" });
+  await repo.create({ encounterId: "e2", sessionId: "s1", state: "success" });
+  await repo.create({ encounterId: "e3", sessionId: "s2", state: "started" });
+
+  const forS1 = await repo.getBySessionId("s1");
+  assert.equal(forS1.length, 2);
+  assert.deepEqual(
+    forS1.map((row) => row.encounterId).sort(),
+    ["e1", "e2"]
+  );
+
+  const forUnknown = await repo.getBySessionId("does-not-exist");
+  assert.equal(forUnknown.length, 0);
+});

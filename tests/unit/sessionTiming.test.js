@@ -7,8 +7,67 @@ import {
   pause,
   endSession,
   activeMs,
-  recoverFromRestart
+  recoverFromRestart,
+  adoptServerContext,
+  lockSession,
+  unlockSession
 } from "../../domain/sessionTiming.js";
+
+test("createSession starts with no server context adopted yet", () => {
+  const session = createSession({ sessionId: "s1", now: 1000 });
+
+  assert.equal(session.serverSessionId, null);
+  assert.equal(session.zoneId, null);
+});
+
+test("createSession starts unlocked", () => {
+  const session = createSession({ sessionId: "s1", now: 1000 });
+  assert.equal(session.locked, false);
+});
+
+test("lockSession/unlockSession only toggle the flag", () => {
+  const session = createSession({ sessionId: "s1", now: 1000 });
+
+  const locked = lockSession(session);
+  assert.equal(locked.locked, true);
+  assert.equal(locked.status, session.status);
+
+  const unlocked = unlockSession(locked);
+  assert.equal(unlocked.locked, false);
+});
+
+test("adoptServerContext records serverSessionId/zoneId without touching timing", () => {
+  const session = createSession({ sessionId: "s1", now: 1000 });
+
+  const adopted = adoptServerContext(
+    session,
+    { serverSessionId: "server_session_0001", zoneId: "zone_0001" },
+    2000
+  );
+
+  assert.equal(adopted.serverSessionId, "server_session_0001");
+  assert.equal(adopted.zoneId, "zone_0001");
+  assert.equal(adopted.updatedAtMs, 2000);
+  assert.equal(adopted.status, "running");
+  assert.equal(adopted.activeStartedAtMs, session.activeStartedAtMs);
+});
+
+test("adoptServerContext only updates the zoneId (update_zone case)", () => {
+  const session = adoptServerContext(
+    createSession({ sessionId: "s1", now: 1000 }),
+    { serverSessionId: "server_session_0001", zoneId: "zone_0001" },
+    1000
+  );
+
+  const updated = adoptServerContext(
+    session,
+    { serverSessionId: null, zoneId: "zone_0002" },
+    3000
+  );
+
+  assert.equal(updated.serverSessionId, "server_session_0001");
+  assert.equal(updated.zoneId, "zone_0002");
+});
 
 test("createSession starts running with zero accumulated time", () => {
   const session = createSession({ sessionId: "s1", now: 1000 });

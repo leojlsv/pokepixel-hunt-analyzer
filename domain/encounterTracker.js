@@ -264,6 +264,22 @@ function applyCaptureResult(state, envelope, resultType) {
   if (!existing) {
     const orphanId = crypto.randomUUID();
 
+    // A brand-new orphan has no combat.started snapshot to protect, so
+    // capture.failed's own quality/level/iv_total/is_shiny (available
+    // right on the event) are worth keeping instead of leaving them null.
+    // capture.success still contributes nothing here — the "never trust
+    // the captured creature's level/quality" rule is not conditional on
+    // whether an active encounter exists.
+    const orphanEnrichment =
+      resultType === "failed"
+        ? {
+            quality: data.quality,
+            level: data.level,
+            ivTotal: data.iv_total,
+            isShiny: data.is_shiny
+          }
+        : {};
+
     const row = orphanRow({
       encounterId: orphanId,
       wildMonsterId,
@@ -272,6 +288,7 @@ function applyCaptureResult(state, envelope, resultType) {
       patch: {
         speciesId: data.species_id,
         speciesName: data.species_name,
+        ...orphanEnrichment,
         ...shared,
         state: "orphan"
       }

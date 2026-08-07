@@ -25,7 +25,43 @@ export function createSession({ sessionId, now }) {
     activeStartedAtMs: now,
     accumulatedActiveMs: 0,
     lastActivityAtMs: now,
+    // Inputs to the Automatic Hunt lifecycle boundary decision
+    // (docs/ARCHITECTURE.md §7) — null until the first combat.started
+    // adopts them (see adoptServerContext below).
+    serverSessionId: null,
+    zoneId: null,
+    // Set by a manual Pause/End Hunt action (data/sessionsRepository.js
+    // pauseManual/endManual) — while true, no automatic protocol signal
+    // (hunt.stopped, combat.started, a confirmed new serverSessionId) may
+    // resume, retarget or replace this session. Only a manual Resume/New
+    // Hunt clears it.
+    locked: false,
     createdAtMs: now,
+    updatedAtMs: now
+  };
+}
+
+/** Manual Pause/End Hunt: freezes the session against automatic changes. */
+export function lockSession(session) {
+  return { ...session, locked: true };
+}
+
+/** Manual Resume/New Hunt: allows automatic changes again. */
+export function unlockSession(session) {
+  return { ...session, locked: false };
+}
+
+/**
+ * Records the server-provided identity (serverSessionId/zoneId) a
+ * combat.started confirmed for this local session — either the first
+ * adoption or an "update_zone" candidate transition
+ * (domain/huntLifecycle.js). Never changes `status`/timing fields.
+ */
+export function adoptServerContext(session, { serverSessionId, zoneId }, now) {
+  return {
+    ...session,
+    serverSessionId: serverSessionId ?? session.serverSessionId,
+    zoneId: zoneId ?? session.zoneId,
     updatedAtMs: now
   };
 }

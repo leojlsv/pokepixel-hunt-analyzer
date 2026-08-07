@@ -1,343 +1,64 @@
+/**
+ * Service worker. Routes `protocol.event` (the only thing `hook.js`/
+ * `content.js` still send — the legacy v0.3.0 counter pipeline was
+ * retired in Fase 3, docs/DEVELOPMENT.md §2) into the event pipeline, and
+ * a small set of Side Panel action messages (`session.*`) that mutate
+ * session state. Reads for the Side Panel's Current view go directly
+ * through its own IndexedDB connection (sidepanel/sidepanel.js) — this
+ * file only handles writes, keeping every mutation serialized through
+ * `updateQueue`.
+ */
+
 import { openDatabase } from "./data/db.js";
 import { createEventPipeline } from "./services/eventPipeline.js";
-
-const STATE_KEY = "counterState";
-
-const RARITIES = [
-  "weak",
-  "common",
-  "uncommon",
-  "rare",
-  "epic",
-  "legendary",
-  "mythical",
-  "unknown"
-];
-
-const VALID_KINDS = new Set([
-  "seen",
-  "captured",
-  "failed"
-]);
+import { createSessionsRepository } from "./data/sessionsRepository.js";
+import { createEncountersRepository } from "./data/encountersRepository.js";
+import { computeCurrentMetrics } from "./domain/sessionMetrics.js";
 
 let updateQueue = Promise.resolve();
 
-// Fase 2: pipeline de eventos normalizados (IndexedDB), independente do
-// contador legado acima. Aberto sob demanda e reaproveitado enquanto este
-// service worker estiver vivo — nunca bloqueia/atrasa os handlers legados.
+// Single shared connection for this service worker's lifetime — reused by
+// the event pipeline, the badge refresh, and every session/settings action
+// below instead of opening a new one each time.
+let dbPromise = null;
+
+function getDb() {
+  if (!dbPromise) {
+    dbPromise = openDatabase();
+  }
+
+  return dbPromise;
+}
+
 let eventPipelinePromise = null;
 
 function getEventPipeline() {
   if (!eventPipelinePromise) {
-    eventPipelinePromise = openDatabase().then((db) => createEventPipeline(db));
+    eventPipelinePromise = getDb().then((db) => createEventPipeline(db));
   }
 
   return eventPipelinePromise;
 }
 
-function emptyBucket() {
-  return {
-    seen: 0,
-    captured: 0,
-    failed: 0
-  };
-}
+// Toolbar badge derives from v1 session/encounter data (docs/DEVELOPMENT.md
+// §2) — no separate counter to keep in sync anymore.
+async function refreshBadge() {
+  const db = await getDb();
+  const sessionsRepo = createSessionsRepository(db);
+  const encountersRepo = createEncountersRepository(db);
 
-function createEmptyHuntState() {
-  return {
-    running: false,
-    startedAt: null,
-    accumulatedMs: 0,
+  const session = await sessionsRepo.getCurrentReadOnly();
+  const encounters = session
+    ? await encountersRepo.getBySessionId(session.sessionId)
+    : [];
 
-    trainerExp: 0,
-    pokemonExp: 0,
-    dollars: 0,
-    lootEvents: 0,
-
-    // Reservado para evolução futura.
-    // Não é usado para segmentar a Hunt nesta versão.
-    config: {
-      key: null,
-      speciesId: null,
-      level: null,
-      expRate: null,
-      captureConfig: null
-    }
-  };
-}
-
-/**
- * Preparado para uma futura segmentação por configuração:
- * species + level + expRate + captureConfig.
- *
- * Não usar como identificador único de encontro.
- */
-function buildConfigKey({
-  speciesId = null,
-  level = null,
-  expRate = null,
-  captureConfig = null
-} = {}) {
-  return [
-    speciesId ?? "*",
-    level ?? "*",
-    expRate ?? "*",
-    captureConfig ?? "*"
-  ].join("|");
-}
-
-function createInitialState() {
-  const rarities = {};
-
-  for (const rarity of RARITIES) {
-    rarities[rarity] = emptyBucket();
-  }
-
-  return {
-    version: 2,
-    sessionStartedAt: Date.now(),
-
-    totals: emptyBucket(),
-    rarities,
-    shiny: emptyBucket(),
-
-    hunt: createEmptyHuntState()
-  };
-}
-
-function normalizeCounter(value) {
-  const number = Number(value);
-
-  if (!Number.isFinite(number)) return 0;
-  return Math.max(0, Math.trunc(number));
-}
-
-function normalizeAmount(value) {
-  const number = Number(value);
-
-  if (!Number.isFinite(number)) return 0;
-  return Math.max(0, number);
-}
-
-function normalizeState(state) {
-  const normalized = createInitialState();
-
-  if (!state || typeof state !== "object") {
-    return normalized;
-  }
-
-  if (Number.isFinite(state.sessionStartedAt)) {
-    normalized.sessionStartedAt = state.sessionStartedAt;
-  } else if (Number.isFinite(state.startedAt)) {
-    // Compatibilidade com v0.2.x.
-    normalized.sessionStartedAt = state.startedAt;
-  }
-
-  for (const kind of VALID_KINDS) {
-    normalized.totals[kind] =
-      normalizeCounter(state?.totals?.[kind]);
-
-    normalized.shiny[kind] =
-      normalizeCounter(state?.shiny?.[kind]);
-  }
-
-  for (const rarity of RARITIES) {
-    for (const kind of VALID_KINDS) {
-      normalized.rarities[rarity][kind] =
-        normalizeCounter(state?.rarities?.[rarity]?.[kind]);
-    }
-  }
-
-  const hunt = state.hunt;
-
-  if (hunt && typeof hunt === "object") {
-    normalized.hunt.running =
-      Boolean(hunt.running);
-
-    normalized.hunt.startedAt =
-      Number.isFinite(hunt.startedAt)
-        ? hunt.startedAt
-        : null;
-
-    normalized.hunt.accumulatedMs =
-      normalizeAmount(hunt.accumulatedMs);
-
-    normalized.hunt.trainerExp =
-      normalizeAmount(hunt.trainerExp);
-
-    normalized.hunt.pokemonExp =
-      normalizeAmount(hunt.pokemonExp);
-
-    normalized.hunt.dollars =
-      normalizeAmount(hunt.dollars);
-
-    normalized.hunt.lootEvents =
-      normalizeCounter(hunt.lootEvents);
-
-    const config = hunt.config;
-
-    if (config && typeof config === "object") {
-      normalized.hunt.config = {
-        key:
-          typeof config.key === "string"
-            ? config.key
-            : null,
-
-        speciesId:
-          typeof config.speciesId === "string"
-            ? config.speciesId
-            : null,
-
-        level:
-          Number.isFinite(config.level)
-            ? config.level
-            : null,
-
-        expRate:
-          config.expRate ?? null,
-
-        captureConfig:
-          config.captureConfig ?? null
-      };
-    }
-  }
-
-  // Corrige estado inconsistente.
-  if (
-    normalized.hunt.running &&
-    !Number.isFinite(normalized.hunt.startedAt)
-  ) {
-    normalized.hunt.startedAt = Date.now();
-  }
-
-  return normalized;
-}
-
-async function getState() {
-  const result =
-    await chrome.storage.session.get(STATE_KEY);
-
-  return normalizeState(result[STATE_KEY]);
-}
-
-async function setState(state) {
-  await chrome.storage.session.set({
-    [STATE_KEY]: state
-  });
-}
-
-function startOrResumeHunt(state, now = Date.now()) {
-  if (state.hunt.running) return;
-
-  state.hunt.running = true;
-  state.hunt.startedAt = now;
-}
-
-function pauseHunt(state, now = Date.now()) {
-  if (!state.hunt.running) return;
-
-  const startedAt = state.hunt.startedAt;
-
-  if (Number.isFinite(startedAt)) {
-    state.hunt.accumulatedMs +=
-      Math.max(0, now - startedAt);
-  }
-
-  state.hunt.running = false;
-  state.hunt.startedAt = null;
-}
-
-function rarePlusFailed(state) {
-  return (
-    state.rarities.rare.failed +
-    state.rarities.epic.failed +
-    state.rarities.legendary.failed +
-    state.rarities.mythical.failed
-  );
-}
-
-async function updateBadge(state) {
-  const value = rarePlusFailed(state);
+  const metrics = computeCurrentMetrics({ session, encounters, now: Date.now() });
 
   await chrome.action.setBadgeText({
-    text: value > 0
-      ? String(value)
-      : ""
+    text: metrics.rarePlusFailed > 0 ? String(metrics.rarePlusFailed) : ""
   });
 
-  await chrome.action.setBadgeBackgroundColor({
-    color: "#b23a48"
-  });
-}
-
-async function incrementCounter(message) {
-  if (!VALID_KINDS.has(message.kind)) return;
-
-  const quality =
-    RARITIES.includes(message.quality)
-      ? message.quality
-      : "unknown";
-
-  const state = await getState();
-
-  // combat.started ("seen") é também fallback de início/retomada.
-  if (message.kind === "seen") {
-    startOrResumeHunt(state);
-  }
-
-  state.totals[message.kind] += 1;
-  state.rarities[quality][message.kind] += 1;
-
-  if (message.isShiny) {
-    state.shiny[message.kind] += 1;
-  }
-
-  await setState(state);
-  await updateBadge(state);
-}
-
-async function registerHuntActivity() {
-  const state = await getState();
-
-  startOrResumeHunt(state);
-
-  await setState(state);
-}
-
-async function registerLoot(message) {
-  const state = await getState();
-
-  // Protege importações/ordens incompletas:
-  // loot também pode iniciar/retomar o relógio.
-  startOrResumeHunt(state);
-
-  state.hunt.trainerExp +=
-    normalizeAmount(message.trainerExp);
-
-  state.hunt.pokemonExp +=
-    normalizeAmount(message.pokemonExp);
-
-  state.hunt.dollars +=
-    normalizeAmount(message.dollars);
-
-  state.hunt.lootEvents += 1;
-
-  await setState(state);
-}
-
-async function registerPause() {
-  const state = await getState();
-
-  pauseHunt(state);
-
-  await setState(state);
-}
-
-async function resetState() {
-  const state = createInitialState();
-
-  await setState(state);
-  await updateBadge(state);
+  await chrome.action.setBadgeBackgroundColor({ color: "#b23a48" });
 }
 
 function isPokePixelSender(sender) {
@@ -366,32 +87,22 @@ async function configureSidePanel() {
 
 chrome.runtime.onInstalled.addListener(() => {
   updateQueue = updateQueue
-    .then(async () => {
-      await configureSidePanel();
-
-      const state = await getState();
-
-      await setState(state);
-      await updateBadge(state);
-    })
+    .then(() => configureSidePanel())
     .catch(console.error);
+
+  refreshBadge().catch(console.error);
 });
 
 chrome.runtime.onStartup.addListener(() => {
   updateQueue = updateQueue
-    .then(async () => {
-      await configureSidePanel();
-
-      const state = await getState();
-
-      await updateBadge(state);
-    })
+    .then(() => configureSidePanel())
     .catch(console.error);
 
-  // Fase 2, independente da fila do contador legado acima: recupera a
-  // sessão local (docs/ARCHITECTURE.md §7 "Browser restart recovery") —
-  // só roda em reinício real do navegador, nunca a cada wake do service
-  // worker. Uma falha aqui não deve afetar o contador legado.
+  refreshBadge().catch(console.error);
+
+  // Independente da fila acima: recupera a sessão local
+  // (docs/ARCHITECTURE.md §7 "Browser restart recovery") — só roda em
+  // reinício real do navegador, nunca a cada wake do service worker.
   getEventPipeline()
     .then((pipeline) => pipeline.recoverOnStartup())
     .catch((error) => {
@@ -413,13 +124,7 @@ chrome.runtime.onMessage.addListener(
       return false;
     }
 
-    const pageMessageTypes = new Set([
-      "counter.increment",
-      "hunt.activity",
-      "hunt.loot",
-      "hunt.pause",
-      "protocol.event"
-    ]);
+    const pageMessageTypes = new Set(["protocol.event"]);
 
     if (
       pageMessageTypes.has(message.type) &&
@@ -433,128 +138,8 @@ chrome.runtime.onMessage.addListener(
       return false;
     }
 
-    if (message.type === "counter.increment") {
-      updateQueue = updateQueue
-        .then(() => incrementCounter(message))
-        .then(() => sendResponse({ ok: true }))
-        .catch((error) => {
-          console.error(
-            "PokePixel Capture Counter:",
-            error
-          );
-
-          sendResponse({
-            ok: false,
-            error: "increment_failed"
-          });
-        });
-
-      return true;
-    }
-
-    if (message.type === "hunt.activity") {
-      updateQueue = updateQueue
-        .then(() => registerHuntActivity())
-        .then(() => sendResponse({ ok: true }))
-        .catch((error) => {
-          console.error(
-            "PokePixel Capture Counter:",
-            error
-          );
-
-          sendResponse({
-            ok: false,
-            error: "hunt_activity_failed"
-          });
-        });
-
-      return true;
-    }
-
-    if (message.type === "hunt.loot") {
-      updateQueue = updateQueue
-        .then(() => registerLoot(message))
-        .then(() => sendResponse({ ok: true }))
-        .catch((error) => {
-          console.error(
-            "PokePixel Capture Counter:",
-            error
-          );
-
-          sendResponse({
-            ok: false,
-            error: "hunt_loot_failed"
-          });
-        });
-
-      return true;
-    }
-
-    if (message.type === "hunt.pause") {
-      updateQueue = updateQueue
-        .then(() => registerPause())
-        .then(() => sendResponse({ ok: true }))
-        .catch((error) => {
-          console.error(
-            "PokePixel Capture Counter:",
-            error
-          );
-
-          sendResponse({
-            ok: false,
-            error: "hunt_pause_failed"
-          });
-        });
-
-      return true;
-    }
-
-    if (message.type === "counter.reset") {
-      updateQueue = updateQueue
-        .then(() => resetState())
-        .then(() => sendResponse({ ok: true }))
-        .catch((error) => {
-          console.error(
-            "PokePixel Capture Counter:",
-            error
-          );
-
-          sendResponse({
-            ok: false,
-            error: "reset_failed"
-          });
-        });
-
-      return true;
-    }
-
-    if (message.type === "counter.get") {
-      updateQueue = updateQueue
-        .then(() => getState())
-        .then((state) => {
-          sendResponse({
-            ok: true,
-            state
-          });
-        })
-        .catch((error) => {
-          console.error(
-            "PokePixel Capture Counter:",
-            error
-          );
-
-          sendResponse({
-            ok: false,
-            error: "get_failed"
-          });
-        });
-
-      return true;
-    }
-
     if (message.type === "protocol.event") {
-      // Pipeline novo (Fase 2), isolado do contador legado acima: um erro
-      // aqui nunca deve impedir sendResponse nem afetar os handlers legados
+      // Um erro aqui nunca deve impedir sendResponse
       // (docs/DEVELOPMENT.md §1 "Analytics failures must fail closed").
       updateQueue = updateQueue
         .then(async () => {
@@ -567,6 +152,8 @@ chrome.runtime.onMessage.addListener(
             socketId: message.socketId,
             data: message.data
           });
+
+          await refreshBadge();
         })
         .then(() => sendResponse({ ok: true }))
         .catch((error) => {
@@ -584,10 +171,72 @@ chrome.runtime.onMessage.addListener(
       return true;
     }
 
+    if (message.type === "session.new") {
+      updateQueue = updateQueue
+        .then(async () => {
+          const db = await getDb();
+          await createSessionsRepository(db).forceNewSession();
+          await refreshBadge();
+        })
+        .then(() => sendResponse({ ok: true }))
+        .catch((error) => {
+          console.error("PokePixel Hunt Analyzer (session.new):", error);
+          sendResponse({ ok: false, error: "session_new_failed" });
+        });
+
+      return true;
+    }
+
+    if (message.type === "session.pause") {
+      // Manual: locks the session so no automatic signal can resume it
+      // until "Resume" or "New Hunt" (data/sessionsRepository.js).
+      updateQueue = updateQueue
+        .then(async () => {
+          const db = await getDb();
+          await createSessionsRepository(db).pauseManual();
+        })
+        .then(() => sendResponse({ ok: true }))
+        .catch((error) => {
+          console.error("PokePixel Hunt Analyzer (session.pause):", error);
+          sendResponse({ ok: false, error: "session_pause_failed" });
+        });
+
+      return true;
+    }
+
+    if (message.type === "session.resume") {
+      updateQueue = updateQueue
+        .then(async () => {
+          const db = await getDb();
+          await createSessionsRepository(db).resumeManual();
+        })
+        .then(() => sendResponse({ ok: true }))
+        .catch((error) => {
+          console.error("PokePixel Hunt Analyzer (session.resume):", error);
+          sendResponse({ ok: false, error: "session_resume_failed" });
+        });
+
+      return true;
+    }
+
+    if (message.type === "session.end") {
+      // Manual: locks the session so no automatic signal can start a new
+      // one until "New Hunt" (data/sessionsRepository.js).
+      updateQueue = updateQueue
+        .then(async () => {
+          const db = await getDb();
+          await createSessionsRepository(db).endManual();
+          await refreshBadge();
+        })
+        .then(() => sendResponse({ ok: true }))
+        .catch((error) => {
+          console.error("PokePixel Hunt Analyzer (session.end):", error);
+          sendResponse({ ok: false, error: "session_end_failed" });
+        });
+
+      return true;
+    }
+
     return false;
   }
 );
-
-// Mantido propositalmente para deixar a futura chave preparada
-// e evitar que sua definição seja removida em refactors automáticos.
-void buildConfigKey;

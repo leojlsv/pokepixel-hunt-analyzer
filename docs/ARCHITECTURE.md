@@ -95,9 +95,13 @@ endedAtMs
 activeStartedAtMs
 accumulatedActiveMs
 lastActivityAtMs
+serverSessionId         adopted from the first combat.started's session.id; null until then
+zoneId                  adopted from the first combat.started's enemy.zone_id; null until then
 createdAtMs
 updatedAtMs
 ```
+
+`serverSessionId`/`zoneId` are the inputs to the Automatic Hunt lifecycle boundary decision (§7) — they are not a fixed schema in the IndexedDB sense (object stores are schemaless beyond `keyPath`/indexes), just two additional fields the session row always carries once adopted.
 
 Prefer deriving historical totals from encounters first. Add cached session aggregates only if a measured UI/query need justifies them.
 
@@ -205,6 +209,26 @@ active_ms = accumulatedActiveMs + (now - activeStartedAtMs), when running
 ```
 
 `setInterval` is presentation only. `hunt.stopped` pauses. `New Hunt` closes the current session and creates a new local session.
+
+### Automatic Hunt lifecycle
+
+A local session starts automatically on the first valid Hunt activity;
+there is no explicit "start" action.
+
+- `hunt.stopped` pauses the session; it never ends it.
+- `hunt.analyzer_reset` alone never creates a new session — it is only an
+  activity/resume signal (docs/PROTOCOL_AND_ANALYTICS.md).
+- The same `serverSessionId` + `zoneId` observed after a pause is a resume
+  of the current session, not a new one.
+- A confirmed new `serverSessionId` is a new Hunt.
+- An isolated `zoneId` change alone is only a candidate transition — it
+  does not end the session until confirmed.
+- `combat.started` is the preferred authoritative confirmation for a
+  session-boundary decision.
+- A `config_id` change never creates a new Hunt; config changes only
+  affect later encounters (§6).
+- `New Hunt` is a manual override: it always closes the current session
+  and starts a new one, regardless of the automatic rules above.
 
 ### Browser restart recovery
 

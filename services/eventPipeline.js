@@ -20,6 +20,7 @@ import {
 } from "../domain/encounterTracker.js";
 import { buildCanonicalConfig } from "../domain/config.js";
 import { buildGroupKey } from "../domain/groupKey.js";
+import { decideSessionTransition } from "../domain/huntLifecycle.js";
 import { createConfigsRepository } from "../data/configsRepository.js";
 import { createEncountersRepository } from "../data/encountersRepository.js";
 import { createSessionsRepository } from "../data/sessionsRepository.js";
@@ -31,6 +32,10 @@ export function createEventPipeline(db, { now = Date.now } = {}) {
 
   let trackerState = createTrackerState();
 
+  // No manual EXP rate input exists — expRateLabel is omitted and falls
+  // back to domain/config.js's "unknown" default (docs/ARCHITECTURE.md §6:
+  // "EXP rate remains manual/unknown until a reliable protocol field is
+  // confirmed").
   async function resolveConfigId(autoCaptureSnapshot) {
     const canonicalConfig = buildCanonicalConfig({
       captureConfig: autoCaptureSnapshot,
@@ -74,6 +79,39 @@ export function createEventPipeline(db, { now = Date.now } = {}) {
     return { ...rest, sessionId, configId, groupKey };
   }
 
+  // Automatic Hunt lifecycle boundary decision (docs/ARCHITECTURE.md §7,
+  // domain/huntLifecycle.js) — only a combat.started-originated
+  // encounter.create row carries both serverSessionId and zoneId, which is
+  // why it's the sole trigger for this check.
+  async function resolveSessionForCombatStarted(row) {
+    const session = await sessionsRepo.getOrStartCurrent();
+
+    // A manual Pause/End Hunt freezes the session — only a manual
+    // Resume/New Hunt (background.js) may change it. Automatic boundary
+    // detection stays out of the way entirely while locked.
+    if (session.locked) {
+      return session;
+    }
+
+    const decision = decideSessionTransition(
+      { serverSessionId: session.serverSessionId, zoneId: session.zoneId },
+      { serverSessionId: row.serverSessionId, zoneId: row.zoneId }
+    );
+
+    if (decision.action === "new_hunt") {
+      await sessionsRepo.forceNewSession();
+    }
+
+    if (decision.action === "none") {
+      return session;
+    }
+
+    return sessionsRepo.adoptServerContext({
+      serverSessionId: row.serverSessionId,
+      zoneId: row.zoneId
+    });
+  }
+
   async function applyEffects(effects) {
     let sessionId;
 
@@ -85,14 +123,29 @@ export function createEventPipeline(db, { now = Date.now } = {}) {
       return sessionId;
     }
 
+    // Resolve the boundary decision before anything else in this batch
+    // touches "current" — a combat.started's own session.activity effect
+    // (processed first, below) must land on the correct — possibly
+    // just-started — session, not a stale one about to be ended.
+    const combatStartedCreate = effects.find(
+      (effect) =>
+        effect.type === "encounter.create" &&
+        Object.prototype.hasOwnProperty.call(effect.row, "autoCaptureSnapshot")
+    );
+
+    if (combatStartedCreate) {
+      const session = await resolveSessionForCombatStarted(combatStartedCreate.row);
+      sessionId = session.sessionId;
+    }
+
     for (const effect of effects) {
       switch (effect.type) {
         case "session.activity":
-          await sessionsRepo.touchActivityOnCurrent();
+          await sessionsRepo.touchActivityAutomatic();
           break;
 
         case "session.pause":
-          await sessionsRepo.pauseCurrent();
+          await sessionsRepo.pauseAutomatic();
           break;
 
         case "encounter.create": {

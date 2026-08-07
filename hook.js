@@ -16,30 +16,6 @@
   const NativeWebSocket = window.WebSocket;
   if (typeof NativeWebSocket !== "function") return;
 
-  const VALID_QUALITIES = new Set([
-    "weak",
-    "common",
-    "uncommon",
-    "rare",
-    "epic",
-    "legendary",
-    "mythical"
-  ]);
-
-  function normalizeQuality(value) {
-    if (typeof value !== "string") return "unknown";
-
-    const normalized = value.trim().toLowerCase();
-    return VALID_QUALITIES.has(normalized)
-      ? normalized
-      : "unknown";
-  }
-
-  function finiteNumber(value) {
-    const number = Number(value);
-    return Number.isFinite(number) ? number : 0;
-  }
-
   function finiteOrNull(value) {
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
@@ -55,10 +31,11 @@
     );
   }
 
-  // --- Fase 2: contratos de evento normalizado (docs/PROTOCOL_AND_ANALYTICS.md §2-5) ---
-  // Emitidos em paralelo aos eventos legados acima, sem alterar nenhum deles.
+  // Contratos de evento normalizado (docs/PROTOCOL_AND_ANALYTICS.md §2-5).
   // Só extrai os campos documentados; validação/normalização estrita
-  // acontece no lado do domain (background), não aqui.
+  // acontece no lado do domain (background), não aqui. O contador legado
+  // (chrome.storage.session) foi retirado na Fase 3 — este é o único
+  // caminho de dados que resta.
 
   const PROTOCOL_EVENT_TYPES = new Set([
     "combat.started",
@@ -194,86 +171,6 @@
     if (!type || !data || typeof data !== "object") return;
 
     emitProtocolEvent(type, data, payload.seq, payload.ts, socketId);
-
-    switch (type) {
-      case "combat.started": {
-        const enemy = data.enemy;
-
-        if (!enemy || typeof enemy !== "object") return;
-
-        emit({
-          event: "counter.increment",
-          kind: "seen",
-          quality: normalizeQuality(enemy.quality),
-          isShiny: Boolean(enemy.is_shiny)
-        });
-
-        // Também funciona como fallback de início/retomada da Hunt.
-        emit({
-          event: "hunt.activity"
-        });
-
-        break;
-      }
-
-      case "capture.success": {
-        const creature = data.creature;
-
-        if (!creature || typeof creature !== "object") return;
-
-        emit({
-          event: "counter.increment",
-          kind: "captured",
-          quality: normalizeQuality(creature.quality),
-          isShiny: Boolean(creature.is_shiny)
-        });
-
-        break;
-      }
-
-      case "capture.failed": {
-        emit({
-          event: "counter.increment",
-          kind: "failed",
-          quality: normalizeQuality(data.quality),
-          isShiny: Boolean(data.is_shiny)
-        });
-
-        break;
-      }
-
-      case "loot.received": {
-        emit({
-          event: "hunt.loot",
-          trainerExp: finiteNumber(data.trainer_exp),
-          pokemonExp: finiteNumber(data.pokemon_exp),
-          dollars: finiteNumber(data.gold)
-        });
-
-        break;
-      }
-
-      case "hunt.analyzer_reset": {
-        // Não zera nossos números automaticamente.
-        // Apenas indica que há atividade de Hunt.
-        emit({
-          event: "hunt.activity"
-        });
-
-        break;
-      }
-
-      case "hunt.stopped": {
-        emit({
-          event: "hunt.pause"
-        });
-
-        break;
-      }
-
-      default:
-        break;
-    }
   }
 
   function processText(text, socketId) {
