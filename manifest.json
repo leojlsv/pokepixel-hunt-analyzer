@@ -11,7 +11,8 @@
     "https://pokepixel.nietore.com/*"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "action": {
     "default_title": "Abrir/fechar PokePixel Capture Counter"

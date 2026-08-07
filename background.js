@@ -1,3 +1,6 @@
+import { openDatabase } from "./data/db.js";
+import { createEventPipeline } from "./services/eventPipeline.js";
+
 const STATE_KEY = "counterState";
 
 const RARITIES = [
@@ -18,6 +21,19 @@ const VALID_KINDS = new Set([
 ]);
 
 let updateQueue = Promise.resolve();
+
+// Fase 2: pipeline de eventos normalizados (IndexedDB), independente do
+// contador legado acima. Aberto sob demanda e reaproveitado enquanto este
+// service worker estiver vivo — nunca bloqueia/atrasa os handlers legados.
+let eventPipelinePromise = null;
+
+function getEventPipeline() {
+  if (!eventPipelinePromise) {
+    eventPipelinePromise = openDatabase().then((db) => createEventPipeline(db));
+  }
+
+  return eventPipelinePromise;
+}
 
 function emptyBucket() {
   return {
@@ -371,6 +387,19 @@ chrome.runtime.onStartup.addListener(() => {
       await updateBadge(state);
     })
     .catch(console.error);
+
+  // Fase 2, independente da fila do contador legado acima: recupera a
+  // sessão local (docs/ARCHITECTURE.md §7 "Browser restart recovery") —
+  // só roda em reinício real do navegador, nunca a cada wake do service
+  // worker. Uma falha aqui não deve afetar o contador legado.
+  getEventPipeline()
+    .then((pipeline) => pipeline.recoverOnStartup())
+    .catch((error) => {
+      console.error(
+        "PokePixel Hunt Analyzer (session recovery):",
+        error
+      );
+    });
 });
 
 configureSidePanel().catch(console.error);
@@ -388,7 +417,8 @@ chrome.runtime.onMessage.addListener(
       "counter.increment",
       "hunt.activity",
       "hunt.loot",
-      "hunt.pause"
+      "hunt.pause",
+      "protocol.event"
     ]);
 
     if (
@@ -516,6 +546,38 @@ chrome.runtime.onMessage.addListener(
           sendResponse({
             ok: false,
             error: "get_failed"
+          });
+        });
+
+      return true;
+    }
+
+    if (message.type === "protocol.event") {
+      // Pipeline novo (Fase 2), isolado do contador legado acima: um erro
+      // aqui nunca deve impedir sendResponse nem afetar os handlers legados
+      // (docs/DEVELOPMENT.md §1 "Analytics failures must fail closed").
+      updateQueue = updateQueue
+        .then(async () => {
+          const pipeline = await getEventPipeline();
+
+          await pipeline.handle({
+            type: message.eventType,
+            seq: message.seq,
+            ts: message.ts,
+            socketId: message.socketId,
+            data: message.data
+          });
+        })
+        .then(() => sendResponse({ ok: true }))
+        .catch((error) => {
+          console.error(
+            "PokePixel Hunt Analyzer (event pipeline):",
+            error
+          );
+
+          sendResponse({
+            ok: false,
+            error: "protocol_event_failed"
           });
         });
 

@@ -40,6 +40,11 @@
     return Number.isFinite(number) ? number : 0;
   }
 
+  function finiteOrNull(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+
   function emit(message) {
     window.postMessage(
       {
@@ -50,13 +55,145 @@
     );
   }
 
-  function processPayload(payload) {
+  // --- Fase 2: contratos de evento normalizado (docs/PROTOCOL_AND_ANALYTICS.md §2-5) ---
+  // Emitidos em paralelo aos eventos legados acima, sem alterar nenhum deles.
+  // Só extrai os campos documentados; validação/normalização estrita
+  // acontece no lado do domain (background), não aqui.
+
+  const PROTOCOL_EVENT_TYPES = new Set([
+    "combat.started",
+    "loot.received",
+    "capture.failed",
+    "capture.success",
+    "hunt.stopped",
+    "hunt.analyzer_reset"
+  ]);
+
+  function extractCombatStarted(data) {
+    const enemy = data.enemy;
+    if (!enemy || typeof enemy !== "object") return null;
+
+    const session = data.session;
+
+    return {
+      enemy: {
+        id: enemy.id,
+        species_id: enemy.species_id,
+        level: enemy.level,
+        quality: enemy.quality,
+        is_shiny: enemy.is_shiny,
+        ivs: enemy.ivs,
+        map_id: enemy.map_id,
+        zone_id: enemy.zone_id
+      },
+      session:
+        session && typeof session === "object"
+          ? {
+              id: session.id,
+              auto_capture: session.auto_capture
+            }
+          : undefined
+    };
+  }
+
+  function extractLootReceived(data) {
+    return {
+      wild_monster_id: data.wild_monster_id,
+      species_id: data.species_id,
+      exp: data.exp,
+      trainer_exp: data.trainer_exp,
+      pokemon_exp: data.pokemon_exp,
+      gold: data.gold,
+      loot_sell_value: data.loot_sell_value
+    };
+  }
+
+  function extractCaptureFailed(data) {
+    return {
+      wild_monster_id: data.wild_monster_id,
+      species_id: data.species_id,
+      species_name: data.species_name,
+      level: data.level,
+      quality: data.quality,
+      iv_total: data.iv_total,
+      is_shiny: data.is_shiny,
+      capsule_item_id: data.capsule_item_id,
+      capsule_name: data.capsule_name,
+      chance: data.chance,
+      supply_cost: data.supply_cost
+    };
+  }
+
+  function extractCaptureSuccess(data) {
+    const creature = data.creature;
+
+    return {
+      wild_monster_id: data.wild_monster_id,
+      species_id: data.species_id,
+      species_name: data.species_name,
+      capsule_item_id: data.capsule_item_id,
+      capsule_name: data.capsule_name,
+      chance: data.chance,
+      supply_cost: data.supply_cost,
+      auto_sold: data.auto_sold,
+      auto_sell_value: data.auto_sell_value,
+      // creature.level/creature.species_id são intencionalmente omitidos:
+      // nunca usar o nível da criatura capturada como target level.
+      creature:
+        creature && typeof creature === "object"
+          ? {
+              quality: creature.quality,
+              is_shiny: creature.is_shiny,
+              ivs: creature.ivs
+            }
+          : undefined
+    };
+  }
+
+  function extractProtocolEventData(type, data) {
+    switch (type) {
+      case "combat.started":
+        return extractCombatStarted(data);
+      case "loot.received":
+        return extractLootReceived(data);
+      case "capture.failed":
+        return extractCaptureFailed(data);
+      case "capture.success":
+        return extractCaptureSuccess(data);
+      case "hunt.stopped":
+      case "hunt.analyzer_reset":
+        // Só importam como sinal (pausa/atividade) — sem payload útil.
+        return {};
+      default:
+        return null;
+    }
+  }
+
+  function emitProtocolEvent(type, data, seq, ts, socketId) {
+    if (!PROTOCOL_EVENT_TYPES.has(type)) return;
+
+    const extracted = extractProtocolEventData(type, data);
+    if (extracted === null) return;
+
+    emit({
+      event: "protocol.event",
+      type,
+      seq: finiteOrNull(seq),
+      ts: finiteOrNull(ts),
+      socketId,
+      data: extracted
+    });
+  }
+
+  function processPayload(payload, socketId) {
     if (!payload || typeof payload !== "object") return;
 
     const type = payload.type;
     const data = payload.data;
 
     if (!type || !data || typeof data !== "object") return;
+
+    emitProtocolEvent(type, data, payload.seq, payload.ts, socketId);
 
     switch (type) {
       case "combat.started": {
@@ -139,32 +276,32 @@
     }
   }
 
-  function processText(text) {
+  function processText(text, socketId) {
     if (typeof text !== "string" || text.length === 0) return;
 
     try {
-      processPayload(JSON.parse(text));
+      processPayload(JSON.parse(text), socketId);
     } catch {
       // Frames que não forem JSON são ignorados.
     }
   }
 
-  function processMessageData(data) {
+  function processMessageData(data, socketId) {
     if (typeof data === "string") {
-      processText(data);
+      processText(data, socketId);
       return;
     }
 
     if (data instanceof Blob) {
       data.text()
-        .then(processText)
+        .then((text) => processText(text, socketId))
         .catch(() => {});
       return;
     }
 
     if (data instanceof ArrayBuffer) {
       try {
-        processText(new TextDecoder().decode(data));
+        processText(new TextDecoder().decode(data), socketId);
       } catch {
         // Binário não decodificável é ignorado.
       }
@@ -180,7 +317,8 @@
               data.byteOffset,
               data.byteLength
             )
-          )
+          ),
+          socketId
         );
       } catch {
         // Binário não decodificável é ignorado.
@@ -188,9 +326,17 @@
     }
   }
 
+  // Fase 2: socketId local por instância de WebSocket observada — usado
+  // só para dedupe/correlação (docs/PROTOCOL_AND_ANALYTICS.md §8), nunca
+  // persistido entre reloads.
+  let nextSocketId = 1;
+
   function observeSocket(socket) {
+    const socketId = nextSocketId;
+    nextSocketId += 1;
+
     socket.addEventListener("message", (event) => {
-      processMessageData(event.data);
+      processMessageData(event.data, socketId);
     });
   }
 

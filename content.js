@@ -7,7 +7,8 @@
     "counter.increment",
     "hunt.activity",
     "hunt.loot",
-    "hunt.pause"
+    "hunt.pause",
+    "protocol.event"
   ]);
 
   const VALID_KINDS = new Set([
@@ -27,11 +28,28 @@
     "unknown"
   ]);
 
+  // Fase 2: contratos de evento normalizado (docs/PROTOCOL_AND_ANALYTICS.md §1).
+  // Só validação estrutural/tipos aqui — regra de negócio fica em
+  // domain/events.js, do lado do background, para não duplicar em dois
+  // mundos de JS diferentes.
+  const PROTOCOL_EVENT_TYPES = new Set([
+    "combat.started",
+    "loot.received",
+    "capture.failed",
+    "capture.success",
+    "hunt.stopped",
+    "hunt.analyzer_reset"
+  ]);
+
   function finiteNonNegative(value) {
     const number = Number(value);
 
     if (!Number.isFinite(number)) return 0;
     return Math.max(0, number);
+  }
+
+  function isFiniteOrNull(value) {
+    return value === null || Number.isFinite(value);
   }
 
   window.addEventListener("message", (event) => {
@@ -82,6 +100,25 @@
     if (message.event === "hunt.activity") {
       chrome.runtime.sendMessage({
         type: "hunt.activity"
+      }).catch(() => {});
+
+      return;
+    }
+
+    if (message.event === "protocol.event") {
+      if (!PROTOCOL_EVENT_TYPES.has(message.type)) return;
+      if (!Number.isInteger(message.socketId) || message.socketId <= 0) return;
+      if (!isFiniteOrNull(message.seq)) return;
+      if (!isFiniteOrNull(message.ts)) return;
+      if (!message.data || typeof message.data !== "object") return;
+
+      chrome.runtime.sendMessage({
+        type: "protocol.event",
+        eventType: message.type,
+        seq: message.seq,
+        ts: message.ts,
+        socketId: message.socketId,
+        data: message.data
       }).catch(() => {});
     }
   });

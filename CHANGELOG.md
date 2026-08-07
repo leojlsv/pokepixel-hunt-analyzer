@@ -27,10 +27,40 @@ No UI or WebSocket behavior changed. `manifest.json`, `background.js`,
 `content.js`, `hook.js` and `sidepanel/**` are untouched — nothing built in
 this phase is wired into the running extension yet.
 
+### Added — Phase 2 (Event pipeline)
+- Normalized protocol event contracts (`domain/events.js`) for all 6
+  inbound event types, proven against a real sanitized capture
+  (`tests/fixtures/rhyxus_hunting2.regression.json`).
+- Local per-`WebSocket` `socketId` (`hook.js`) and the
+  `socketId|eventType|seq` dedupe key.
+- Pure session-timing state machine (`domain/sessionTiming.js`): running/
+  paused/restart-recovery, persisted via `data/sessionsRepository.js`.
+  Restart recovery only runs from a real `chrome.runtime.onStartup`, never
+  on a routine MV3 service-worker wake.
+- Pure encounter correlation reducer (`domain/encounterTracker.js`):
+  wild-id reuse, orphan handling, stale-timeout finalization
+  (`STALE_TIMEOUT_MS` = 30 min), all covered by synthetic tests plus the
+  fixture replay. Never lets `capture.success.creature.level`/`.quality`
+  overwrite the `combat.started` snapshot.
+- `data/encountersRepository.js` and `services/eventPipeline.js`, the
+  orchestration layer that resolves `config_id`/`group_key` per encounter
+  and persists everything to IndexedDB.
+- Fixture regression test validating the exact baselines in
+  `docs/PROTOCOL_AND_ANALYTICS.md §12` (event counts, failed-by-quality,
+  Rare+ = 133) end to end through the real pipeline.
+- `hook.js`/`content.js`/`background.js` emit/validate/handle a new
+  `protocol.event` message **in addition to** every existing legacy
+  message — the v0.3.0 counters and Side Panel behave identically to
+  before. `manifest.json`'s service worker is now `"type": "module"` so
+  `background.js` can import the modules above.
+
+Real encounters are now persisted to IndexedDB during a live Hunt, but the
+Side Panel still reads only the legacy `chrome.storage.session` counters —
+migrating the UI to the new data is Phase 3.
+
 ### Planned
-- Normalized session and encounter history (event pipeline, Phase 2).
-- Analytics by species, level and configuration.
-- History, Compare and CSV/JSON export.
+- Migrate the Side Panel to the Phase 1/2 data (Current + Config), Phase 3.
+- History, Compare and CSV/JSON export (Phase 4).
 
 ## [0.3.0]
 
