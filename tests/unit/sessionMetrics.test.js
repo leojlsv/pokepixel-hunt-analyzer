@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { computeCurrentMetrics } from "../../domain/sessionMetrics.js";
+import { computeSessionMetrics } from "../../domain/sessionMetrics.js";
 import { createSession } from "../../domain/sessionTiming.js";
 
 function encounter(overrides = {}) {
@@ -18,7 +18,7 @@ function encounter(overrides = {}) {
 }
 
 test("no session yet -> empty/waiting metrics, no per-hour crash", () => {
-  const metrics = computeCurrentMetrics({ session: null, encounters: [], now: 1000 });
+  const metrics = computeSessionMetrics({ session: null, encounters: [], now: 1000 });
 
   assert.equal(metrics.status, "waiting");
   assert.equal(metrics.activeMs, 0);
@@ -31,16 +31,16 @@ test("status mirrors session.status (running/paused/ended->waiting)", () => {
   const base = createSession({ sessionId: "s1", now: 0 });
 
   assert.equal(
-    computeCurrentMetrics({ session: base, encounters: [], now: 0 }).status,
+    computeSessionMetrics({ session: base, encounters: [], now: 0 }).status,
     "running"
   );
   assert.equal(
-    computeCurrentMetrics({ session: { ...base, status: "paused" }, encounters: [], now: 0 })
+    computeSessionMetrics({ session: { ...base, status: "paused" }, encounters: [], now: 0 })
       .status,
     "paused"
   );
   assert.equal(
-    computeCurrentMetrics({ session: { ...base, status: "ended" }, encounters: [], now: 0 })
+    computeSessionMetrics({ session: { ...base, status: "ended" }, encounters: [], now: 0 })
       .status,
     "waiting"
   );
@@ -56,7 +56,7 @@ test("seen excludes orphans; captured/failed count regardless of state", () => {
     encounter({ state: "incomplete", captureResult: "none" })
   ];
 
-  const metrics = computeCurrentMetrics({ session, encounters, now: 3_600_000 });
+  const metrics = computeSessionMetrics({ session, encounters, now: 3_600_000 });
 
   // 3 non-orphan encounters -> seen=3; captured=1 success; failed=2 (one from
   // the regular encounter, one from the orphan).
@@ -74,7 +74,7 @@ test("EXP/gold sums and per-hour rates over active_ms", () => {
   ];
 
   // 1 active hour elapsed.
-  const metrics = computeCurrentMetrics({ session, encounters, now: 3_600_000 });
+  const metrics = computeSessionMetrics({ session, encounters, now: 3_600_000 });
 
   assert.equal(metrics.trainerExp, 3000);
   assert.equal(metrics.trainerExpPerHour, 3000);
@@ -88,7 +88,7 @@ test("per-hour figures are null when elapsed active time is zero", () => {
   const session = createSession({ sessionId: "s1", now: 0 });
   const encounters = [encounter({ trainerExp: 1000 })];
 
-  const metrics = computeCurrentMetrics({ session, encounters, now: 0 });
+  const metrics = computeSessionMetrics({ session, encounters, now: 0 });
 
   assert.equal(metrics.trainerExpPerHour, null);
 });
@@ -103,7 +103,7 @@ test("rarity buckets, Rare+ failed, and unknown-quality flag", () => {
     encounter({ quality: "not-a-real-quality", captureResult: "failed" })
   ];
 
-  const metrics = computeCurrentMetrics({ session, encounters, now: 1000 });
+  const metrics = computeSessionMetrics({ session, encounters, now: 1000 });
 
   assert.equal(metrics.rarities.rare.failed, 1);
   assert.equal(metrics.rarities.epic.failed, 1);
@@ -122,7 +122,7 @@ test("shiny buckets follow the same seen/captured/failed split as totals", () =>
     encounter({ isShiny: false, captureResult: "failed" })
   ];
 
-  const metrics = computeCurrentMetrics({ session, encounters, now: 1000 });
+  const metrics = computeSessionMetrics({ session, encounters, now: 1000 });
 
   // Only the 2 shiny encounters count toward shiny.seen (both non-orphan).
   assert.equal(metrics.shiny.seen, 2);
@@ -140,7 +140,7 @@ test("Seen->Capture and Attempt Rate formulas", () => {
     encounter({ captureResult: "none" }) // seen but no attempt yet
   ];
 
-  const metrics = computeCurrentMetrics({ session, encounters, now: 1000 });
+  const metrics = computeSessionMetrics({ session, encounters, now: 1000 });
 
   assert.equal(metrics.seen, 4);
   assert.equal(metrics.captured, 1);

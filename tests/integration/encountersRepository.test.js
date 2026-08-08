@@ -70,3 +70,29 @@ test("getBySessionId returns only encounters for that session", async () => {
   const forUnknown = await repo.getBySessionId("does-not-exist");
   assert.equal(forUnknown.length, 0);
 });
+
+test("deleteBySessionId removes only that session's encounters", async () => {
+  const db = await setup();
+  const repo = createEncountersRepository(db);
+
+  await repo.create({ encounterId: "e1", sessionId: "s1", state: "started" });
+  await repo.create({ encounterId: "e2", sessionId: "s1", state: "success" });
+  await repo.create({ encounterId: "e3", sessionId: "s2", state: "started" });
+
+  await repo.deleteBySessionId("s1");
+
+  assert.equal((await repo.getBySessionId("s1")).length, 0);
+  assert.equal((await repo.getBySessionId("s2")).length, 1);
+  assert.equal((await repo.getAll()).length, 1);
+});
+
+test("deleteBySessionId on a session with no encounters is a safe no-op", async () => {
+  const db = await setup();
+  const repo = createEncountersRepository(db);
+
+  await repo.create({ encounterId: "e1", sessionId: "s1", state: "started" });
+
+  await repo.deleteBySessionId("does-not-exist");
+
+  assert.equal((await repo.getAll()).length, 1);
+});

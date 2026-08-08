@@ -53,5 +53,36 @@ export function createEncountersRepository(db) {
     return promisifyRequest(store.index("sessionId").getAll(sessionId));
   }
 
-  return { create, update, get, getAll, getBySessionId };
+  /**
+   * Deletes every encounter belonging to one session (History's delete
+   * control, Fase 4). Callers must run this BEFORE
+   * sessionsRepository.deleteSession(sessionId) — see that module's
+   * docstring for why the ordering matters.
+   */
+  function deleteBySessionId(sessionId) {
+    return new Promise((resolve, reject) => {
+      const store = db
+        .transaction(STORE_NAMES.ENCOUNTERS, "readwrite")
+        .objectStore(STORE_NAMES.ENCOUNTERS);
+
+      // A bare (non-IDBKeyRange) query is treated as an exact-match range.
+      const request = store.index("sessionId").openCursor(sessionId);
+
+      request.onsuccess = () => {
+        const cursor = request.result;
+
+        if (!cursor) {
+          resolve();
+          return;
+        }
+
+        cursor.delete();
+        cursor.continue();
+      };
+
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  return { create, update, get, getAll, getBySessionId, deleteBySessionId };
 }

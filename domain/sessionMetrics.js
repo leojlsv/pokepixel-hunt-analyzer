@@ -5,24 +5,17 @@
  * every number the Side Panel's Current view shows. No IndexedDB access
  * here — sidepanel/sidepanel.js does the fetching, this just computes.
  *
- * `Seen` only counts non-orphan encounters (an orphan never had a
- * combat.started, so it was never really "seen" the way the legacy
- * counter meant it). `Captured`/`Failed` count by `captureResult`
- * regardless of state — a capture attempt is real data even if its
- * encounter is an orphan.
+ * The rarity/seen/captured/failed bucketing (`Seen` excludes orphans,
+ * `Captured`/`Failed` count by `captureResult` regardless of state) lives
+ * in domain/rarityBreakdown.js — Compare's "By Rarity" theme needs the
+ * exact same aggregation over a different (filtered, cross-session)
+ * encounter set, so it's shared rather than duplicated.
  */
 
 import { activeMs as sessionActiveMs } from "./sessionTiming.js";
+import { QUALITIES, computeRarityBreakdown } from "./rarityBreakdown.js";
 
-export const QUALITIES = Object.freeze([
-  "weak",
-  "common",
-  "uncommon",
-  "rare",
-  "epic",
-  "legendary",
-  "mythical"
-]);
+export { QUALITIES };
 
 function emptyBucket() {
   return { seen: 0, captured: 0, failed: 0 };
@@ -32,10 +25,6 @@ function buildEmptyRarities() {
   const rarities = { unknown: emptyBucket() };
   for (const quality of QUALITIES) rarities[quality] = emptyBucket();
   return rarities;
-}
-
-function qualityKey(quality) {
-  return QUALITIES.includes(quality) ? quality : "unknown";
 }
 
 function perHour(amount, elapsedMs) {
@@ -70,7 +59,7 @@ function emptyMetrics() {
   };
 }
 
-export function computeCurrentMetrics({ session, encounters = [], now = Date.now() }) {
+export function computeSessionMetrics({ session, encounters = [], now = Date.now() }) {
   if (!session) return emptyMetrics();
 
   const elapsedMs = sessionActiveMs(session, now);
@@ -78,47 +67,15 @@ export function computeCurrentMetrics({ session, encounters = [], now = Date.now
   let trainerExp = 0;
   let pokemonExp = 0;
   let gold = 0;
-  let seen = 0;
-  let captured = 0;
-  let failed = 0;
-
-  const rarities = buildEmptyRarities();
-  const shiny = emptyBucket();
 
   for (const encounter of encounters) {
     trainerExp += Number(encounter.trainerExp) || 0;
     pokemonExp += Number(encounter.pokemonExp) || 0;
     gold += Number(encounter.gold) || 0;
-
-    const key = qualityKey(encounter.quality);
-    const isSeen = encounter.state !== "orphan";
-    const isCaptured = encounter.captureResult === "success";
-    const isFailed = encounter.captureResult === "failed";
-
-    if (isSeen) {
-      seen += 1;
-      rarities[key].seen += 1;
-      if (encounter.isShiny) shiny.seen += 1;
-    }
-
-    if (isCaptured) {
-      captured += 1;
-      rarities[key].captured += 1;
-      if (encounter.isShiny) shiny.captured += 1;
-    }
-
-    if (isFailed) {
-      failed += 1;
-      rarities[key].failed += 1;
-      if (encounter.isShiny) shiny.failed += 1;
-    }
   }
 
-  const rarePlusFailed =
-    rarities.rare.failed +
-    rarities.epic.failed +
-    rarities.legendary.failed +
-    rarities.mythical.failed;
+  const { seen, captured, failed, rarities, shiny, rarePlusFailed, hasUnknownQuality } =
+    computeRarityBreakdown(encounters);
 
   const status =
     session.status === "running"
@@ -126,9 +83,6 @@ export function computeCurrentMetrics({ session, encounters = [], now = Date.now
       : session.status === "paused"
         ? "paused"
         : "waiting";
-
-  const hasUnknownQuality =
-    rarities.unknown.seen + rarities.unknown.captured + rarities.unknown.failed > 0;
 
   return {
     status,

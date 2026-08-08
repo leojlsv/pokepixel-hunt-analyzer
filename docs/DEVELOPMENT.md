@@ -18,9 +18,11 @@ Keep manifest permissions narrow. Analytics failures must fail closed: the game 
 
 ## 2. Side Panel target
 
-Views: `Current`, `History`, `Compare`, `Config`.
+Views: `Current`, `History`, `Compare` (tabs; no separate `Config` view
+— removed in Phase 3, config detail does not surface as raw
+technical/UUID data anywhere in the UI, see docs/ARCHITECTURE.md §9).
 
-Current should show Hunt status/time, Trainer and Pokémon EXP totals/h, Dollar totals/h, Seen/Captured/Failed, rates, rarity, shiny and current config.
+Current should show Hunt status/time, Trainer and Pokémon EXP totals/h, Dollar totals/h, Seen/Captured/Failed, rates, rarity and shiny.
 
 Actions: `New Hunt`, `Pause/Resume`, `End Hunt`.
 
@@ -29,57 +31,19 @@ retired once `Current` reads only from the v1 data; the toolbar badge
 then derives from the v1 session/encounters, not from the legacy
 counter.
 
-History is paginated session history and detail.
-Compare aggregates by `species + level + config`.
-Config prefers protocol-derived `auto_capture`; EXP rate remains manual/unknown until protocol support is proven.
+History is paginated session history and detail (docs/ARCHITECTURE.md §9).
+Compare aggregates either by `species + level + config` ("By Cycle") or
+by rarity tier, identical to Current's own By Rarity table ("By Rarity"),
+selectable via a "Tema" toggle (docs/ARCHITECTURE.md §9).
+Capture config prefers protocol-derived `auto_capture`; EXP rate remains manual/unknown until protocol support is proven.
 
 ## 3. Export
 
-Sessions CSV:
-
-```text
-session_id
-started_at
-ended_at
-active_ms
-seen
-captured
-failed
-trainer_exp
-pokemon_exp
-gold
-trainer_exp_per_hour
-pokemon_exp_per_hour
-gold_per_hour
-```
-
-Encounters CSV:
-
-```text
-encounter_id
-session_id
-config_id
-group_key
-species_id
-level
-quality
-iv_total
-is_shiny
-started_at
-loot_at
-cycle_ms
-trainer_exp
-pokemon_exp
-gold
-capture_result
-capsule_item_id
-capture_chance
-supply_cost
-auto_sold
-auto_sell_value
-```
-
-JSON backup contains `formatVersion`, `appVersion`, `sessions`, `configs`, `encounters`. No raw/auth data.
+JSON only — no CSV (simplified during Fase 4 planning; earlier drafts of
+this document sketched CSV column sets, since removed). The backup
+contains `formatVersion`, `appVersion`, `sessions`, `configs`,
+`encounters` — a direct passthrough of already-fetched rows
+(`domain/export.js`). No raw/auth data.
 
 ## 4. Preview
 
@@ -143,7 +107,7 @@ No UI or WebSocket behavior change.
 ### Phase 4 — History + Compare + Export
 - history and filters;
 - grouped comparison;
-- CSV/JSON;
+- JSON export;
 - deletion controls.
 
 ### Phase 5 — Hardening + Release
@@ -178,7 +142,7 @@ Prefer small commits. Do not commit release ZIPs, user exports, temporary logs/d
 - wild-id reuse does not merge unrelated encounters;
 - session and cycle metrics are clearly separated;
 - Current, History and Compare work;
-- CSV/JSON export and deletion work;
+- JSON export and deletion work;
 - fixture regression passes;
 - no token/raw frame is persisted;
 - preview works.

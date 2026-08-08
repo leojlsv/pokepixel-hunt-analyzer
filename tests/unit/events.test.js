@@ -42,7 +42,10 @@ test("combat.started extracts enemy and session.auto_capture (raw)", () => {
       is_shiny: false,
       ivs: { atk: 3, def: 1, hp: 1, spa: 27, spd: 5, spe: 6 },
       map_id: 14,
-      zone_id: "zone_0001"
+      zone_id: "zone_0001",
+      elements: ["normal"],
+      gender: "female",
+      nature: "brave"
     },
     session: {
       id: "server_session_0001",
@@ -75,8 +78,29 @@ test("combat.started extracts enemy and session.auto_capture (raw)", () => {
   });
   assert.equal(normalized.enemy.map_id, 14);
   assert.equal(normalized.enemy.zone_id, "zone_0001");
+  assert.deepEqual(normalized.enemy.elements, ["normal"]);
+  assert.equal(normalized.enemy.gender, "female");
+  assert.equal(normalized.enemy.nature, "brave");
   assert.equal(normalized.session.id, "server_session_0001");
   assert.equal(normalized.session.auto_capture.min_quality, "common");
+});
+
+test("combat.started defaults elements/gender/nature to null when absent", () => {
+  const normalized = normalizeEvent("combat.started", {
+    enemy: { id: "wild_0001", species_id: "chansey" }
+  });
+
+  assert.equal(normalized.enemy.elements, null);
+  assert.equal(normalized.enemy.gender, null);
+  assert.equal(normalized.enemy.nature, null);
+});
+
+test("combat.started drops non-string entries from elements", () => {
+  const normalized = normalizeEvent("combat.started", {
+    enemy: { id: "wild_0001", species_id: "chansey", elements: ["dragon", 42, null, "flying"] }
+  });
+
+  assert.deepEqual(normalized.enemy.elements, ["dragon", "flying"]);
 });
 
 test("combat.started without enemy is dropped (null)", () => {

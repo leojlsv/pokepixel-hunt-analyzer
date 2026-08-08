@@ -63,6 +63,37 @@ h2 {
   font-size: 10px;
 }
 
+/* TABS */
+
+.tab-bar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.tab-button {
+  border: 1px solid #343434;
+  border-radius: 6px;
+  padding: 7px 6px;
+  background: #1d1d1d;
+  color: #999;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+
+.tab-button:hover {
+  background: #242424;
+}
+
+.tab-button.active {
+  border-color: #5b4c28;
+  background: #24231f;
+  color: #d8b866;
+}
+
 .actions-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -87,6 +118,16 @@ h2 {
 .action-button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+.action-button.danger {
+  margin-top: 12px;
+  border-color: #68434a;
+  color: #e59aa4;
+}
+
+.action-button.danger:hover {
+  background: #2c2020;
 }
 
 .section {
@@ -355,6 +396,68 @@ tbody tr:last-child td {
   font-size: 10px;
 }
 
+/* HISTORY / COMPARE */
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.filter-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #8f8f8f;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.filter-row input,
+.filter-row select {
+  border: 1px solid #373737;
+  border-radius: 6px;
+  padding: 6px 7px;
+  background: #1d1d1d;
+  color: #e7e7e7;
+  font: inherit;
+  font-size: 11px;
+}
+
+.filter-row .action-button {
+  align-self: flex-end;
+}
+
+#history-body tr {
+  cursor: pointer;
+}
+
+#history-body tr:hover td {
+  background: #2a2a2a;
+}
+
+#history-detail-panel {
+  margin-top: 10px;
+}
+
+.history-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.history-detail-actions .action-button.danger {
+  margin-top: 0;
+}
+
+#history-detail-summary {
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
 footer {
   margin-top: 13px;
   color: #707070;
@@ -371,7 +474,8 @@ footer {
     flex-direction: column;
   }
 
-  .actions-row {
+  .actions-row,
+  .tab-bar {
     grid-template-columns: 1fr;
   }
 

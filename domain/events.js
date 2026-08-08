@@ -8,11 +8,14 @@
  * plug directly into domain/config.js's `normalizeAutoCapture`, which
  * already expects that exact shape — no separate translation layer.
  *
- * `creature.level` and `creature.species_id` are intentionally NOT
- * extracted from capture.success: the doc explicitly forbids using the
- * captured creature's level as the target level (it can be a wholly
- * different value — e.g. an egg/baby level), and there is no documented
- * analytics use for creature.species_id.
+ * `creature.level`, `creature.species_id`, `creature.elements`,
+ * `creature.gender`, `creature.nature` and `creature.ivs` are
+ * intentionally NOT extracted from capture.success: the doc explicitly
+ * forbids using the captured creature's level as the target level (it can
+ * be a wholly different value — e.g. an egg/baby level), and the same
+ * policy extends to every other per-individual attribute the captured
+ * creature carries — the target's own snapshot from `combat.started` is
+ * the only source of truth for those fields.
  */
 
 export const EVENT_TYPES = Object.freeze([
@@ -41,6 +44,11 @@ function plainObjectOrNull(value) {
   return value && typeof value === "object" ? value : null;
 }
 
+function strArrayOrNull(value) {
+  if (!Array.isArray(value)) return null;
+  return value.filter((item) => typeof item === "string");
+}
+
 function normalizeCombatStarted(data) {
   const enemy = plainObjectOrNull(data.enemy);
   if (!enemy) return null;
@@ -56,7 +64,14 @@ function normalizeCombatStarted(data) {
       is_shiny: bool(enemy.is_shiny),
       ivs: plainObjectOrNull(enemy.ivs),
       map_id: num(enemy.map_id),
-      zone_id: str(enemy.zone_id)
+      zone_id: str(enemy.zone_id),
+      // Fase 4 subtask — confirmed in a real capture
+      // (combat.started.data.enemy): array of element strings, and two
+      // plain informational values (not validated against a fixed enum;
+      // the game's own value set drives any UI built on top of these).
+      elements: strArrayOrNull(enemy.elements),
+      gender: str(enemy.gender),
+      nature: str(enemy.nature)
     },
     session: session
       ? {

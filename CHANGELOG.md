@@ -91,8 +91,72 @@ migrating the UI to the new data is Phase 3.
   `chrome.storage.session` counter. The toolbar badge now derives from v1
   session/encounter data (`refreshBadge`) instead of that counter.
 
-### Planned
-- History, Compare and CSV/JSON export (Phase 4).
+### Added — Phase 4 (History + Compare + Export)
+- **Qualitative protocol fields**: `combat.started.data.enemy.elements`/
+  `.gender`/`.nature` are now extracted (`hook.js`, `domain/events.js`)
+  and carried onto the encounter row (`domain/encounterTracker.js`) —
+  same snapshot-at-`combat.started`, never-overwritten-by-
+  `capture.success.creature` policy already used for `level`/`quality`.
+  `elements` (an array, e.g. `["dragon","flying"]`) is also a Compare
+  filter; `gender`/`nature` are display-only. The already-persisted
+  `ivTotal` is now shown in History as `n/186`.
+- **History tab**: paginated, most-recent-first session list
+  (`data/sessionsRepository.js` `getPage`, keyset pagination over a new
+  `sessions.startedAtMs` index — migration v2, the project's first real
+  schema upgrade) with a from/to date filter reusing the same index.
+  Selecting a session shows its metrics plus a per-encounter table
+  (species, level, quality, elements, gender, IV total, shiny, result) —
+  no technical IDs.
+- **Compare tab**: groups encounters by `groupKey` in memory
+  (`domain/groupMetrics.js`, Cycle EXP/h per
+  `docs/PROTOCOL_AND_ANALYTICS.md §11`), with three `All (*)`-first
+  dropdown filters (Pokémon / Pokébola / Elemento) populated from the
+  distinct values actually present in the data. Config shown only as an
+  8-character `configId` prefix.
+- **JSON export**: a "Exportar backup (JSON)" button in History downloads
+  `{ formatVersion, appVersion, sessions, configs, encounters }`
+  (`domain/export.js`) via `Blob` + `<a download>` — no `downloads`
+  permission needed. CSV was dropped from scope during planning.
+- **Deletion**: History's detail panel can delete a session and its
+  encounters (`sessionsRepository.deleteSession` +
+  `encountersRepository.deleteBySessionId`, confirmation prompt); never
+  touches `configs`, clears the current-session pointer only if the
+  deleted session was current.
+- Side Panel navigation is now tab-based (`Current`/`History`/`Compare`);
+  only `Current` polls every second, History/Compare load on tab switch
+  or after a mutating action. `preview.html`/`preview.js` mirror all
+  three tabs with deterministic mock data (including mock
+  elements/gender/ivTotal), still independent of any `chrome.*` API.
+- `domain/sessionMetrics.js`'s `computeCurrentMetrics` renamed to
+  `computeSessionMetrics` (History reuses it for past sessions; identical
+  behavior).
+
+### Fixed — Compare tab
+- **Pokébola/Elemento filters never populated**: `populateSelect`'s
+  optional-override parameters were named `valueOf`/`labelOf`. A plain
+  object always inherits `Object.prototype.valueOf`, so the default
+  `{ valueOf = (o) => o } = {}` never actually applied when a caller
+  didn't pass an override — the borrowed native `valueOf` ran instead
+  and threw the moment it was called, aborting `loadCompare()`/
+  `renderCompare()` partway through. Renamed to `toValue`/`toLabel`
+  (`sidepanel/sidepanel.js`, `sidepanel/preview.js`) to stop shadowing
+  any `Object.prototype` member.
+- Pokémon names are now capitalized in Compare (table rows and the
+  Pokémon filter's options) — a species with no `speciesName` yet
+  (unresolved encounter) previously fell back to the raw lowercase
+  `species_id` slug.
+- Removed the Config column from the Compare table — `groupKey` already
+  encodes the config; the raw id added nothing for the user and was
+  never meant to be surfaced as its own column (`docs/ARCHITECTURE.md
+  §9`).
+- Added a "Tema" (By Cycle / By Rarity) selector to Compare: By Cycle is
+  the pre-existing species+level+config grouping (minus the Config
+  column); By Rarity is new and is the exact same table as Current's own
+  By Rarity — all 7 rarity tiers, Seen/Captured/Failed/Rate — computed
+  over Compare's filtered encounters instead of one session's. Extracted
+  the shared bucketing logic into `domain/rarityBreakdown.js`
+  (`computeRarityBreakdown()`), which `domain/sessionMetrics.js` now
+  calls internally too, instead of duplicating it.
 
 ## [0.3.0]
 

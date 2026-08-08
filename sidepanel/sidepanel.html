@@ -16,183 +16,401 @@
       <div>
         <h1>PokePixel Hunt Counter</h1>
         <p class="muted">
-          Current · dados da sessão local (v1)
+          Dados da sessão local (v1)
         </p>
       </div>
     </header>
 
-    <section
-      class="actions-row"
-      aria-label="Ações da Hunt"
-    >
+    <nav class="tab-bar" aria-label="Views">
       <button
-        id="new-hunt-button"
-        class="action-button"
+        class="tab-button"
+        data-view="current"
         type="button"
       >
-        New Hunt
+        Current
       </button>
 
       <button
-        id="pause-resume-button"
-        class="action-button"
+        class="tab-button"
+        data-view="history"
         type="button"
       >
-        Pause
+        History
       </button>
 
       <button
-        id="end-hunt-button"
-        class="action-button"
+        class="tab-button"
+        data-view="compare"
         type="button"
       >
-        End Hunt
+        Compare
       </button>
-    </section>
+    </nav>
 
-    <section class="section hunt-section">
-      <div class="section-title-row">
-        <h2>Hunt</h2>
-
-        <span
-          id="hunt-status"
-          class="status-badge"
+    <div id="view-current">
+      <section
+        class="actions-row"
+        aria-label="Ações da Hunt"
+      >
+        <button
+          id="new-hunt-button"
+          class="action-button"
+          type="button"
         >
-          Waiting
-        </span>
-      </div>
+          New Hunt
+        </button>
 
-      <div class="hunt-metrics">
-        <article class="hunt-metric hunt-time">
-          <span class="label">Tempo</span>
-          <strong id="hunt-time">00:00</strong>
+        <button
+          id="pause-resume-button"
+          class="action-button"
+          type="button"
+        >
+          Pause
+        </button>
+
+        <button
+          id="end-hunt-button"
+          class="action-button"
+          type="button"
+        >
+          End Hunt
+        </button>
+      </section>
+
+      <section class="section hunt-section">
+        <div class="section-title-row">
+          <h2>Hunt</h2>
+
+          <span
+            id="hunt-status"
+            class="status-badge"
+          >
+            Waiting
+          </span>
+        </div>
+
+        <div class="hunt-metrics">
+          <article class="hunt-metric hunt-time">
+            <span class="label">Tempo</span>
+            <strong id="hunt-time">00:00</strong>
+          </article>
+
+          <article class="hunt-metric">
+            <span class="label">EXP/h Treinador</span>
+            <strong id="trainer-exp-hour">—</strong>
+            <small>
+              Total:
+              <span id="trainer-exp-total">0</span>
+            </small>
+          </article>
+
+          <article class="hunt-metric">
+            <span class="label">EXP/h Pokémon</span>
+            <strong id="pokemon-exp-hour">—</strong>
+            <small>
+              Total:
+              <span id="pokemon-exp-total">0</span>
+            </small>
+          </article>
+
+          <article class="hunt-metric">
+            <span class="label">Dólar/h</span>
+            <strong id="dollars-hour">—</strong>
+            <small>
+              Total:
+              <span id="dollars-total">0</span>
+            </small>
+          </article>
+        </div>
+      </section>
+
+      <section
+        class="summary-grid"
+        aria-label="Resumo de captura"
+      >
+        <article class="summary-card">
+          <span class="label">Seen</span>
+          <strong id="total-seen">0</strong>
         </article>
 
-        <article class="hunt-metric">
-          <span class="label">EXP/h Treinador</span>
-          <strong id="trainer-exp-hour">—</strong>
-          <small>
-            Total:
-            <span id="trainer-exp-total">0</span>
-          </small>
+        <article class="summary-card">
+          <span class="label">Captured</span>
+          <strong id="total-captured">0</strong>
         </article>
 
-        <article class="hunt-metric">
-          <span class="label">EXP/h Pokémon</span>
-          <strong id="pokemon-exp-hour">—</strong>
-          <small>
-            Total:
-            <span id="pokemon-exp-total">0</span>
-          </small>
+        <article class="summary-card">
+          <span class="label">Failed</span>
+          <strong id="total-failed">0</strong>
         </article>
 
-        <article class="hunt-metric">
-          <span class="label">Dólar/h</span>
-          <strong id="dollars-hour">—</strong>
-          <small>
-            Total:
-            <span id="dollars-total">0</span>
-          </small>
+        <article class="summary-card accent-card">
+          <span class="label">Rare+ Failed</span>
+          <strong id="rare-plus-failed">0</strong>
         </article>
-      </div>
-    </section>
+      </section>
 
-    <section
-      class="summary-grid"
-      aria-label="Resumo de captura"
-    >
-      <article class="summary-card">
-        <span class="label">Seen</span>
-        <strong id="total-seen">0</strong>
-      </article>
-
-      <article class="summary-card">
-        <span class="label">Captured</span>
-        <strong id="total-captured">0</strong>
-      </article>
-
-      <article class="summary-card">
-        <span class="label">Failed</span>
-        <strong id="total-failed">0</strong>
-      </article>
-
-      <article class="summary-card accent-card">
-        <span class="label">Rare+ Failed</span>
-        <strong id="rare-plus-failed">0</strong>
-      </article>
-    </section>
-
-    <section
-      class="rate-row"
-      aria-label="Taxas de captura"
-    >
-      <div>
-        <span>Seen → Capture</span>
-        <strong id="seen-rate">—</strong>
-      </div>
-
-      <div>
-        <span>Attempt Rate</span>
-        <strong id="attempt-rate">—</strong>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="section-title-row">
-        <h2>By Rarity</h2>
-        <span class="muted">
-          Seen · Captured · Failed
-        </span>
-      </div>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Rarity</th>
-              <th>Seen</th>
-              <th>Cap.</th>
-              <th>Fail</th>
-              <th>Rate</th>
-            </tr>
-          </thead>
-
-          <tbody id="rarity-body"></tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="section shiny-section">
-      <div class="section-title-row">
-        <h2>Shiny</h2>
-      </div>
-
-      <div class="shiny-grid">
+      <section
+        class="rate-row"
+        aria-label="Taxas de captura"
+      >
         <div>
-          <span>Seen</span>
-          <strong id="shiny-seen">0</strong>
+          <span>Seen → Capture</span>
+          <strong id="seen-rate">—</strong>
         </div>
 
         <div>
-          <span>Captured</span>
-          <strong id="shiny-captured">0</strong>
+          <span>Attempt Rate</span>
+          <strong id="attempt-rate">—</strong>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title-row">
+          <h2>By Rarity</h2>
+          <span class="muted">
+            Seen · Captured · Failed
+          </span>
         </div>
 
-        <div>
-          <span>Failed</span>
-          <strong id="shiny-failed">0</strong>
-        </div>
-      </div>
-    </section>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Rarity</th>
+                <th>Seen</th>
+                <th>Cap.</th>
+                <th>Fail</th>
+                <th>Rate</th>
+              </tr>
+            </thead>
 
-    <p
-      id="unknown-warning"
-      class="warning"
-      hidden
-    >
-      Rarity desconhecida detectada.
-      O protocolo do jogo pode ter mudado.
-    </p>
+            <tbody id="rarity-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section shiny-section">
+        <div class="section-title-row">
+          <h2>Shiny</h2>
+        </div>
+
+        <div class="shiny-grid">
+          <div>
+            <span>Seen</span>
+            <strong id="shiny-seen">0</strong>
+          </div>
+
+          <div>
+            <span>Captured</span>
+            <strong id="shiny-captured">0</strong>
+          </div>
+
+          <div>
+            <span>Failed</span>
+            <strong id="shiny-failed">0</strong>
+          </div>
+        </div>
+      </section>
+
+      <p
+        id="unknown-warning"
+        class="warning"
+        hidden
+      >
+        Rarity desconhecida detectada.
+        O protocolo do jogo pode ter mudado.
+      </p>
+    </div>
+
+    <div id="view-history" hidden>
+      <section class="section">
+        <div class="section-title-row">
+          <h2>History</h2>
+
+          <button
+            id="export-json-button"
+            class="action-button"
+            type="button"
+          >
+            Exportar backup (JSON)
+          </button>
+        </div>
+
+        <div id="history-list-panel">
+          <div class="filter-row">
+            <label>
+              De
+              <input
+                id="history-filter-from"
+                type="date"
+              >
+            </label>
+
+            <label>
+              Até
+              <input
+                id="history-filter-to"
+                type="date"
+              >
+            </label>
+
+            <button
+              id="history-filter-apply"
+              class="action-button"
+              type="button"
+            >
+              Filtrar
+            </button>
+
+            <button
+              id="history-filter-clear"
+              class="action-button"
+              type="button"
+            >
+              Limpar
+            </button>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Início</th>
+                  <th>Duração</th>
+                  <th>Seen</th>
+                  <th>Cap.</th>
+                  <th>Fail</th>
+                  <th></th>
+                </tr>
+              </thead>
+
+              <tbody id="history-body"></tbody>
+            </table>
+          </div>
+
+          <p
+            id="history-empty"
+            class="muted"
+            hidden
+          >
+            Nenhuma Hunt no histórico ainda.
+          </p>
+
+          <button
+            id="history-load-more"
+            class="action-button"
+            type="button"
+            hidden
+          >
+            Carregar mais
+          </button>
+        </div>
+
+        <div id="history-detail-panel" hidden>
+          <div class="history-detail-actions">
+            <button
+              id="history-back-button"
+              class="action-button"
+              type="button"
+            >
+              ← Voltar
+            </button>
+
+            <button
+              id="history-delete-button"
+              class="action-button danger"
+              type="button"
+            >
+              Apagar esta sessão
+            </button>
+          </div>
+
+          <div
+            id="history-detail-summary"
+            class="rate-row"
+          ></div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Espécie</th>
+                  <th>Nv</th>
+                  <th>Quality</th>
+                  <th>Elementos</th>
+                  <th>Gênero</th>
+                  <th>IV (/186)</th>
+                  <th>Shiny</th>
+                  <th>Resultado</th>
+                </tr>
+              </thead>
+
+              <tbody id="history-detail-encounters"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <div id="view-compare" hidden>
+      <section class="section">
+        <div class="section-title-row">
+          <h2>Compare</h2>
+          <span id="compare-subtitle" class="muted"></span>
+        </div>
+
+        <div class="filter-row">
+          <label>
+            Tema
+            <select id="compare-theme-select">
+              <option value="cycle">By Cycle</option>
+              <option value="rarity">By Rarity</option>
+            </select>
+          </label>
+
+          <label>
+            Pokémon
+            <select id="compare-filter-species"></select>
+          </label>
+
+          <label>
+            Pokébola
+            <select id="compare-filter-capsule"></select>
+          </label>
+
+          <label>
+            Elemento
+            <select id="compare-filter-element"></select>
+          </label>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr id="compare-head-row">
+                <th>Pokémon</th>
+                <th>Nv</th>
+                <th>Seen</th>
+                <th>Cap.</th>
+                <th>Fail</th>
+                <th>EXP/Cycle h</th>
+                <th>$/Cycle h</th>
+              </tr>
+            </thead>
+
+            <tbody id="compare-body"></tbody>
+          </table>
+        </div>
+
+        <p
+          id="compare-empty"
+          class="muted"
+          hidden
+        >
+          Nenhum encontro registrado ainda.
+        </p>
+      </section>
+    </div>
 
     <footer>
       Ctrl+Shift+7 · Hunt local (v1)

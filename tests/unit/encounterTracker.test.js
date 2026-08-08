@@ -24,7 +24,18 @@ function envelope(type, rawData, { socketId = 1, seq, ts }) {
   return { type, socketId, seq, ts, data };
 }
 
-function combatStarted(wildId, { level = 90, quality = "common", ts, seq }) {
+function combatStarted(
+  wildId,
+  {
+    level = 90,
+    quality = "common",
+    elements = ["normal"],
+    gender = "female",
+    nature = "brave",
+    ts,
+    seq
+  }
+) {
   return envelope(
     "combat.started",
     {
@@ -36,7 +47,10 @@ function combatStarted(wildId, { level = 90, quality = "common", ts, seq }) {
         is_shiny: false,
         ivs: { atk: 3, def: 1, hp: 1, spa: 27, spd: 5, spe: 6 },
         map_id: 14,
-        zone_id: "zone_0001"
+        zone_id: "zone_0001",
+        elements,
+        gender,
+        nature
       },
       session: {
         id: "server_session_0001",
@@ -341,13 +355,22 @@ test("nested success quality / captured level never overwrite the combat.started
 
   const started = applyEvent(
     state,
-    combatStarted("wild_1", { ts: 1000, seq: 1, level: 90, quality: "common" }),
+    combatStarted("wild_1", {
+      ts: 1000,
+      seq: 1,
+      level: 90,
+      quality: "common",
+      elements: ["normal"],
+      gender: "female",
+      nature: "brave"
+    }),
     nextId
   );
   state = started.state;
   const startedRow = started.effects[1].row;
   assert.equal(startedRow.level, 90);
   assert.equal(startedRow.quality, "common");
+  assert.deepEqual(startedRow.elements, ["normal"]);
 
   ({ state } = applyEvent(state, lootReceived("wild_1", { ts: 1500, seq: 2 }), nextId));
 
@@ -366,9 +389,13 @@ test("nested success quality / captured level never overwrite the combat.started
   const finalize = result.effects.find((e) => e.type === "encounter.finalize");
   assert.equal(finalize.patch.level, undefined);
   assert.equal(finalize.patch.quality, undefined);
+  assert.equal(finalize.patch.elements, undefined);
+  assert.equal(finalize.patch.gender, undefined);
+  assert.equal(finalize.patch.nature, undefined);
 
   // The row a repository would persist merges patch over the original draft.
   const persisted = { ...startedRow, ...finalize.patch };
   assert.equal(persisted.level, 90);
   assert.equal(persisted.quality, "common");
+  assert.deepEqual(persisted.elements, ["normal"]);
 });

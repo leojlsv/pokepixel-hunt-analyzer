@@ -42,7 +42,20 @@ function applyV1(db) {
   encounters.createIndex("startedAtMs", "startedAtMs", { unique: false });
 }
 
-const MIGRATIONS = new Map([[1, applyV1]]);
+// v2 (Fase 4): `sessions` had no index at all — History's paginated,
+// recency-ordered list needs one. Adding an index to an EXISTING store
+// requires the upgrade transaction, not just `db` (only creating a
+// brand-new store needs just `db`, which is why applyV1 doesn't take one).
+function applyV2(db, transaction) {
+  transaction
+    .objectStore(STORE_NAMES.SESSIONS)
+    .createIndex("startedAtMs", "startedAtMs", { unique: false });
+}
+
+const MIGRATIONS = new Map([
+  [1, applyV1],
+  [2, applyV2]
+]);
 
 export const SCHEMA_VERSION = Math.max(...MIGRATIONS.keys());
 
@@ -50,9 +63,11 @@ export const SCHEMA_VERSION = Math.max(...MIGRATIONS.keys());
  * Runs every migration between `oldVersion` (exclusive) and `newVersion`
  * (inclusive) against `db`, in order. Called from inside
  * IDBOpenDBRequest.onupgradeneeded (data/db.js), which is the only place
- * IndexedDB allows object store/index creation.
+ * IndexedDB allows object store/index creation. `transaction` is the
+ * upgrade transaction — required by migrations that alter an existing
+ * store rather than create a new one.
  */
-export function runMigrations(db, oldVersion, newVersion) {
+export function runMigrations(db, oldVersion, newVersion, transaction) {
   for (let version = oldVersion + 1; version <= newVersion; version += 1) {
     const migrate = MIGRATIONS.get(version);
 
@@ -62,6 +77,6 @@ export function runMigrations(db, oldVersion, newVersion) {
       );
     }
 
-    migrate(db);
+    migrate(db, transaction);
   }
 }

@@ -65,6 +65,13 @@ function draftRow({ encounterId, wildMonsterId, socketId, envelope, enemy, sessi
     isShiny: enemy.is_shiny,
     mapId: enemy.map_id,
     zoneId: enemy.zone_id,
+    // Fase 4 subtask — snapshot from combat.started only, same policy as
+    // level/quality/ivTotal above: capture.success.creature never
+    // overwrites these (see applyCaptureResult's `shared` patch below,
+    // which deliberately omits them).
+    elements: enemy.elements,
+    gender: enemy.gender,
+    nature: enemy.nature,
     startedAtMs: envelope.ts,
     lootAtMs: null,
     captureAtMs: null,
@@ -101,6 +108,9 @@ function orphanRow({ encounterId, wildMonsterId, socketId, envelope, patch }) {
     isShiny: null,
     mapId: null,
     zoneId: null,
+    elements: null,
+    gender: null,
+    nature: null,
     startedAtMs: null,
     lootAtMs: null,
     captureAtMs: null,
@@ -255,10 +265,13 @@ function applyCaptureResult(state, envelope, resultType) {
   if (resultType === "success") {
     shared.autoSold = data.auto_sold;
     shared.autoSellValue = data.auto_sell_value;
-    // Deliberately NOT copying creature.level/creature.quality/
-    // creature.ivs into level/quality/ivTotal — docs/PROTOCOL_AND_ANALYTICS.md
-    // §5 forbids overwriting the target level (and empirically, quality
-    // is already stable from combat.started — see tests/fixtures README).
+    // Deliberately NOT copying creature.level/quality/ivs/elements/gender/
+    // nature — docs/PROTOCOL_AND_ANALYTICS.md §5 forbids overwriting the
+    // target level (and empirically, quality is already stable from
+    // combat.started — see tests/fixtures README); the same policy
+    // extends to every other per-individual attribute of the captured
+    // creature. domain/events.js's normalizeCaptureSuccess() doesn't even
+    // extract those creature fields, so there's nothing to copy from here.
   }
 
   if (!existing) {

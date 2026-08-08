@@ -36,7 +36,10 @@ import {
 
 const CURRENT_SESSION_KEY = "currentSessionId";
 
-export function createSessionsRepository(db, { now = Date.now } = {}) {
+export function createSessionsRepository(
+  db,
+  { now = Date.now, IDBKeyRange = globalThis.IDBKeyRange } = {}
+) {
   const sessions = createRepository(db, STORE_NAMES.SESSIONS);
   const meta = createRepository(db, STORE_NAMES.META);
 
@@ -195,6 +198,59 @@ export function createSessionsRepository(db, { now = Date.now } = {}) {
     return readCurrent();
   }
 
+  /**
+   * Keyset-paginated History query (docs/DEVELOPMENT.md §6 "history and
+   * filters") over the `startedAtMs` index (migration v2) — most recent
+   * first, up to `limit` rows with `after <= startedAtMs < before`.
+   * Callers page forward by passing the last row's `startedAtMs` as the
+   * next call's `before`; the same `after`/`before` pair also serves as a
+   * plain date-range filter.
+   */
+  function getPage({ limit = 20, before = Infinity, after = -Infinity } = {}) {
+    return new Promise((resolve, reject) => {
+      const store = db
+        .transaction(STORE_NAMES.SESSIONS, "readonly")
+        .objectStore(STORE_NAMES.SESSIONS);
+
+      const range = IDBKeyRange.bound(after, before, false, true);
+      const request = store.index("startedAtMs").openCursor(range, "prev");
+      const results = [];
+
+      request.onsuccess = () => {
+        const cursor = request.result;
+
+        if (!cursor || results.length >= limit) {
+          resolve(results);
+          return;
+        }
+
+        results.push(cursor.value);
+        cursor.continue();
+      };
+
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  /**
+   * Deletes one session row and, if it was the current one, clears the
+   * `meta` pointer too (the next real activity then starts a clean new
+   * session instead of pointing at a deleted row). Does NOT delete the
+   * session's encounters — callers must call
+   * encountersRepository.deleteBySessionId(sessionId) themselves, and do
+   * it FIRST: if a failure happens between the two calls, an orphaned
+   * session row (safely re-deletable) is preferable to encounters
+   * pointing at a sessionId that no longer exists.
+   */
+  async function deleteSession(sessionId) {
+    await sessions.delete(sessionId);
+
+    const currentSessionId = await meta.get(CURRENT_SESSION_KEY);
+    if (currentSessionId === sessionId) {
+      await meta.delete(CURRENT_SESSION_KEY);
+    }
+  }
+
   return {
     getOrStartCurrent,
     touchActivityAutomatic,
@@ -205,6 +261,8 @@ export function createSessionsRepository(db, { now = Date.now } = {}) {
     recoverOnStartup,
     adoptServerContext,
     forceNewSession,
-    getCurrentReadOnly
+    getCurrentReadOnly,
+    getPage,
+    deleteSession
   };
 }

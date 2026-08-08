@@ -1,9 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { IDBFactory } from "fake-indexeddb";
+import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 
 import { openDatabase, STORE_NAMES } from "../../data/db.js";
 import { createRepository } from "../../data/repository.js";
+import { createConfigsRepository } from "../../data/configsRepository.js";
+import { buildCanonicalConfig } from "../../domain/config.js";
 import { createSessionsRepository } from "../../data/sessionsRepository.js";
 
 async function setup() {
@@ -283,4 +285,131 @@ test("forceNewSession (New Hunt) always clears a manual lock, even right after E
   assert.notEqual(fresh.sessionId, ended.sessionId);
   assert.equal(fresh.status, "running");
   assert.equal(fresh.locked, false);
+});
+
+// --- History: getPage (Fase 4) ---
+
+async function seedSessions(db, rows) {
+  const raw = createRepository(db, STORE_NAMES.SESSIONS);
+  for (const row of rows) {
+    await raw.put({
+      sessionId: row.sessionId,
+      status: "ended",
+      startedAtMs: row.startedAtMs,
+      endedAtMs: row.startedAtMs + 1000,
+      activeStartedAtMs: null,
+      accumulatedActiveMs: 1000,
+      lastActivityAtMs: row.startedAtMs,
+      serverSessionId: null,
+      zoneId: null,
+      locked: false,
+      createdAtMs: row.startedAtMs,
+      updatedAtMs: row.startedAtMs
+    });
+  }
+}
+
+test("getPage returns sessions most-recent-first", async () => {
+  const db = await setup();
+  await seedSessions(db, [
+    { sessionId: "s1", startedAtMs: 1000 },
+    { sessionId: "s2", startedAtMs: 3000 },
+    { sessionId: "s3", startedAtMs: 2000 }
+  ]);
+
+  const repo = createSessionsRepository(db, { IDBKeyRange });
+  const page = await repo.getPage();
+
+  assert.deepEqual(
+    page.map((s) => s.sessionId),
+    ["s2", "s3", "s1"]
+  );
+});
+
+test("getPage respects limit and supports next-page via `before`", async () => {
+  const db = await setup();
+  await seedSessions(db, [
+    { sessionId: "s1", startedAtMs: 1000 },
+    { sessionId: "s2", startedAtMs: 2000 },
+    { sessionId: "s3", startedAtMs: 3000 }
+  ]);
+
+  const repo = createSessionsRepository(db, { IDBKeyRange });
+
+  const firstPage = await repo.getPage({ limit: 2 });
+  assert.deepEqual(firstPage.map((s) => s.sessionId), ["s3", "s2"]);
+
+  const nextPage = await repo.getPage({
+    limit: 2,
+    before: firstPage[firstPage.length - 1].startedAtMs
+  });
+  assert.deepEqual(nextPage.map((s) => s.sessionId), ["s1"]);
+});
+
+test("getPage filters by date range with after/before", async () => {
+  const db = await setup();
+  await seedSessions(db, [
+    { sessionId: "s1", startedAtMs: 1000 },
+    { sessionId: "s2", startedAtMs: 2000 },
+    { sessionId: "s3", startedAtMs: 3000 }
+  ]);
+
+  const repo = createSessionsRepository(db, { IDBKeyRange });
+  const page = await repo.getPage({ after: 1500, before: 2500 });
+
+  assert.deepEqual(page.map((s) => s.sessionId), ["s2"]);
+});
+
+// --- History: deleteSession (Fase 4) ---
+
+test("deleteSession removes the row", async () => {
+  const db = await setup();
+  await seedSessions(db, [{ sessionId: "s1", startedAtMs: 1000 }]);
+
+  const repo = createSessionsRepository(db);
+  await repo.deleteSession("s1");
+
+  const raw = createRepository(db, STORE_NAMES.SESSIONS);
+  assert.equal(await raw.get("s1"), undefined);
+});
+
+test("deleteSession clears the meta pointer when the deleted session was current", async () => {
+  const db = await setup();
+  const repo = createSessionsRepository(db, { now: () => 0 });
+
+  const current = await repo.getOrStartCurrent();
+  await repo.deleteSession(current.sessionId);
+
+  assert.equal(await repo.getCurrentReadOnly(), null);
+
+  // The next activity starts a brand new session, not a resurrected one.
+  const next = await repo.getOrStartCurrent();
+  assert.notEqual(next.sessionId, current.sessionId);
+});
+
+test("deleteSession leaves the meta pointer alone when deleting a non-current session", async () => {
+  const db = await setup();
+  const repo = createSessionsRepository(db, { now: () => 0 });
+
+  const current = await repo.getOrStartCurrent();
+  await seedSessions(db, [{ sessionId: "old-session", startedAtMs: -1000 }]);
+
+  await repo.deleteSession("old-session");
+
+  const stillCurrent = await repo.getCurrentReadOnly();
+  assert.equal(stillCurrent.sessionId, current.sessionId);
+});
+
+test("deleteSession never touches configs", async () => {
+  const db = await setup();
+  const repo = createSessionsRepository(db, { now: () => 0 });
+  const configs = createConfigsRepository(db);
+
+  const current = await repo.getOrStartCurrent();
+  await configs.getOrCreate(buildCanonicalConfig({}));
+
+  await repo.deleteSession(current.sessionId);
+
+  const raw = createRepository(db, STORE_NAMES.CONFIGS);
+  assert.equal((await raw.getAll()).length, 1);
 });

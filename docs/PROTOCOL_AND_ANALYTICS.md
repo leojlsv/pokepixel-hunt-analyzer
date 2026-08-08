@@ -30,9 +30,18 @@ enemy.is_shiny
 enemy.ivs
 enemy.map_id
 enemy.zone_id
+enemy.elements
+enemy.gender
+enemy.nature
 session.id
 session.auto_capture
 ```
+
+`enemy.elements` (array of strings), `enemy.gender` and `enemy.nature`
+are confirmed straight from a real capture
+(`combat.started.data.enemy`, Fase 4). `elements` is the only one of the
+three used for anything beyond display (a Compare filter); the game's
+own observed values populate that filter, not a hardcoded element list.
 
 The game `session.id` is metadata (`serverSessionId`), not the local `session_id`.
 `session.summary` is cumulative; do not sum snapshots as incremental rewards.
@@ -103,6 +112,14 @@ creature.ivs
 
 Do not use `creature.level` as target level. Keep the target level captured at `combat.started`.
 `auto_sold = true` is still a successful capture.
+
+The captured creature also carries `elements`, `gender` and `nature`
+(confirmed in a real capture, Fase 4) — none of these are extracted.
+Same reasoning as `creature.level`: the captured individual is not
+necessarily the same as the target snapshotted at `combat.started` (its
+own `level` already proves that), so nothing about it overwrites that
+snapshot. `combat.started.data.enemy.elements/gender/nature` (§2) is the
+only source for those fields.
 
 ## 6. Correlation
 

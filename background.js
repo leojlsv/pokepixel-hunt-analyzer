@@ -13,7 +13,7 @@ import { openDatabase } from "./data/db.js";
 import { createEventPipeline } from "./services/eventPipeline.js";
 import { createSessionsRepository } from "./data/sessionsRepository.js";
 import { createEncountersRepository } from "./data/encountersRepository.js";
-import { computeCurrentMetrics } from "./domain/sessionMetrics.js";
+import { computeSessionMetrics } from "./domain/sessionMetrics.js";
 
 let updateQueue = Promise.resolve();
 
@@ -52,7 +52,7 @@ async function refreshBadge() {
     ? await encountersRepo.getBySessionId(session.sessionId)
     : [];
 
-  const metrics = computeCurrentMetrics({ session, encounters, now: Date.now() });
+  const metrics = computeSessionMetrics({ session, encounters, now: Date.now() });
 
   await chrome.action.setBadgeText({
     text: metrics.rarePlusFailed > 0 ? String(metrics.rarePlusFailed) : ""

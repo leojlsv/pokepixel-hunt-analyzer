@@ -86,3 +86,51 @@ test("rejects when no IndexedDB implementation is available", async () => {
     openDatabase({ indexedDBFactory: undefined })
   );
 });
+
+test("upgrading v1 -> v2 adds sessions.startedAtMs without touching existing data", async () => {
+  const indexedDBFactory = freshIndexedDBFactory();
+
+  // Open at v1 only — simulates a real user's browser that installed the
+  // extension before this migration shipped.
+  const v1 = await openDatabase({ indexedDBFactory, version: 1 });
+
+  const seedSession = { sessionId: "s1", status: "ended", startedAtMs: 1000 };
+  await new Promise((resolve, reject) => {
+    const request = v1
+      .transaction(STORE_NAMES.SESSIONS, "readwrite")
+      .objectStore(STORE_NAMES.SESSIONS)
+      .put(seedSession);
+    request.onsuccess = resolve;
+    request.onerror = () => reject(request.error);
+  });
+
+  assert.equal(
+    v1.transaction(STORE_NAMES.SESSIONS).objectStore(STORE_NAMES.SESSIONS).indexNames
+      .length,
+    0
+  );
+
+  v1.close();
+
+  // Reopen at the real current version — triggers the v1 -> v2 upgrade.
+  const v2 = await openDatabase({ indexedDBFactory, version: SCHEMA_VERSION });
+
+  try {
+    assert.equal(v2.version, SCHEMA_VERSION);
+
+    const tx = v2.transaction(STORE_NAMES.SESSIONS, "readonly");
+    const store = tx.objectStore(STORE_NAMES.SESSIONS);
+
+    assert.deepEqual(Array.from(store.indexNames), ["startedAtMs"]);
+
+    const preserved = await new Promise((resolve, reject) => {
+      const request = store.get("s1");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+
+    assert.deepEqual(preserved, seedSession);
+  } finally {
+    v2.close();
+  }
+});

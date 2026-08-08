@@ -27,7 +27,9 @@ export function openDatabase({
     const request = indexedDBFactory.open(name, version);
 
     request.onupgradeneeded = (event) => {
-      runMigrations(request.result, event.oldVersion, event.newVersion);
+      // The upgrade transaction is the only way to add an index to an
+      // EXISTING store (creating a brand-new store only needs `db`).
+      runMigrations(request.result, event.oldVersion, event.newVersion, request.transaction);
     };
 
     request.onblocked = () => {

@@ -61,7 +61,13 @@
         is_shiny: enemy.is_shiny,
         ivs: enemy.ivs,
         map_id: enemy.map_id,
-        zone_id: enemy.zone_id
+        zone_id: enemy.zone_id,
+        // Confirmados na captura bruta (Fase 4 subtask): elements/gender/
+        // nature do wild encounter. Só de combat.started — nunca de
+        // capture.success.creature (mesma regra do level/quality).
+        elements: enemy.elements,
+        gender: enemy.gender,
+        nature: enemy.nature
       },
       session:
         session && typeof session === "object"
