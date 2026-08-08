@@ -121,6 +121,17 @@
               <span id="dollars-total">0</span>
             </small>
           </article>
+
+          <article class="hunt-metric">
+            <span class="label">Gastos/h</span>
+            <strong id="expenses-hour">—</strong>
+            <small>
+              Total:
+              <span id="expenses-total">0</span>
+              · Potions:
+              <span id="potions-used">0</span>
+            </small>
+          </article>
         </div>
       </section>
 
@@ -210,6 +221,68 @@
             <strong id="shiny-failed">0</strong>
           </div>
         </div>
+      </section>
+
+      <section class="section">
+        <div class="section-title-row">
+          <h2>Captured</h2>
+        </div>
+
+        <div class="filter-row">
+          <label>
+            Rarity
+            <select id="captured-filter-rarity"></select>
+          </label>
+
+          <label>
+            Qualidade >
+            <input
+              id="captured-filter-quality-min"
+              type="number"
+              step="0.01"
+              placeholder="ex: 1.10"
+            >
+          </label>
+
+          <label>
+            IV Total >
+            <input
+              id="captured-filter-iv-min"
+              type="number"
+              step="1"
+              min="0"
+              placeholder="ex: 100"
+            >
+          </label>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Pokémon</th>
+                <th>Nature</th>
+                <th>Quality</th>
+                <th>HP</th>
+                <th>Atk</th>
+                <th>Def</th>
+                <th>SpAtk</th>
+                <th>SpDef</th>
+                <th>Spe</th>
+              </tr>
+            </thead>
+
+            <tbody id="captured-body"></tbody>
+          </table>
+        </div>
+
+        <p
+          id="captured-empty"
+          class="muted"
+          hidden
+        >
+          Nenhum Pokémon capturado ainda.
+        </p>
       </section>
 
       <p

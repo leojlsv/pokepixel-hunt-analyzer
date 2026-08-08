@@ -32,6 +32,8 @@ function combatStarted(
     elements = ["normal"],
     gender = "female",
     nature = "brave",
+    ivs = { atk: 3, def: 1, hp: 1, spa: 27, spd: 5, spe: 6 },
+    qualityMultiplier = 1.02,
     ts,
     seq
   }
@@ -45,12 +47,13 @@ function combatStarted(
         level,
         quality,
         is_shiny: false,
-        ivs: { atk: 3, def: 1, hp: 1, spa: 27, spd: 5, spe: 6 },
+        ivs,
         map_id: 14,
         zone_id: "zone_0001",
         elements,
         gender,
-        nature
+        nature,
+        quality_multiplier: qualityMultiplier
       },
       session: {
         id: "server_session_0001",
@@ -72,6 +75,18 @@ function lootReceived(wildId, { ts, seq }) {
       pokemon_exp: 4305,
       gold: 37,
       loot_sell_value: 0
+    },
+    { seq, ts }
+  );
+}
+
+function autoPotionUsed({ ts, seq, moveId = "potion_ultra", cost = 22 }) {
+  return envelope(
+    "loot.received",
+    {
+      auto_potion_used: moveId,
+      new_hp: 745,
+      supply_cost: cost
     },
     { seq, ts }
   );
@@ -264,6 +279,23 @@ test("orphan: capture.failed with no active encounter creates an orphan row", ()
   assert.equal(create.row.captureResult, "failed");
 });
 
+test("loot.received's auto-potion-used variant never creates an encounter (fixes the phantom-orphan bug)", () => {
+  resetIds();
+  const state = createTrackerState();
+
+  const result = applyEvent(state, autoPotionUsed({ ts: 1000, seq: 1, cost: 22 }), nextId);
+
+  assert.equal(result.effects.some((e) => e.type === "encounter.create"), false);
+  assert.equal(result.effects.some((e) => e.type === "encounter.update"), false);
+  assert.deepEqual(result.effects, [
+    { type: "session.activity" },
+    { type: "session.potion_used", cost: 22 }
+  ]);
+  // No active/in-progress encounter should be touched or created either.
+  assert.equal(result.state.inProgress.size, 0);
+  assert.equal(result.state.activeByWildMonsterId.size, 0);
+});
+
 test("orphan: capture.failed inherits quality/level/ivTotal/isShiny from the event itself", () => {
   resetIds();
   const state = createTrackerState();
@@ -362,7 +394,9 @@ test("nested success quality / captured level never overwrite the combat.started
       quality: "common",
       elements: ["normal"],
       gender: "female",
-      nature: "brave"
+      nature: "brave",
+      ivs: { atk: 3, def: 1, hp: 1, spa: 27, spd: 5, spe: 6 },
+      qualityMultiplier: 1.02
     }),
     nextId
   );
@@ -371,6 +405,8 @@ test("nested success quality / captured level never overwrite the combat.started
   assert.equal(startedRow.level, 90);
   assert.equal(startedRow.quality, "common");
   assert.deepEqual(startedRow.elements, ["normal"]);
+  assert.deepEqual(startedRow.ivs, { atk: 3, def: 1, hp: 1, spa: 27, spd: 5, spe: 6 });
+  assert.equal(startedRow.qualityMultiplier, 1.02);
 
   ({ state } = applyEvent(state, lootReceived("wild_1", { ts: 1500, seq: 2 }), nextId));
 
@@ -392,10 +428,14 @@ test("nested success quality / captured level never overwrite the combat.started
   assert.equal(finalize.patch.elements, undefined);
   assert.equal(finalize.patch.gender, undefined);
   assert.equal(finalize.patch.nature, undefined);
+  assert.equal(finalize.patch.ivs, undefined);
+  assert.equal(finalize.patch.qualityMultiplier, undefined);
 
   // The row a repository would persist merges patch over the original draft.
   const persisted = { ...startedRow, ...finalize.patch };
   assert.equal(persisted.level, 90);
   assert.equal(persisted.quality, "common");
   assert.deepEqual(persisted.elements, ["normal"]);
+  assert.deepEqual(persisted.ivs, { atk: 3, def: 1, hp: 1, spa: 27, spd: 5, spe: 6 });
+  assert.equal(persisted.qualityMultiplier, 1.02);
 });

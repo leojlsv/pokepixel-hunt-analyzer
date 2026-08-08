@@ -16,21 +16,28 @@ test("empty input returns zeroed buckets for every known quality plus unknown", 
   }
 });
 
-test("seen excludes orphans; captured/failed count regardless of state", () => {
+test("seen is the exact identity captured + failed, regardless of state", () => {
   const encounters = [
     { state: "success", quality: "rare", captureResult: "success" },
+    // An orphan still counts as "seen" if it carries a real capture
+    // attempt — state alone never decided "seen", the attempt does.
     { state: "orphan", quality: "rare", captureResult: "failed" },
-    { state: "failed", quality: "common", captureResult: "failed" }
+    { state: "failed", quality: "common", captureResult: "failed" },
+    // Battled but never actually attempted a capture (e.g. only farmed
+    // EXP/gold) — NOT seen, even though it's a real, non-orphan encounter.
+    { state: "success", quality: "common", captureResult: "none" }
   ];
 
   const breakdown = computeRarityBreakdown(encounters);
 
-  assert.equal(breakdown.seen, 2); // orphan excluded
   assert.equal(breakdown.captured, 1);
-  assert.equal(breakdown.failed, 2); // orphan's failed attempt still counts
-  assert.equal(breakdown.rarities.rare.seen, 1);
+  assert.equal(breakdown.failed, 2);
+  assert.equal(breakdown.seen, breakdown.captured + breakdown.failed);
+  assert.equal(breakdown.seen, 3);
+  assert.equal(breakdown.rarities.rare.seen, 2);
   assert.equal(breakdown.rarities.rare.captured, 1);
   assert.equal(breakdown.rarities.rare.failed, 1);
+  assert.equal(breakdown.rarities.common.seen, 1); // only the failed one, not the "none" one
   assert.equal(breakdown.rarities.common.failed, 1);
 });
 

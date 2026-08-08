@@ -20,7 +20,6 @@ function rate(numerator, denominator) {
 }
 
 export function computeGroupMetrics(encounters = []) {
-  let seen = 0;
   let captured = 0;
   let failed = 0;
   let trainerExp = 0;
@@ -29,21 +28,24 @@ export function computeGroupMetrics(encounters = []) {
   let groupCycleMs = 0;
 
   for (const encounter of encounters) {
-    // Same convention as domain/sessionMetrics.js: an orphan was never
-    // really "seen" (no combat.started), but a capture attempt attached
-    // to it is still real data.
-    if (encounter.state !== "orphan") seen += 1;
     if (encounter.captureResult === "success") captured += 1;
     if (encounter.captureResult === "failed") failed += 1;
 
     trainerExp += Number(encounter.trainerExp) || 0;
     pokemonExp += Number(encounter.pokemonExp) || 0;
     gold += Number(encounter.gold) || 0;
+    // A captured Pokémon the game auto-sold is realized income too, not
+    // just the wild monster's own loot.received drop.
+    if (encounter.autoSold) gold += Number(encounter.autoSellValue) || 0;
 
     if (Number.isFinite(encounter.cycleMs)) {
       groupCycleMs += encounter.cycleMs;
     }
   }
+
+  // Seen = Captured + Failed, exactly (domain/rarityBreakdown.js) — a
+  // Pokémon only counts as "seen" if a capture was actually attempted.
+  const seen = captured + failed;
 
   return {
     seen,

@@ -5,11 +5,11 @@
  * every number the Side Panel's Current view shows. No IndexedDB access
  * here — sidepanel/sidepanel.js does the fetching, this just computes.
  *
- * The rarity/seen/captured/failed bucketing (`Seen` excludes orphans,
- * `Captured`/`Failed` count by `captureResult` regardless of state) lives
- * in domain/rarityBreakdown.js — Compare's "By Rarity" theme needs the
- * exact same aggregation over a different (filtered, cross-session)
- * encounter set, so it's shared rather than duplicated.
+ * The rarity/seen/captured/failed bucketing (`Seen = Captured + Failed`,
+ * exactly — see domain/rarityBreakdown.js's header) lives there —
+ * Compare's "By Rarity" theme needs the exact same aggregation over a
+ * different (filtered, cross-session) encounter set, so it's shared
+ * rather than duplicated.
  */
 
 import { activeMs as sessionActiveMs } from "./sessionTiming.js";
@@ -55,7 +55,12 @@ function emptyMetrics() {
     rarePlusFailed: 0,
     rarities: buildEmptyRarities(),
     shiny: emptyBucket(),
-    hasUnknownQuality: false
+    hasUnknownQuality: false,
+    capsulesCost: 0,
+    potionsUsed: 0,
+    potionsCost: 0,
+    expenses: 0,
+    expensesPerHour: null
   };
 }
 
@@ -67,15 +72,29 @@ export function computeSessionMetrics({ session, encounters = [], now = Date.now
   let trainerExp = 0;
   let pokemonExp = 0;
   let gold = 0;
+  let capsulesCost = 0;
 
   for (const encounter of encounters) {
     trainerExp += Number(encounter.trainerExp) || 0;
     pokemonExp += Number(encounter.pokemonExp) || 0;
     gold += Number(encounter.gold) || 0;
+    // A captured Pokémon the game auto-sold is realized income too, not
+    // just the wild monster's own loot.received drop.
+    if (encounter.autoSold) gold += Number(encounter.autoSellValue) || 0;
+    // Pokébolas: the capsule cost charged on any capture attempt, success
+    // or failed (null until an attempt happens).
+    capsulesCost += Number(encounter.supplyCost) || 0;
   }
 
   const { seen, captured, failed, rarities, shiny, rarePlusFailed, hasUnknownQuality } =
     computeRarityBreakdown(encounters);
+
+  // Potions: a trainer-wide expense, not tied to any one encounter (§9 in
+  // docs/ARCHITECTURE.md) — accumulated directly on the session row
+  // instead of summed from encounters, unlike everything else here.
+  const potionsUsed = session.potionsUsed || 0;
+  const potionsCost = session.potionsCost || 0;
+  const expenses = capsulesCost + potionsCost;
 
   const status =
     session.status === "running"
@@ -101,6 +120,11 @@ export function computeSessionMetrics({ session, encounters = [], now = Date.now
     rarePlusFailed,
     rarities,
     shiny,
-    hasUnknownQuality
+    hasUnknownQuality,
+    capsulesCost,
+    potionsUsed,
+    potionsCost,
+    expenses,
+    expensesPerHour: perHour(expenses, elapsedMs)
   };
 }

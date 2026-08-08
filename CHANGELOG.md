@@ -5,6 +5,68 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Added — Captured list (Current view, pre-Phase 5)
+- New "Captured" module below By Rarity and Shiny: one row per
+  successfully captured Pokémon this session — Pokémon (with Rarity
+  shown as a colored bar on the name, same colors as By Rarity, and
+  Gender as a ♂/♀ symbol on the name's other side, instead of two
+  separate columns — a QOL trade to fit more IV columns in a narrow
+  panel), Nature, Quality (new continuous `qualityMultiplier`), and the
+  6 individual IV stats (HP/Atk/Def/SpAtk/SpDef/Spe). No new IndexedDB
+  query — reuses the encounters already fetched every poll for the
+  Current view's metrics.
+- Two new protocol-confirmed fields, `combat.started`-only, same
+  non-overwrite policy as `level`/`quality`/`elements`/`gender`/`nature`
+  (never taken from `capture.success.creature`):
+  - `qualityMultiplier`: a continuous quality score (e.g. `1.02`),
+    distinct from the discrete Rarity tier.
+  - `ivs`: the 6 individual IV stats, persisted alongside the existing
+    `ivTotal` sum instead of being discarded after summing.
+- Three filters, narrowing the already-captured-only list: Rarity
+  (dropdown, `All (*)` first, populated from distinct values present),
+  Quality > (2-decimal input), IV Total > (integer input, using the
+  existing `ivTotal` sum).
+- `preview.html`/`preview.js` mirror the module with a small
+  self-contained mock (5 fictitious captures, varied rarity/gender/
+  nature/IVs/qualityMultiplier), filters fully functional.
+- Scope: Current view only — History/Compare don't gain these columns
+  or this module in this pass.
+
+### Fixed/Added — Seen, Dólar/h and Hunt expenses (pre-Phase 5)
+- **Seen is now an exact identity**: `Seen = Captured + Failed`
+  (`domain/rarityBreakdown.js`, `domain/groupMetrics.js`). Previously any
+  non-orphan encounter counted as "seen" even without a real capture
+  attempt (e.g. the player only farmed EXP/gold and moved on) — that no
+  longer inflates Seen in Current, History or Compare.
+- **Dólar/h now includes a captured Pokémon's sale value**: when
+  `encounter.autoSold` is true, its `autoSellValue` is added alongside
+  the wild monster's own `loot.received.gold` drop
+  (`domain/sessionMetrics.js`, `domain/groupMetrics.js`) — previously
+  only the drop counted, even though the sale value was already
+  extracted and persisted since Phase 2.
+- **New "Gastos/h" metric** (Current + History), Pokébolas + Potions:
+  - Pokébolas: `Σ encounter.supplyCost` — a pure new aggregation over
+    already-persisted data, no pipeline change.
+  - Potions: confirmed via real captures that `loot.received` has a
+    second shape — no `wild_monster_id`, just `auto_potion_used` and its
+    real `supply_cost` — for when the game auto-drinks a potion mid-fight.
+    This is a trainer-wide expense, not tied to one encounter, so it's
+    accumulated on the **session** row (`potionsUsed`/`potionsCost`,
+    `domain/sessionTiming.js`'s new `recordPotionUsed`,
+    `data/sessionsRepository.js`, a new `session.potion_used` effect in
+    `domain/encounterTracker.js`/`services/eventPipeline.js`) instead of
+    on an encounter. Shown as `Gastos/h` ($ Pokébolas + Potions combined)
+    plus a raw "Potions used" count — no invented price table, only what
+    the protocol actually reports.
+  - Compare gets neither: `potionsCost` is session-scoped and can't be
+    split across `group_key`s without inventing data.
+- **Bug fix, found during the above**: every auto-potion-used
+  `loot.received` (no `wild_monster_id`) used to fall into the "no active
+  encounter" path and create a bogus, all-null orphan encounter row —
+  present since Phase 2, on a large fraction of real `loot.received`
+  traffic. `domain/encounterTracker.js`'s `applyLootReceived` now
+  recognizes this shape up front and never creates an encounter for it.
+
 ### Added — Phase 1 (Foundation)
 - Canonical hunt configuration shape (`domain/config.js`): fixed
   `auto_capture` snapshot with all confirmed fields always present, manual

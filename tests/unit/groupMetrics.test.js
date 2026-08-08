@@ -10,6 +10,8 @@ function encounter(overrides = {}) {
     trainerExp: 0,
     pokemonExp: 0,
     gold: 0,
+    autoSold: false,
+    autoSellValue: null,
     cycleMs: null,
     ...overrides
   };
@@ -24,18 +26,22 @@ test("empty group has zeroed counts and null cycle-hour rates", () => {
   assert.equal(metrics.seenToCaptureRate, null);
 });
 
-test("seen excludes orphans; captured/failed count regardless of state", () => {
+test("seen is the exact identity captured + failed, regardless of state", () => {
   const encounters = [
     encounter({ state: "success", captureResult: "success" }),
     encounter({ state: "failed", captureResult: "failed" }),
-    encounter({ state: "orphan", captureResult: "failed" })
+    // orphan, but a real attempt -> still "seen".
+    encounter({ state: "orphan", captureResult: "failed" }),
+    // never attempted -> NOT "seen", even though it's not an orphan.
+    encounter({ state: "success", captureResult: "none" })
   ];
 
   const metrics = computeGroupMetrics(encounters);
 
-  assert.equal(metrics.seen, 2);
   assert.equal(metrics.captured, 1);
   assert.equal(metrics.failed, 2);
+  assert.equal(metrics.seen, metrics.captured + metrics.failed);
+  assert.equal(metrics.seen, 3);
 });
 
 test("group_cycle_ms sums only finite cycleMs values", () => {
@@ -72,11 +78,25 @@ test("Seen->Capture and Attempt Rate formulas", () => {
     encounter({ captureResult: "success" }),
     encounter({ captureResult: "failed" }),
     encounter({ captureResult: "failed" }),
-    encounter({ captureResult: "none" })
+    encounter({ captureResult: "none" }) // no attempt yet -> not "seen"
   ];
 
   const metrics = computeGroupMetrics(encounters);
 
-  assert.equal(metrics.seenToCaptureRate, 1 / 4);
+  assert.equal(metrics.seenToCaptureRate, 1 / 3);
   assert.equal(metrics.attemptRate, 1 / 3);
+});
+
+test("Dollar/Cycle Hour includes autoSellValue only when autoSold is true", () => {
+  const encounters = [
+    encounter({ cycleMs: 1_800_000, gold: 100, autoSold: true, autoSellValue: 250 }),
+    // Not auto-sold -> its autoSellValue must NOT count, even if present.
+    encounter({ cycleMs: 1_800_000, gold: 50, autoSold: false, autoSellValue: 999 })
+  ];
+  // group_cycle_ms = 3_600_000 = exactly 1 cycle hour.
+
+  const metrics = computeGroupMetrics(encounters);
+
+  assert.equal(metrics.gold, 100 + 250 + 50);
+  assert.equal(metrics.dollarPerCycleHour, 400);
 });

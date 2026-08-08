@@ -36,6 +36,11 @@ export function createSession({ sessionId, now }) {
     // resume, retarget or replace this session. Only a manual Resume/New
     // Hunt clears it.
     locked: false,
+    // Hunt expenses (docs/ARCHITECTURE.md §9 "Gastos") — potions are a
+    // trainer-wide resource, not tied to one encounter, so they're
+    // accumulated directly on the session (see recordPotionUsed below).
+    potionsUsed: 0,
+    potionsCost: 0,
     createdAtMs: now,
     updatedAtMs: now
   };
@@ -62,6 +67,24 @@ export function adoptServerContext(session, { serverSessionId, zoneId }, now) {
     ...session,
     serverSessionId: serverSessionId ?? session.serverSessionId,
     zoneId: zoneId ?? session.zoneId,
+    updatedAtMs: now
+  };
+}
+
+/**
+ * Records one auto-potion-used signal (domain/encounterTracker.js's
+ * `session.potion_used` effect, from `loot.received`'s no-wild_monster_id
+ * variant — docs/PROTOCOL_AND_ANALYTICS.md §3). Not an activity/timing
+ * signal by itself — callers pair it with touchActivity separately.
+ */
+export function recordPotionUsed(session, cost, now) {
+  return {
+    ...session,
+    // `|| 0` covers a session row persisted before these fields existed
+    // (schemaless store — same precedent as `locked` never needing a
+    // migration).
+    potionsUsed: (session.potionsUsed || 0) + 1,
+    potionsCost: (session.potionsCost || 0) + (Number.isFinite(cost) ? cost : 0),
     updatedAtMs: now
   };
 }

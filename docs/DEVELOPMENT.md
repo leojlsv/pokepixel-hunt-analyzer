@@ -22,7 +22,7 @@ Views: `Current`, `History`, `Compare` (tabs; no separate `Config` view
 — removed in Phase 3, config detail does not surface as raw
 technical/UUID data anywhere in the UI, see docs/ARCHITECTURE.md §9).
 
-Current should show Hunt status/time, Trainer and Pokémon EXP totals/h, Dollar totals/h, Seen/Captured/Failed, rates, rarity and shiny.
+Current should show Hunt status/time, Trainer and Pokémon EXP totals/h, Dollar totals/h, Gastos/h (Pokébolas + Potions, docs/ARCHITECTURE.md §10), Seen/Captured/Failed, rates, rarity, shiny, and a filterable list of captured Pokémon (Rarity/Gender/Nature/Quality/individual IVs, docs/ARCHITECTURE.md §11).
 
 Actions: `New Hunt`, `Pause/Resume`, `End Hunt`.
 
@@ -59,7 +59,10 @@ Domain/persistence:
 - deterministic `group_key`;
 - IndexedDB create/read/update/migration;
 - running/paused/restart time behavior;
-- per-hour formulas and capture rates.
+- per-hour formulas and capture rates;
+- Seen = Captured + Failed exact identity;
+- Dólar/h includes auto-sell value only when auto-sold;
+- Gastos/h (Pokébolas supplyCost + session-level potion cost).
 
 Parser/tracker:
 - start → loot;
@@ -73,7 +76,8 @@ Parser/tracker:
 - reconnect / seq reset;
 - config change between encounters;
 - nested success quality;
-- captured creature level does not overwrite target level.
+- captured creature level does not overwrite target level;
+- loot.received's auto-potion-used variant never creates an encounter.
 
 Fixture regression validates the event and Rare+ baselines in `docs/PROTOCOL_AND_ANALYTICS.md`.
 

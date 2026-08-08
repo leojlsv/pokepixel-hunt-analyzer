@@ -7,9 +7,14 @@
  *
  * Pure: takes an already-fetched encounter list, no I/O.
  *
- * `Seen` only counts non-orphan encounters (an orphan never had a
- * combat.started, so it was never really "seen"). `Captured`/`Failed`
- * count by `captureResult` regardless of state.
+ * `Seen` is an exact identity, `Seen = Captured + Failed` — a Pokémon
+ * only counts as "seen" if a capture was actually attempted against it
+ * (`captureResult` is `success` or `failed`). A `combat.started` that
+ * never got a capture attempt (the player farmed EXP/gold and moved on,
+ * or the row is an unresolved/incomplete/orphan encounter) is not
+ * "seen" — it may have just shown up in the raw log without any real
+ * battle interaction. This also means an orphan CAN be "seen" if it
+ * still carries a real capture attempt (docs/PROTOCOL_AND_ANALYTICS.md §10).
  */
 
 export const QUALITIES = Object.freeze([
@@ -37,7 +42,6 @@ function qualityKey(quality) {
 }
 
 export function computeRarityBreakdown(encounters = []) {
-  let seen = 0;
   let captured = 0;
   let failed = 0;
 
@@ -46,15 +50,10 @@ export function computeRarityBreakdown(encounters = []) {
 
   for (const encounter of encounters) {
     const key = qualityKey(encounter.quality);
-    const isSeen = encounter.state !== "orphan";
     const isCaptured = encounter.captureResult === "success";
     const isFailed = encounter.captureResult === "failed";
-
-    if (isSeen) {
-      seen += 1;
-      rarities[key].seen += 1;
-      if (encounter.isShiny) shiny.seen += 1;
-    }
+    // Seen = Captured + Failed, exactly — see the header comment.
+    const isSeen = isCaptured || isFailed;
 
     if (isCaptured) {
       captured += 1;
@@ -67,7 +66,14 @@ export function computeRarityBreakdown(encounters = []) {
       rarities[key].failed += 1;
       if (encounter.isShiny) shiny.failed += 1;
     }
+
+    if (isSeen) {
+      rarities[key].seen += 1;
+      if (encounter.isShiny) shiny.seen += 1;
+    }
   }
+
+  const seen = captured + failed;
 
   const rarePlusFailed =
     rarities.rare.failed +

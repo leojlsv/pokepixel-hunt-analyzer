@@ -61,6 +61,44 @@ function formatIvTotal(value) {
   return Number.isFinite(value) ? `${value}/186` : "—";
 }
 
+function formatQualityMultiplier(value) {
+  return Number.isFinite(value) ? value.toFixed(2) : "—";
+}
+
+function formatIvStat(value) {
+  return Number.isFinite(value) ? String(value) : "—";
+}
+
+function genderSymbol(gender) {
+  if (gender === "male") return "♂";
+  if (gender === "female") return "♀";
+  return "";
+}
+
+// Falls back to "unknown" (same default gray as the By Rarity table) for
+// anything outside the known tiers, instead of emitting an arbitrary,
+// unsanitized CSS class name.
+function rarityKeyFor(quality) {
+  return RARITY_LABELS.some(([key]) => key === quality) ? quality : "unknown";
+}
+
+// Species names come from the protocol already capitalized, but an
+// unresolved encounter falls back to the lowercase `species_id` slug —
+// capitalize either way so the UI never shows a raw slug. Shared by
+// Compare and the Current view's Captured list.
+function capitalizeWords(text) {
+  return String(text)
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function speciesLabel(speciesName, speciesId) {
+  const raw = speciesName || speciesId;
+  return raw ? capitalizeWords(raw) : "—";
+}
+
 function fillRow(row, values) {
   for (const value of values) {
     const cell = document.createElement("td");
@@ -179,6 +217,10 @@ function renderMetrics(metrics) {
   document.getElementById("dollars-hour").textContent = formatPerHour(metrics.goldPerHour);
   document.getElementById("dollars-total").textContent = formatNumber(metrics.gold);
 
+  document.getElementById("expenses-hour").textContent = formatPerHour(metrics.expensesPerHour);
+  document.getElementById("expenses-total").textContent = formatNumber(metrics.expenses);
+  document.getElementById("potions-used").textContent = formatNumber(metrics.potionsUsed);
+
   const status = document.getElementById("hunt-status");
   status.classList.remove("running", "paused");
 
@@ -214,6 +256,112 @@ function renderMetrics(metrics) {
   updateEndHuntButton(metrics.status);
 }
 
+// ============================================================
+// Captured (Current view — list of successfully captured Pokémon)
+// ============================================================
+
+let lastEncounters = [];
+const capturedFilters = { rarity: "*", qualityMin: null, ivTotalMin: null };
+
+function applyCapturedFilters(captured) {
+  return captured.filter((encounter) => {
+    if (capturedFilters.rarity !== "*" && encounter.quality !== capturedFilters.rarity) {
+      return false;
+    }
+
+    if (
+      Number.isFinite(capturedFilters.qualityMin) &&
+      !(
+        Number.isFinite(encounter.qualityMultiplier) &&
+        encounter.qualityMultiplier > capturedFilters.qualityMin
+      )
+    ) {
+      return false;
+    }
+
+    if (
+      Number.isFinite(capturedFilters.ivTotalMin) &&
+      !(Number.isFinite(encounter.ivTotal) && encounter.ivTotal > capturedFilters.ivTotalMin)
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function renderCapturedList(encounters) {
+  const captured = encounters.filter((encounter) => encounter.captureResult === "success");
+
+  populateSelect(
+    document.getElementById("captured-filter-rarity"),
+    distinctValues(captured, "quality")
+  );
+
+  const filtered = applyCapturedFilters(captured);
+  const body = document.getElementById("captured-body");
+  body.replaceChildren();
+
+  document.getElementById("captured-empty").hidden = filtered.length > 0;
+
+  for (const encounter of filtered) {
+    const row = document.createElement("tr");
+    const ivs = encounter.ivs || {};
+
+    // Rarity moves from its own column to a colored bar on the name
+    // (same colors as By Rarity); Gender moves to a symbol on the name's
+    // other side — a QOL trade to fit more IV columns in a narrow panel.
+    const nameCell = document.createElement("td");
+    const nameWrap = document.createElement("span");
+    nameWrap.className = "captured-pokemon";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = `rarity-name rarity-${rarityKeyFor(encounter.quality)}`;
+    nameSpan.textContent = speciesLabel(encounter.speciesName, encounter.speciesId);
+
+    const genderSpan = document.createElement("span");
+    const symbol = genderSymbol(encounter.gender);
+    genderSpan.className = symbol ? `gender-symbol gender-${encounter.gender}` : "gender-symbol";
+    genderSpan.textContent = symbol;
+
+    nameWrap.append(nameSpan, genderSpan);
+    nameCell.appendChild(nameWrap);
+    row.appendChild(nameCell);
+
+    fillRow(row, [
+      encounter.nature ?? "—",
+      formatQualityMultiplier(encounter.qualityMultiplier),
+      formatIvStat(ivs.hp),
+      formatIvStat(ivs.atk),
+      formatIvStat(ivs.def),
+      formatIvStat(ivs.spa),
+      formatIvStat(ivs.spd),
+      formatIvStat(ivs.spe)
+    ]);
+
+    body.appendChild(row);
+  }
+}
+
+function wireCapturedFilters() {
+  document.getElementById("captured-filter-rarity").addEventListener("change", (event) => {
+    capturedFilters.rarity = event.target.value;
+    renderCapturedList(lastEncounters);
+  });
+
+  document.getElementById("captured-filter-quality-min").addEventListener("input", (event) => {
+    const value = parseFloat(event.target.value);
+    capturedFilters.qualityMin = Number.isFinite(value) ? value : null;
+    renderCapturedList(lastEncounters);
+  });
+
+  document.getElementById("captured-filter-iv-min").addEventListener("input", (event) => {
+    const value = parseInt(event.target.value, 10);
+    capturedFilters.ivTotalMin = Number.isFinite(value) ? value : null;
+    renderCapturedList(lastEncounters);
+  });
+}
+
 let db;
 
 async function openDb() {
@@ -237,7 +385,9 @@ async function loadAndRender() {
     ? await encountersRepo.getBySessionId(session.sessionId)
     : [];
 
+  lastEncounters = encounters;
   renderMetrics(computeSessionMetrics({ session, encounters, now: Date.now() }));
+  renderCapturedList(encounters);
 }
 
 function sendAction(type) {
@@ -344,7 +494,9 @@ function renderHistorySummary(metrics) {
     ["Failed", formatNumber(metrics.failed)],
     ["EXP/h Treinador", formatPerHour(metrics.trainerExpPerHour)],
     ["EXP/h Pokémon", formatPerHour(metrics.pokemonExpPerHour)],
-    ["Dólar/h", formatPerHour(metrics.goldPerHour)]
+    ["Dólar/h", formatPerHour(metrics.goldPerHour)],
+    ["Gastos/h", formatPerHour(metrics.expensesPerHour)],
+    ["Potions", formatNumber(metrics.potionsUsed)]
   ];
 
   for (const [label, value] of entries) {
@@ -557,23 +709,6 @@ function populateSelect(select, options, { toValue = (o) => o, toLabel = (o) => 
   select.value = [...select.options].some((o) => o.value === previous) ? previous : "*";
 }
 
-// Species names come from the protocol already capitalized
-// (combat.started/capture.* `species_name`), but an unresolved encounter
-// falls back to the lowercase `species_id` slug — capitalize either way
-// so the UI never shows a raw slug.
-function capitalizeWords(text) {
-  return String(text)
-    .split(/[\s_-]+/)
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
-function speciesLabel(speciesName, speciesId) {
-  const raw = speciesName || speciesId;
-  return raw ? capitalizeWords(raw) : "—";
-}
-
 function distinctSpeciesOptions(encounters) {
   const bySpeciesId = new Map();
 
@@ -783,6 +918,7 @@ async function init() {
   createRarityRows();
   wireTabs();
   wireActions();
+  wireCapturedFilters();
   wireHistory();
   wireCompare();
   switchView("current");

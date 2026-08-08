@@ -98,11 +98,13 @@ lastActivityAtMs
 serverSessionId         adopted from the first combat.started's session.id; null until then
 zoneId                  adopted from the first combat.started's enemy.zone_id; null until then
 locked                  set by manual Pause/End Hunt; only manual Resume/New Hunt clears it (§7)
+potionsUsed             count of auto-potion-used signals this session (§9 "Gastos")
+potionsCost             Σ supply_cost of those signals — real protocol data, not a hardcoded price
 createdAtMs
 updatedAtMs
 ```
 
-`serverSessionId`/`zoneId`/`locked` are not a fixed schema in the IndexedDB sense (object stores are schemaless beyond `keyPath`/indexes), just additional fields the session row always carries.
+`serverSessionId`/`zoneId`/`locked`/`potionsUsed`/`potionsCost` are not a fixed schema in the IndexedDB sense (object stores are schemaless beyond `keyPath`/indexes), just additional fields the session row always carries.
 
 Index: `startedAtMs` (v2 migration — added for History's paginated, recency-ordered list; `sessions` had no index before Fase 4).
 
@@ -143,6 +145,8 @@ zoneId
 elements                array of strings, from combat.started.enemy only
 gender                  from combat.started.enemy only, informational (not a filter)
 nature                  from combat.started.enemy only, informational (not a filter)
+qualityMultiplier       continuous quality score (e.g. 1.02), from combat.started.enemy only
+ivs                     {hp,atk,def,spa,spd,spe}, from combat.started.enemy only (ivTotal is their sum)
 startedAtMs
 lootAtMs
 captureAtMs
@@ -166,11 +170,11 @@ updatedAtMs
 
 Persist only protocol-supported fields. Unknown values remain null/unknown.
 
-`elements`/`gender`/`nature` (Fase 4) needed no schema migration to add —
-object stores are schemaless beyond `keyPath`/indexes, same as
-`sessions.serverSessionId`/`zoneId` (§7). `capture.success.creature`'s
-own `elements`/`gender`/`nature` are never used to overwrite these —
-same non-overwrite policy as `level`/`quality` (§6,
+`elements`/`gender`/`nature`/`qualityMultiplier`/`ivs` needed no schema
+migration to add — object stores are schemaless beyond
+`keyPath`/indexes, same as `sessions.serverSessionId`/`zoneId` (§7).
+`capture.success.creature`'s own versions of these are never used to
+overwrite them — same non-overwrite policy as `level`/`quality` (§6,
 docs/PROTOCOL_AND_ANALYTICS.md §5).
 
 Initial indexes: `sessionId`, `groupKey`, `speciesId`, `quality`, `startedAtMs`.
@@ -343,3 +347,76 @@ simplified during Fase 4 planning). `domain/export.js` builds
 `{ formatVersion, appVersion, sessions, configs, encounters }` from
 already-fetched rows; the Side Panel downloads it via `Blob` +
 `<a download>`, so no `downloads` permission is needed in the manifest.
+
+## 10. Seen, Dólar/h and Hunt expenses
+
+Three metric corrections/additions made together, pre-Fase-5
+(docs/PROTOCOL_AND_ANALYTICS.md §7/§10/§11 have the exact formulas):
+
+- **Seen is now an exact identity**, `Seen = Captured + Failed`, computed
+  in `domain/rarityBreakdown.js` (shared by Current, History and
+  Compare's By Rarity) and independently in `domain/groupMetrics.js`
+  (Compare's By Cycle). A `combat.started` that never got a capture
+  attempt no longer inflates Seen.
+- **Dólar/h includes a captured Pokémon's auto-sell value** whenever
+  `encounter.autoSold` is true — previously only the wild monster's own
+  `loot.received.gold` drop counted. Fixed in both
+  `domain/sessionMetrics.js` and `domain/groupMetrics.js`.
+- **Gastos/h (Pokébolas + Potions)**, new. Pokébolas is a pure
+  aggregation over the already-persisted `encounter.supplyCost` — no
+  pipeline change. Potions needed one:
+
+  `loot.received`'s auto-potion-used variant (no `wild_monster_id`,
+  docs/PROTOCOL_AND_ANALYTICS.md §3) is not tied to any specific wild
+  encounter — it's a trainer-wide resource expense. `domain/
+  encounterTracker.js`'s `applyLootReceived` special-cases it into a
+  `session.potion_used` effect (`{ cost }`) instead of falling into the
+  generic "no active encounter" orphan path — which is also a bug fix:
+  before this, every auto-potion use created a bogus, all-null orphan
+  encounter row (§9 above never had this problem since it only reads
+  already-persisted data; this was a write-path bug in the pipeline
+  itself, present since Fase 2).
+
+  `services/eventPipeline.js` routes `session.potion_used` to
+  `sessionsRepository.recordPotionUsed(cost)`, which — like
+  `touchActivityAutomatic`/`pauseAutomatic` — reads/creates the current
+  session, no-ops while `locked`, and calls the pure
+  `domain/sessionTiming.js` transition (`recordPotionUsed`) that
+  increments `potionsUsed`/`potionsCost` (§4). `domain/
+  sessionMetrics.js` reads these two fields straight off the session row
+  — the only metric here NOT summed from encounters, since potions have
+  nothing to correlate to.
+
+  Compare has no Gastos column: `potionsCost` is session-scoped, and
+  attributing it to one `group_key` would mean inventing a split the
+  protocol doesn't provide (docs/PROTOCOL_AND_ANALYTICS.md §11).
+
+## 11. Captured list (Current view)
+
+Below By Rarity and Shiny: every encounter of the current session with
+`captureResult === "success"`, one row per Pokémon — Pokémon / Nature /
+Quality (the continuous `qualityMultiplier`, §10) / the 6 individual IV
+stats (`ivs.hp/atk/def/spa/spd/spe`, docs/PROTOCOL_AND_ANALYTICS.md §2).
+Rarity (the discrete `quality` tier) and Gender aren't separate columns
+— Rarity is a colored bar on the Pokémon name (`.rarity-name`, same
+colors/classes as By Rarity) and Gender is a ♂/♀ symbol on the name's
+other side, freeing width for the IV columns in a narrow panel.
+
+No new query: `sidepanel.js`'s existing per-poll
+`encountersRepository.getBySessionId()` fetch (already used for
+`computeSessionMetrics`) is reused as-is — filtering to `success` and
+applying the 3 filters below all happen in memory, same approach as
+Compare.
+
+Three filters, all narrowing the already-`success`-filtered list:
+
+- **Rarity** (dropdown, `All (*)` first): distinct `quality` values
+  actually present among the current captures.
+- **Quality >**: `qualityMultiplier > threshold` (2-decimal input).
+  Empty input disables the filter.
+- **IV Total >**: `ivTotal > threshold` (integer input, the existing
+  summed field — the 6 individual stats are display-only here). Empty
+  input disables the filter.
+
+Current view only — History/Compare don't get this module or its two
+new columns in this pass.

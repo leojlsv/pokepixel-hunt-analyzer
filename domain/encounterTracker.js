@@ -5,9 +5,13 @@
  * run through domain/events.js) plus the tracker's own in-memory state,
  * and return `{ state, effects }`. `effects` are plain instructions
  * (`encounter.create` / `encounter.finalize` / `session.activity` /
- * `session.pause`) that services/eventPipeline.js turns into IndexedDB
- * writes and session-timing calls. This keeps every correlation/reuse/
- * orphan/dedupe rule unit-testable without a database.
+ * `session.pause` / `session.potion_used`) that services/eventPipeline.js
+ * turns into IndexedDB writes and session-timing calls. This keeps every
+ * correlation/reuse/orphan/dedupe rule unit-testable without a database.
+ *
+ * `session.potion_used` (from `loot.received`'s auto-potion-used variant,
+ * §3) never touches an encounter — it's a trainer-wide expense, not
+ * attached to any one wild encounter.
  *
  * `encounter.create` effects carry a *draft* row: `sessionId`, `configId`
  * and `groupKey` are not known here (config resolution needs
@@ -72,6 +76,10 @@ function draftRow({ encounterId, wildMonsterId, socketId, envelope, enemy, sessi
     elements: enemy.elements,
     gender: enemy.gender,
     nature: enemy.nature,
+    // Same snapshot-only policy — the Current view's "Captured" list
+    // needs the individual stats, not just their sum (ivTotal above).
+    ivs: enemy.ivs,
+    qualityMultiplier: enemy.quality_multiplier,
     startedAtMs: envelope.ts,
     lootAtMs: null,
     captureAtMs: null,
@@ -111,6 +119,8 @@ function orphanRow({ encounterId, wildMonsterId, socketId, envelope, patch }) {
     elements: null,
     gender: null,
     nature: null,
+    ivs: null,
+    qualityMultiplier: null,
     startedAtMs: null,
     lootAtMs: null,
     captureAtMs: null,
@@ -180,6 +190,23 @@ function applyCombatStarted(state, envelope, generateId) {
 function applyLootReceived(state, envelope) {
   const data = envelope.data;
   const wildMonsterId = data.wild_monster_id;
+
+  // Auto-potion-used variant (docs/PROTOCOL_AND_ANALYTICS.md §3): no
+  // wild_monster_id at all — it isn't tied to one specific wild encounter,
+  // it's a trainer-wide resource expense. Without this branch it would
+  // fall into the "no active encounter" case below and create a bogus
+  // orphan encounter (all-null except captureResult) for every single
+  // potion the game auto-drinks — a real correctness bug this fixes.
+  if (!wildMonsterId && data.auto_potion_used) {
+    return {
+      state,
+      effects: [
+        { type: "session.activity" },
+        { type: "session.potion_used", cost: data.supply_cost }
+      ]
+    };
+  }
+
   const next = cloneState(state);
   const effects = [{ type: "session.activity" }];
 
@@ -266,12 +293,14 @@ function applyCaptureResult(state, envelope, resultType) {
     shared.autoSold = data.auto_sold;
     shared.autoSellValue = data.auto_sell_value;
     // Deliberately NOT copying creature.level/quality/ivs/elements/gender/
-    // nature — docs/PROTOCOL_AND_ANALYTICS.md §5 forbids overwriting the
-    // target level (and empirically, quality is already stable from
-    // combat.started — see tests/fixtures README); the same policy
-    // extends to every other per-individual attribute of the captured
-    // creature. domain/events.js's normalizeCaptureSuccess() doesn't even
-    // extract those creature fields, so there's nothing to copy from here.
+    // nature/quality_multiplier — docs/PROTOCOL_AND_ANALYTICS.md §5
+    // forbids overwriting the target level (and empirically, quality is
+    // already stable from combat.started — see tests/fixtures README);
+    // the same policy extends to every other per-individual attribute of
+    // the captured creature. domain/events.js's normalizeCaptureSuccess()
+    // does normalize creature.quality/is_shiny/ivs (they're on the wire),
+    // and doesn't even extract the rest — either way, none of it lands
+    // here.
   }
 
   if (!existing) {

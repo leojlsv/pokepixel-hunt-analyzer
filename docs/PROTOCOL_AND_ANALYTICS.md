@@ -33,6 +33,7 @@ enemy.zone_id
 enemy.elements
 enemy.gender
 enemy.nature
+enemy.quality_multiplier
 session.id
 session.auto_capture
 ```
@@ -42,6 +43,17 @@ are confirmed straight from a real capture
 (`combat.started.data.enemy`, Fase 4). `elements` is the only one of the
 three used for anything beyond display (a Compare filter); the game's
 own observed values populate that filter, not a hardcoded element list.
+
+`enemy.quality_multiplier` is a continuous quality score (e.g. `1.02`),
+confirmed in a real capture — distinct from the discrete `quality` tier
+(`weak`/`common`/.../`mythical`), which the UI calls "Rarity". Current's
+"Captured" list (§10) filters on it. `enemy.ivs`'s 6 individual stats
+(`hp`/`atk`/`def`/`spa`/`spd`/`spe`) are now persisted individually too,
+not just summed into `ivTotal` (`domain/ivTotal.js` still does the sum;
+the raw per-stat object is kept alongside it for that same list). Both
+are combat.started-only — `capture.failed` doesn't carry either at all,
+same non-overwrite policy as `level`/`quality`/`elements`/`gender`/
+`nature`.
 
 The game `session.id` is metadata (`serverSessionId`), not the local `session_id`.
 `session.summary` is cumulative; do not sum snapshots as incremental rewards.
@@ -59,6 +71,8 @@ trainer_exp
 pokemon_exp
 gold
 loot_sell_value
+auto_potion_used
+supply_cost
 ```
 
 Primary encounter cycle:
@@ -68,6 +82,16 @@ cycle_ms = loot.ts - combat.started.ts
 ```
 
 UI label: `Target Cycle`. Do not call it pure combat time.
+
+`loot.received` has a second, mutually exclusive shape: the game
+auto-drinking a potion mid-fight. Confirmed across real captures (3,522
+`loot.received` events, ~29% of them this shape): it has **no
+`wild_monster_id`** at all, just `auto_potion_used` (a move id string,
+e.g. `"potion_ultra"`) and `supply_cost` (the potion's real cost — same
+field name the protocol reuses on `capture.failed`/`capture.success` for
+the capsule cost). The two shapes never mix on the same message. This
+variant is a trainer-wide expense, not tied to any specific wild
+encounter — it never becomes an encounter row (see §7).
 
 ## 4. `capture.failed`
 
@@ -113,13 +137,16 @@ creature.ivs
 Do not use `creature.level` as target level. Keep the target level captured at `combat.started`.
 `auto_sold = true` is still a successful capture.
 
-The captured creature also carries `elements`, `gender` and `nature`
-(confirmed in a real capture, Fase 4) — none of these are extracted.
-Same reasoning as `creature.level`: the captured individual is not
-necessarily the same as the target snapshotted at `combat.started` (its
-own `level` already proves that), so nothing about it overwrites that
-snapshot. `combat.started.data.enemy.elements/gender/nature` (§2) is the
-only source for those fields.
+The captured creature also carries `elements`, `gender`, `nature` and
+`quality_multiplier` (confirmed in a real capture) — none of these are
+extracted. Same reasoning as `creature.level`: the captured individual
+is not necessarily the same as the target snapshotted at
+`combat.started` (its own `level` already proves that), so nothing
+about it overwrites that snapshot. `creature.quality`/`creature.ivs` ARE
+extracted above but, for the same reason, never used to patch an
+encounter row (`domain/encounterTracker.js`'s `applyCaptureResult`).
+`combat.started.data.enemy.elements/gender/nature/quality_multiplier/ivs`
+(§2) is the only source for those fields.
 
 ## 6. Correlation
 
@@ -153,6 +180,14 @@ A new start with a reused wild id creates a new `encounter_id`.
 Do not force orphan events onto old encounters just because the wild id matches.
 Useful orphan data may be stored with `state = orphan` and excluded from metrics requiring reliable `cycle_ms`.
 
+**Exception — not every unmatched `loot.received` is an orphan.** The
+auto-potion-used variant (§3) has no `wild_monster_id` on purpose; it is
+never routed through the orphan path. Doing so used to create a bogus,
+all-null orphan encounter row for every single auto-potion use — a real
+bug, since it happens on a large fraction of `loot.received` traffic.
+That signal now only updates the session's expense counters (§10),
+creating no encounter row at all.
+
 ## 8. Dedupe and reconnection
 
 Assign a local `socketId` to each observed WebSocket instance.
@@ -178,10 +213,27 @@ Do not use Burp/export timestamps for live duration calculations.
 ```text
 Trainer EXP/h = Σ trainer_exp / active_hours
 Pokémon EXP/h = Σ pokemon_exp / active_hours
-Dollar/h      = Σ gold / active_hours
+Dollar/h      = Σ (gold + (auto_sold ? auto_sell_value : 0)) / active_hours
 ```
 
+`Dollar/h` counts both the wild monster's own `loot.received.gold` drop
+AND, when a captured Pokémon was auto-sold, its `auto_sell_value` — both
+are real, realized income during the Hunt.
+
 If active time is zero, display `—`.
+
+**`Seen` is an exact identity, not an independent count:**
+
+```text
+Seen = Captured + Failed
+```
+
+A Pokémon only counts as "seen" if a capture was actually attempted
+against it. A `combat.started` that never got a capture attempt (the
+player farmed EXP/gold and moved on, or the encounter is
+unresolved/incomplete) is NOT seen — it may have just shown up in the raw
+log without real battle interaction. This also means an `orphan` row
+CAN be "seen" if it still carries a real capture attempt.
 
 Capture rates:
 
@@ -193,6 +245,19 @@ Attempt Rate   = captured / (captured + failed)
 Rare+ is `rare + epic + legendary + mythical`.
 Track shiny `seen`, `captured`, `failed`.
 
+**Gastos/h (Hunt expenses):**
+
+```text
+Gastos/h = (Σ encounter.supply_cost [Pokébolas] + session.potionsCost [Potions]) / active_hours
+```
+
+Pokébolas cost is per-encounter (`supply_cost` on any capture attempt,
+already real protocol data). Potions cost is accumulated on the
+**session**, not the encounter — the auto-potion-used signal (§3) has no
+`wild_monster_id` to attribute it to. `session.potionsUsed` (a raw
+count) is shown alongside it; there is no per-potion price breakdown by
+type, just the total `supply_cost` the protocol actually reports.
+
 ## 11. Group analytics
 
 Do not assign the entire session time to every `group_key`.
@@ -200,10 +265,15 @@ Do not assign the entire session time to every `group_key`.
 ```text
 group_cycle_ms = Σ encounter.cycle_ms
 Trainer EXP / Cycle Hour = Σ trainer_exp / (group_cycle_ms / 3600000)
-Dollar / Cycle Hour      = Σ gold / (group_cycle_ms / 3600000)
+Dollar / Cycle Hour      = Σ (gold + (auto_sold ? auto_sell_value : 0)) / (group_cycle_ms / 3600000)
 ```
 
-UI must distinguish `Session EXP/h` from `Cycle EXP/h`.
+UI must distinguish `Session EXP/h` from `Cycle EXP/h`. Same auto-sell
+rule as §10's `Dollar/h`.
+
+No group-level Gastos: potion expenses are session-scoped, not
+`group_key`-scoped (§10) — attributing them to one species+level+config
+group would mean inventing a split the protocol doesn't provide.
 
 ## 12. Reference fixture baseline
 

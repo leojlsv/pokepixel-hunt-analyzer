@@ -10,7 +10,8 @@ import {
   recoverFromRestart,
   adoptServerContext,
   lockSession,
-  unlockSession
+  unlockSession,
+  recordPotionUsed
 } from "../../domain/sessionTiming.js";
 
 test("createSession starts with no server context adopted yet", () => {
@@ -23,6 +24,44 @@ test("createSession starts with no server context adopted yet", () => {
 test("createSession starts unlocked", () => {
   const session = createSession({ sessionId: "s1", now: 1000 });
   assert.equal(session.locked, false);
+});
+
+test("createSession starts with zero potion expenses", () => {
+  const session = createSession({ sessionId: "s1", now: 1000 });
+  assert.equal(session.potionsUsed, 0);
+  assert.equal(session.potionsCost, 0);
+});
+
+test("recordPotionUsed increments both counters and accumulates across calls", () => {
+  const session = createSession({ sessionId: "s1", now: 1000 });
+
+  const first = recordPotionUsed(session, 22, 2000);
+  assert.equal(first.potionsUsed, 1);
+  assert.equal(first.potionsCost, 22);
+  assert.equal(first.updatedAtMs, 2000);
+
+  const second = recordPotionUsed(first, 10, 3000);
+  assert.equal(second.potionsUsed, 2);
+  assert.equal(second.potionsCost, 32);
+});
+
+test("recordPotionUsed treats a non-finite cost as 0 (still counts the use)", () => {
+  const session = createSession({ sessionId: "s1", now: 1000 });
+  const updated = recordPotionUsed(session, undefined, 2000);
+
+  assert.equal(updated.potionsUsed, 1);
+  assert.equal(updated.potionsCost, 0);
+});
+
+test("recordPotionUsed defaults missing counters to 0 (session row from before this field existed)", () => {
+  const { potionsUsed, potionsCost, ...legacySession } = createSession({
+    sessionId: "s1",
+    now: 1000
+  });
+
+  const updated = recordPotionUsed(legacySession, 22, 2000);
+  assert.equal(updated.potionsUsed, 1);
+  assert.equal(updated.potionsCost, 22);
 });
 
 test("lockSession/unlockSession only toggle the flag", () => {

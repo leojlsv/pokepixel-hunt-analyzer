@@ -148,6 +148,10 @@ export function createEventPipeline(db, { now = Date.now } = {}) {
           await sessionsRepo.pauseAutomatic();
           break;
 
+        case "session.potion_used":
+          await sessionsRepo.recordPotionUsed(effect.cost);
+          break;
+
         case "encounter.create": {
           const resolvedSessionId = await currentSessionId();
           const row = await finishRowForPersistence(effect.row, resolvedSessionId);

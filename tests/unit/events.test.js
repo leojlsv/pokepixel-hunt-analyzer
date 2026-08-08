@@ -45,7 +45,8 @@ test("combat.started extracts enemy and session.auto_capture (raw)", () => {
       zone_id: "zone_0001",
       elements: ["normal"],
       gender: "female",
-      nature: "brave"
+      nature: "brave",
+      quality_multiplier: 1.0233982388954947
     },
     session: {
       id: "server_session_0001",
@@ -81,6 +82,7 @@ test("combat.started extracts enemy and session.auto_capture (raw)", () => {
   assert.deepEqual(normalized.enemy.elements, ["normal"]);
   assert.equal(normalized.enemy.gender, "female");
   assert.equal(normalized.enemy.nature, "brave");
+  assert.equal(normalized.enemy.quality_multiplier, 1.0233982388954947);
   assert.equal(normalized.session.id, "server_session_0001");
   assert.equal(normalized.session.auto_capture.min_quality, "common");
 });
@@ -93,6 +95,35 @@ test("combat.started defaults elements/gender/nature to null when absent", () =>
   assert.equal(normalized.enemy.elements, null);
   assert.equal(normalized.enemy.gender, null);
   assert.equal(normalized.enemy.nature, null);
+});
+
+test("combat.started defaults ivs/quality_multiplier to null when absent", () => {
+  const normalized = normalizeEvent("combat.started", {
+    enemy: { id: "wild_0001", species_id: "chansey" }
+  });
+
+  assert.equal(normalized.enemy.ivs, null);
+  assert.equal(normalized.enemy.quality_multiplier, null);
+});
+
+test("combat.started normalizes ivs per-stat, defaulting a missing individual stat to null", () => {
+  const normalized = normalizeEvent("combat.started", {
+    enemy: {
+      id: "wild_0001",
+      species_id: "chansey",
+      // spd missing entirely; spe non-numeric.
+      ivs: { atk: 3, def: 1, hp: 1, spa: 27, spe: "not-a-number" }
+    }
+  });
+
+  assert.deepEqual(normalized.enemy.ivs, {
+    hp: 1,
+    atk: 3,
+    def: 1,
+    spa: 27,
+    spd: null,
+    spe: null
+  });
 });
 
 test("combat.started drops non-string entries from elements", () => {
@@ -135,6 +166,22 @@ test("loot.received extracts the documented reward fields", () => {
   assert.equal(normalized.pokemon_exp, 4305);
   assert.equal(normalized.gold, 37);
   assert.equal(normalized.creature_id, undefined);
+  assert.equal(normalized.auto_potion_used, null);
+  assert.equal(normalized.supply_cost, null);
+});
+
+test("loot.received also extracts the auto-potion-used variant (no wild_monster_id)", () => {
+  const normalized = normalizeEvent("loot.received", {
+    auto_potion_used: "potion_ultra",
+    new_hp: 745, // present on the wire, not documented — ignored
+    supply_cost: 22
+  });
+
+  assert.equal(normalized.wild_monster_id, null);
+  assert.equal(normalized.auto_potion_used, "potion_ultra");
+  assert.equal(normalized.supply_cost, 22);
+  assert.equal(normalized.gold, null);
+  assert.equal(normalized.new_hp, undefined);
 });
 
 test("capture.failed extracts the documented fields including iv_total", () => {

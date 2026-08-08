@@ -66,6 +66,41 @@ test("touchActivityAutomatic resumes a paused session and pauseAutomatic folds e
   assert.equal(resumed.accumulatedActiveMs, 5000);
 });
 
+test("recordPotionUsed creates a session if none exists and accumulates across calls", async () => {
+  const db = await setup();
+  const clock = fakeClock(0);
+  const repo = createSessionsRepository(db, { now: clock.now });
+
+  const first = await repo.recordPotionUsed(22);
+  assert.equal(first.potionsUsed, 1);
+  assert.equal(first.potionsCost, 22);
+
+  const second = await repo.recordPotionUsed(10);
+  assert.equal(second.sessionId, first.sessionId);
+  assert.equal(second.potionsUsed, 2);
+  assert.equal(second.potionsCost, 32);
+
+  const current = await repo.getCurrentReadOnly();
+  assert.equal(current.potionsUsed, 2);
+  assert.equal(current.potionsCost, 32);
+});
+
+test("recordPotionUsed does not resume/un-freeze a manually paused session", async () => {
+  const db = await setup();
+  const clock = fakeClock(0);
+  const repo = createSessionsRepository(db, { now: clock.now });
+
+  await repo.getOrStartCurrent();
+  const paused = await repo.pauseManual();
+  assert.equal(paused.locked, true);
+
+  const result = await repo.recordPotionUsed(22);
+
+  assert.equal(result.status, "paused");
+  assert.equal(result.locked, true);
+  assert.equal(result.potionsUsed ?? 0, 0); // ignored while locked
+});
+
 test("a session marked ended (and not locked) is replaced by a new one on the next getOrStartCurrent", async () => {
   const db = await setup();
   const clock = fakeClock(0);

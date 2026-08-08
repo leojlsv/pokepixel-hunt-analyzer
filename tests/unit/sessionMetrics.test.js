@@ -13,6 +13,9 @@ function encounter(overrides = {}) {
     trainerExp: 0,
     pokemonExp: 0,
     gold: 0,
+    autoSold: false,
+    autoSellValue: null,
+    supplyCost: null,
     ...overrides
   };
 }
@@ -46,23 +49,22 @@ test("status mirrors session.status (running/paused/ended->waiting)", () => {
   );
 });
 
-test("seen excludes orphans; captured/failed count regardless of state", () => {
+test("seen is the exact identity captured + failed, regardless of state", () => {
   const session = createSession({ sessionId: "s1", now: 0 });
 
   const encounters = [
     encounter({ state: "success", captureResult: "success" }),
     encounter({ state: "failed", captureResult: "failed" }),
-    encounter({ state: "orphan", captureResult: "failed" }), // orphan: not "seen", still "failed"
-    encounter({ state: "incomplete", captureResult: "none" })
+    encounter({ state: "orphan", captureResult: "failed" }), // orphan, but a real attempt -> still "seen"
+    encounter({ state: "incomplete", captureResult: "none" }) // never attempted -> NOT "seen"
   ];
 
   const metrics = computeSessionMetrics({ session, encounters, now: 3_600_000 });
 
-  // 3 non-orphan encounters -> seen=3; captured=1 success; failed=2 (one from
-  // the regular encounter, one from the orphan).
-  assert.equal(metrics.seen, 3);
   assert.equal(metrics.captured, 1);
   assert.equal(metrics.failed, 2);
+  assert.equal(metrics.seen, metrics.captured + metrics.failed);
+  assert.equal(metrics.seen, 3);
 });
 
 test("EXP/gold sums and per-hour rates over active_ms", () => {
@@ -137,14 +139,74 @@ test("Seen->Capture and Attempt Rate formulas", () => {
     encounter({ captureResult: "success" }),
     encounter({ captureResult: "failed" }),
     encounter({ captureResult: "failed" }),
-    encounter({ captureResult: "none" }) // seen but no attempt yet
+    encounter({ captureResult: "none" }) // no attempt yet -> not "seen"
   ];
 
   const metrics = computeSessionMetrics({ session, encounters, now: 1000 });
 
-  assert.equal(metrics.seen, 4);
+  assert.equal(metrics.seen, 3);
   assert.equal(metrics.captured, 1);
   assert.equal(metrics.failed, 2);
-  assert.equal(metrics.seenToCaptureRate, 1 / 4);
+  assert.equal(metrics.seenToCaptureRate, 1 / 3);
   assert.equal(metrics.attemptRate, 1 / 3);
+});
+
+test("Dólar/h includes autoSellValue only when autoSold is true", () => {
+  const session = createSession({ sessionId: "s1", now: 0 });
+
+  const encounters = [
+    encounter({ gold: 100, autoSold: true, autoSellValue: 250 }),
+    // Not auto-sold -> its autoSellValue must NOT count, even if present.
+    encounter({ gold: 50, autoSold: false, autoSellValue: 999 })
+  ];
+
+  const metrics = computeSessionMetrics({ session, encounters, now: 3_600_000 });
+
+  assert.equal(metrics.gold, 100 + 250 + 50);
+  assert.equal(metrics.goldPerHour, 400);
+});
+
+test("Gastos/h: capsulesCost sums supplyCost across encounters (Pokébolas)", () => {
+  const session = createSession({ sessionId: "s1", now: 0 });
+
+  const encounters = [
+    encounter({ captureResult: "failed", supplyCost: 50 }),
+    encounter({ captureResult: "success", supplyCost: 130 }),
+    encounter({ captureResult: "none", supplyCost: null }) // no attempt -> nothing charged
+  ];
+
+  const metrics = computeSessionMetrics({ session, encounters, now: 3_600_000 });
+
+  assert.equal(metrics.capsulesCost, 180);
+  assert.equal(metrics.potionsCost, 0);
+  assert.equal(metrics.expenses, 180);
+  assert.equal(metrics.expensesPerHour, 180);
+});
+
+test("potionsUsed/potionsCost come from the session row, not from encounters", () => {
+  const session = { ...createSession({ sessionId: "s1", now: 0 }), potionsUsed: 7, potionsCost: 84 };
+
+  const metrics = computeSessionMetrics({
+    session,
+    encounters: [encounter({ captureResult: "failed", supplyCost: 50 })],
+    now: 3_600_000
+  });
+
+  assert.equal(metrics.potionsUsed, 7);
+  assert.equal(metrics.potionsCost, 84);
+  assert.equal(metrics.capsulesCost, 50);
+  assert.equal(metrics.expenses, 50 + 84);
+});
+
+test("potionsUsed/potionsCost default to 0 on a session row from before these fields existed", () => {
+  const { potionsUsed, potionsCost, ...legacySession } = createSession({
+    sessionId: "s1",
+    now: 0
+  });
+
+  const metrics = computeSessionMetrics({ session: legacySession, encounters: [], now: 1000 });
+
+  assert.equal(metrics.potionsUsed, 0);
+  assert.equal(metrics.potionsCost, 0);
+  assert.equal(metrics.expenses, 0);
 });

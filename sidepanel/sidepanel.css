@@ -357,6 +357,26 @@ tbody tr:last-child td {
   --rarity-color: #e85d7d;
 }
 
+.captured-pokemon {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.gender-symbol {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.gender-male {
+  color: #6fa8dc;
+}
+
+.gender-female {
+  color: #e88fb0;
+}
+
 /* SHINY */
 
 .shiny-section {

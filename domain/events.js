@@ -8,9 +8,11 @@
  * plug directly into domain/config.js's `normalizeAutoCapture`, which
  * already expects that exact shape — no separate translation layer.
  *
- * `creature.level`, `creature.species_id`, `creature.elements`,
- * `creature.gender`, `creature.nature` and `creature.ivs` are
- * intentionally NOT extracted from capture.success: the doc explicitly
+ * `creature.quality`/`creature.is_shiny`/`creature.ivs` are normalized
+ * here (they're on the wire) but domain/encounterTracker.js never uses
+ * them to patch an encounter row. `creature.level`, `creature.species_id`,
+ * `creature.elements`, `creature.gender`, `creature.nature` and
+ * `creature.quality_multiplier` aren't even extracted. The doc explicitly
  * forbids using the captured creature's level as the target level (it can
  * be a wholly different value — e.g. an egg/baby level), and the same
  * policy extends to every other per-individual attribute the captured
@@ -49,6 +51,24 @@ function strArrayOrNull(value) {
   return value.filter((item) => typeof item === "string");
 }
 
+// domain/ivTotal.js's sumIvs() only needs the 6 stats to be numbers (or
+// safely coerce to 0); this is the strict-validation layer hook.js's own
+// comment refers to — each stat individually defaults to null instead of
+// leaving the whole object unvalidated.
+function normalizeIvs(value) {
+  const source = plainObjectOrNull(value);
+  if (!source) return null;
+
+  return {
+    hp: num(source.hp),
+    atk: num(source.atk),
+    def: num(source.def),
+    spa: num(source.spa),
+    spd: num(source.spd),
+    spe: num(source.spe)
+  };
+}
+
 function normalizeCombatStarted(data) {
   const enemy = plainObjectOrNull(data.enemy);
   if (!enemy) return null;
@@ -62,7 +82,7 @@ function normalizeCombatStarted(data) {
       level: num(enemy.level),
       quality: str(enemy.quality),
       is_shiny: bool(enemy.is_shiny),
-      ivs: plainObjectOrNull(enemy.ivs),
+      ivs: normalizeIvs(enemy.ivs),
       map_id: num(enemy.map_id),
       zone_id: str(enemy.zone_id),
       // Fase 4 subtask — confirmed in a real capture
@@ -71,7 +91,11 @@ function normalizeCombatStarted(data) {
       // the game's own value set drives any UI built on top of these).
       elements: strArrayOrNull(enemy.elements),
       gender: str(enemy.gender),
-      nature: str(enemy.nature)
+      nature: str(enemy.nature),
+      // Continuous quality score (e.g. 1.02), distinct from the discrete
+      // `quality` tier — confirmed in a real capture. Only ever from
+      // combat.started; capture.failed doesn't carry it at all.
+      quality_multiplier: num(enemy.quality_multiplier)
     },
     session: session
       ? {
@@ -92,7 +116,14 @@ function normalizeLootReceived(data) {
     trainer_exp: num(data.trainer_exp),
     pokemon_exp: num(data.pokemon_exp),
     gold: num(data.gold),
-    loot_sell_value: num(data.loot_sell_value)
+    loot_sell_value: num(data.loot_sell_value),
+    // Confirmed in real captures: loot.received without a wild_monster_id
+    // but with auto_potion_used is the game auto-drinking a potion mid-fight
+    // — a trainer-wide expense, not tied to any specific wild encounter.
+    // supply_cost here is that potion's real cost (same field name the
+    // protocol reuses on capture.failed/success for the capsule cost).
+    auto_potion_used: str(data.auto_potion_used),
+    supply_cost: num(data.supply_cost)
   };
 }
 

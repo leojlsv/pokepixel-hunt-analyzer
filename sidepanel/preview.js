@@ -127,6 +127,9 @@ const MOCK_BASE = {
   seen: 2622,
   captured: 97,
   failed: 2525,
+  capsulesCost: 3480,
+  potionsUsed: 214,
+  potionsCost: 3102,
   rarities: {
     weak: { seen: 430, captured: 18, failed: 412 },
     common: { seen: 1180, captured: 49, failed: 1131 },
@@ -153,6 +156,11 @@ function computeMockMetrics(now) {
     pokemonExpPerHour: perHour(MOCK_BASE.pokemonExp, elapsedMs),
     gold: MOCK_BASE.gold,
     goldPerHour: perHour(MOCK_BASE.gold, elapsedMs),
+    capsulesCost: MOCK_BASE.capsulesCost,
+    potionsUsed: MOCK_BASE.potionsUsed,
+    potionsCost: MOCK_BASE.potionsCost,
+    expenses: MOCK_BASE.capsulesCost + MOCK_BASE.potionsCost,
+    expensesPerHour: perHour(MOCK_BASE.capsulesCost + MOCK_BASE.potionsCost, elapsedMs),
     seen: MOCK_BASE.seen,
     captured: MOCK_BASE.captured,
     failed: MOCK_BASE.failed,
@@ -221,6 +229,10 @@ function renderMetrics(metrics) {
   document.getElementById("dollars-hour").textContent = formatPerHour(metrics.goldPerHour);
   document.getElementById("dollars-total").textContent = formatNumber(metrics.gold);
 
+  document.getElementById("expenses-hour").textContent = formatPerHour(metrics.expensesPerHour);
+  document.getElementById("expenses-total").textContent = formatNumber(metrics.expenses);
+  document.getElementById("potions-used").textContent = formatNumber(metrics.potionsUsed);
+
   const status = document.getElementById("hunt-status");
   status.className = "status-badge running";
   status.textContent = "Running";
@@ -253,6 +265,181 @@ function wireActions() {
 }
 
 // ============================================================
+// Captured (Current view — list of successfully captured Pokémon)
+//
+// Self-contained mock, independent of the History mock below (that one
+// belongs to a different tab) — a handful of fictitious captures with
+// varied rarity/gender/nature/IVs/qualityMultiplier.
+// ============================================================
+
+function formatQualityMultiplier(value) {
+  return Number.isFinite(value) ? value.toFixed(2) : "—";
+}
+
+function formatIvStat(value) {
+  return Number.isFinite(value) ? String(value) : "—";
+}
+
+function genderSymbol(gender) {
+  if (gender === "male") return "♂";
+  if (gender === "female") return "♀";
+  return "";
+}
+
+// Falls back to "unknown" (same default gray as the By Rarity table) for
+// anything outside the known tiers, instead of emitting an arbitrary,
+// unsanitized CSS class name.
+function rarityKeyFor(quality) {
+  return RARITY_LABELS.some(([key]) => key === quality) ? quality : "unknown";
+}
+
+const MOCK_CAPTURED = [
+  {
+    speciesId: "dragonite",
+    speciesName: "Dragonite",
+    quality: "epic",
+    gender: "female",
+    nature: "brave",
+    qualityMultiplier: 1.4821,
+    ivTotal: 152,
+    ivs: { hp: 28, atk: 24, def: 30, spa: 22, spd: 26, spe: 22 }
+  },
+  {
+    speciesId: "charmander",
+    speciesName: "Charmander",
+    quality: "uncommon",
+    gender: "male",
+    nature: "adamant",
+    qualityMultiplier: 1.1874,
+    ivTotal: 121,
+    ivs: { hp: 20, atk: 25, def: 18, spa: 15, spd: 21, spe: 22 }
+  },
+  {
+    speciesId: "pidgey",
+    speciesName: "Pidgey",
+    quality: "weak",
+    gender: "female",
+    nature: "hardy",
+    qualityMultiplier: 0.9421,
+    ivTotal: 41,
+    ivs: { hp: 8, atk: 6, def: 9, spa: 5, spd: 7, spe: 6 }
+  },
+  {
+    speciesId: "tauros",
+    speciesName: "Tauros",
+    quality: "common",
+    gender: "male",
+    nature: "careful",
+    qualityMultiplier: 1.0234,
+    ivTotal: 82,
+    ivs: { hp: 5, atk: 2, def: 20, spa: 6, spd: 19, spe: 30 }
+  },
+  {
+    speciesId: "kabutops",
+    speciesName: "Kabutops",
+    quality: "rare",
+    gender: "female",
+    nature: "jolly",
+    qualityMultiplier: 1.312,
+    ivTotal: 174,
+    ivs: { hp: 29, atk: 31, def: 28, spa: 24, spd: 30, spe: 32 }
+  }
+].map((entry) => ({ ...entry, captureResult: "success" }));
+
+const capturedFilters = { rarity: "*", qualityMin: null, ivTotalMin: null };
+
+function applyCapturedFilters(captured) {
+  return captured.filter((entry) => {
+    if (capturedFilters.rarity !== "*" && entry.quality !== capturedFilters.rarity) {
+      return false;
+    }
+
+    if (
+      Number.isFinite(capturedFilters.qualityMin) &&
+      !(Number.isFinite(entry.qualityMultiplier) && entry.qualityMultiplier > capturedFilters.qualityMin)
+    ) {
+      return false;
+    }
+
+    if (
+      Number.isFinite(capturedFilters.ivTotalMin) &&
+      !(Number.isFinite(entry.ivTotal) && entry.ivTotal > capturedFilters.ivTotalMin)
+    ) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function renderCapturedList() {
+  populateSelect(
+    document.getElementById("captured-filter-rarity"),
+    distinctValues(MOCK_CAPTURED, "quality")
+  );
+
+  const filtered = applyCapturedFilters(MOCK_CAPTURED);
+  const body = document.getElementById("captured-body");
+  body.replaceChildren();
+
+  document.getElementById("captured-empty").hidden = filtered.length > 0;
+
+  for (const entry of filtered) {
+    const row = document.createElement("tr");
+    const ivs = entry.ivs || {};
+
+    const nameCell = document.createElement("td");
+    const nameWrap = document.createElement("span");
+    nameWrap.className = "captured-pokemon";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = `rarity-name rarity-${rarityKeyFor(entry.quality)}`;
+    nameSpan.textContent = speciesLabel(entry.speciesName, entry.speciesId);
+
+    const genderSpan = document.createElement("span");
+    const symbol = genderSymbol(entry.gender);
+    genderSpan.className = symbol ? `gender-symbol gender-${entry.gender}` : "gender-symbol";
+    genderSpan.textContent = symbol;
+
+    nameWrap.append(nameSpan, genderSpan);
+    nameCell.appendChild(nameWrap);
+    row.appendChild(nameCell);
+
+    fillRow(row, [
+      entry.nature ?? "—",
+      formatQualityMultiplier(entry.qualityMultiplier),
+      formatIvStat(ivs.hp),
+      formatIvStat(ivs.atk),
+      formatIvStat(ivs.def),
+      formatIvStat(ivs.spa),
+      formatIvStat(ivs.spd),
+      formatIvStat(ivs.spe)
+    ]);
+
+    body.appendChild(row);
+  }
+}
+
+function wireCapturedFilters() {
+  document.getElementById("captured-filter-rarity").addEventListener("change", (event) => {
+    capturedFilters.rarity = event.target.value;
+    renderCapturedList();
+  });
+
+  document.getElementById("captured-filter-quality-min").addEventListener("input", (event) => {
+    const value = parseFloat(event.target.value);
+    capturedFilters.qualityMin = Number.isFinite(value) ? value : null;
+    renderCapturedList();
+  });
+
+  document.getElementById("captured-filter-iv-min").addEventListener("input", (event) => {
+    const value = parseInt(event.target.value, 10);
+    capturedFilters.ivTotalMin = Number.isFinite(value) ? value : null;
+    renderCapturedList();
+  });
+}
+
+// ============================================================
 // History mock data (docs/DEVELOPMENT.md §6: "history and filters")
 //
 // Fictitious sessions + encounters, shaped like real `sessions`/
@@ -276,6 +463,9 @@ function mockEncounter({
   trainerExp,
   pokemonExp,
   gold,
+  supplyCost = null,
+  autoSold = false,
+  autoSellValue = null,
   cycleMs,
   startedAtMs
 }) {
@@ -297,6 +487,9 @@ function mockEncounter({
     trainerExp,
     pokemonExp,
     gold,
+    supplyCost,
+    autoSold,
+    autoSellValue,
     cycleMs,
     startedAtMs
   };
@@ -332,6 +525,7 @@ const MOCK_HISTORY_SESSIONS = [
         trainerExp: 1450,
         pokemonExp: 2100,
         gold: 80,
+        supplyCost: 130,
         cycleMs: 6200,
         startedAtMs: now - DAY_MS * 0.3 + 60_000
       }),
@@ -351,6 +545,7 @@ const MOCK_HISTORY_SESSIONS = [
         trainerExp: 0,
         pokemonExp: 0,
         gold: 0,
+        supplyCost: 130,
         cycleMs: 5800,
         startedAtMs: now - DAY_MS * 0.3 + 130_000
       }),
@@ -370,10 +565,13 @@ const MOCK_HISTORY_SESSIONS = [
         trainerExp: 60,
         pokemonExp: 90,
         gold: 5,
+        supplyCost: 10,
         cycleMs: 2100,
         startedAtMs: now - DAY_MS * 0.3 + 200_000
       })
-    ]
+    ],
+    potionsUsed: 8,
+    potionsCost: 176
   },
   {
     sessionId: "preview-session-2",
@@ -398,6 +596,9 @@ const MOCK_HISTORY_SESSIONS = [
         trainerExp: 320,
         pokemonExp: 410,
         gold: 22,
+        supplyCost: 50,
+        autoSold: true,
+        autoSellValue: 65,
         cycleMs: 3300,
         startedAtMs: now - DAY_MS * 1.4 + 45_000
       }),
@@ -417,10 +618,13 @@ const MOCK_HISTORY_SESSIONS = [
         trainerExp: 0,
         pokemonExp: 0,
         gold: 0,
+        supplyCost: 10,
         cycleMs: 1900,
         startedAtMs: now - DAY_MS * 1.4 + 90_000
       })
-    ]
+    ],
+    potionsUsed: 23,
+    potionsCost: 506
   },
   {
     sessionId: "preview-session-3",
@@ -445,10 +649,13 @@ const MOCK_HISTORY_SESSIONS = [
         trainerExp: 0,
         pokemonExp: 0,
         gold: 0,
+        supplyCost: 130,
         cycleMs: 6600,
         startedAtMs: now - DAY_MS * 3.1 + 30_000
       })
-    ]
+    ],
+    potionsUsed: 2,
+    potionsCost: 44
   }
 ];
 
@@ -465,7 +672,7 @@ function computeMockSessionMetrics(session) {
   let trainerExp = 0;
   let pokemonExp = 0;
   let gold = 0;
-  let seen = 0;
+  let capsulesCost = 0;
   let captured = 0;
   let failed = 0;
 
@@ -473,12 +680,18 @@ function computeMockSessionMetrics(session) {
     trainerExp += Number(encounter.trainerExp) || 0;
     pokemonExp += Number(encounter.pokemonExp) || 0;
     gold += Number(encounter.gold) || 0;
-    if (encounter.state !== "orphan") seen += 1;
+    if (encounter.autoSold) gold += Number(encounter.autoSellValue) || 0;
+    capsulesCost += Number(encounter.supplyCost) || 0;
     if (encounter.captureResult === "success") captured += 1;
     if (encounter.captureResult === "failed") failed += 1;
   }
 
+  // Seen = Captured + Failed, exactly (domain/rarityBreakdown.js).
+  const seen = captured + failed;
   const activeMs = session.accumulatedActiveMs;
+  const potionsUsed = session.potionsUsed || 0;
+  const potionsCost = session.potionsCost || 0;
+  const expenses = capsulesCost + potionsCost;
 
   return {
     activeMs,
@@ -490,7 +703,12 @@ function computeMockSessionMetrics(session) {
     pokemonExp,
     pokemonExpPerHour: perHour(pokemonExp, activeMs),
     gold,
-    goldPerHour: perHour(gold, activeMs)
+    goldPerHour: perHour(gold, activeMs),
+    capsulesCost,
+    potionsUsed,
+    potionsCost,
+    expenses,
+    expensesPerHour: perHour(expenses, activeMs)
   };
 }
 
@@ -534,7 +752,9 @@ function renderHistorySummary(metrics) {
     ["Failed", formatNumber(metrics.failed)],
     ["EXP/h Treinador", formatPerHour(metrics.trainerExpPerHour)],
     ["EXP/h Pokémon", formatPerHour(metrics.pokemonExpPerHour)],
-    ["Dólar/h", formatPerHour(metrics.goldPerHour)]
+    ["Dólar/h", formatPerHour(metrics.goldPerHour)],
+    ["Gastos/h", formatPerHour(metrics.expensesPerHour)],
+    ["Potions", formatNumber(metrics.potionsUsed)]
   ];
 
   for (const [label, value] of entries) {
@@ -646,7 +866,6 @@ let compareTheme = "cycle";
 const compareFilters = { species: "*", capsule: "*", element: "*" };
 
 function computeMockGroupMetrics(encounters) {
-  let seen = 0;
   let captured = 0;
   let failed = 0;
   let trainerExp = 0;
@@ -655,14 +874,17 @@ function computeMockGroupMetrics(encounters) {
   let groupCycleMs = 0;
 
   for (const encounter of encounters) {
-    if (encounter.state !== "orphan") seen += 1;
     if (encounter.captureResult === "success") captured += 1;
     if (encounter.captureResult === "failed") failed += 1;
     trainerExp += Number(encounter.trainerExp) || 0;
     pokemonExp += Number(encounter.pokemonExp) || 0;
     gold += Number(encounter.gold) || 0;
+    if (encounter.autoSold) gold += Number(encounter.autoSellValue) || 0;
     if (Number.isFinite(encounter.cycleMs)) groupCycleMs += encounter.cycleMs;
   }
+
+  // Seen = Captured + Failed, exactly (domain/rarityBreakdown.js).
+  const seen = captured + failed;
 
   return {
     seen,
@@ -684,9 +906,13 @@ function computeMockRarityBreakdown(encounters) {
     const bucket = rarities[encounter.quality];
     if (!bucket) continue;
 
-    if (encounter.state !== "orphan") bucket.seen += 1;
-    if (encounter.captureResult === "success") bucket.captured += 1;
-    if (encounter.captureResult === "failed") bucket.failed += 1;
+    const isCaptured = encounter.captureResult === "success";
+    const isFailed = encounter.captureResult === "failed";
+
+    if (isCaptured) bucket.captured += 1;
+    if (isFailed) bucket.failed += 1;
+    // Seen = Captured + Failed, exactly (domain/rarityBreakdown.js).
+    if (isCaptured || isFailed) bucket.seen += 1;
   }
 
   return rarities;
@@ -936,8 +1162,10 @@ function wireCompare() {
 
 createRarityRows();
 renderMetrics(computeMockMetrics(Date.now()));
+renderCapturedList();
 wireTabs();
 wireActions();
+wireCapturedFilters();
 wireHistory();
 wireCompare();
 switchView("current");

@@ -31,7 +31,8 @@ import {
   recoverFromRestart,
   adoptServerContext as adoptServerContextPure,
   lockSession,
-  unlockSession
+  unlockSession,
+  recordPotionUsed as recordPotionUsedPure
 } from "../domain/sessionTiming.js";
 
 const CURRENT_SESSION_KEY = "currentSessionId";
@@ -101,6 +102,22 @@ export function createSessionsRepository(
     }
 
     return paused;
+  }
+
+  /**
+   * Automatic — from `loot.received`'s auto-potion-used variant
+   * (domain/encounterTracker.js's `session.potion_used` effect). Respects
+   * `locked` like the other automatic methods: a stray potion signal must
+   * not silently un-freeze a manually Paused/Ended Hunt's expense total.
+   */
+  async function recordPotionUsed(cost) {
+    const session = await getOrStartCurrent();
+    if (session.locked) return session;
+
+    const updated = recordPotionUsedPure(session, cost, now());
+    await sessions.put(updated);
+
+    return updated;
   }
 
   /** Manual `Pause` button: sticky until resumeManual() or forceNewSession(). */
@@ -255,6 +272,7 @@ export function createSessionsRepository(
     getOrStartCurrent,
     touchActivityAutomatic,
     pauseAutomatic,
+    recordPotionUsed,
     pauseManual,
     resumeManual,
     endManual,

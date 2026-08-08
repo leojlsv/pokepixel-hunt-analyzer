@@ -67,7 +67,11 @@
         // capture.success.creature (mesma regra do level/quality).
         elements: enemy.elements,
         gender: enemy.gender,
-        nature: enemy.nature
+        nature: enemy.nature,
+        // Confirmado em captura real: multiplicador de qualidade contínuo
+        // (ex.: 1.02), distinto da raridade discreta (`quality`). Mesma
+        // regra: só de combat.started, nunca de capture.success.creature.
+        quality_multiplier: enemy.quality_multiplier
       },
       session:
         session && typeof session === "object"
@@ -87,7 +91,12 @@
       trainer_exp: data.trainer_exp,
       pokemon_exp: data.pokemon_exp,
       gold: data.gold,
-      loot_sell_value: data.loot_sell_value
+      loot_sell_value: data.loot_sell_value,
+      // loot.received doubles as the auto-potion-used signal: this variant
+      // has no wild_monster_id (it isn't tied to one specific wild
+      // encounter) and instead carries which potion and its real cost.
+      auto_potion_used: data.auto_potion_used,
+      supply_cost: data.supply_cost
     };
   }
 
