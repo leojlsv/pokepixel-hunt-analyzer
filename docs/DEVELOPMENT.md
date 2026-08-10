@@ -34,7 +34,7 @@ counter.
 History is paginated session history and detail (docs/ARCHITECTURE.md §9).
 Compare aggregates either by `species + level + config` ("By Cycle") or
 by rarity tier, identical to Current's own By Rarity table ("By Rarity"),
-selectable via a "Tema" toggle (docs/ARCHITECTURE.md §9).
+selectable via a "Theme" toggle (docs/ARCHITECTURE.md §9).
 Capture config prefers protocol-derived `auto_capture`; EXP rate remains manual/unknown until protocol support is proven.
 
 ## 3. Export
@@ -176,3 +176,57 @@ Implemented (Fase 5, step 1 — docs/ARCHITECTURE.md §13):
 the 3 point-in-time ones (`activeEncounters`/`dbVersion`/`appVersion`)
 computed live. No UI reads them yet — nothing in the Side Panel
 surfaces this data on purpose, for now.
+
+## 10. Post-v1.0.0 roadmap
+
+Not scheduled, not started — captured here so the analysis isn't lost.
+
+### Firefox compatibility
+
+Low-to-moderate effort. `domain/`, `data/`, `services/` and all of
+`sidepanel/` are plain JS/DOM/IndexedDB — none of it is Chrome-specific
+and none of it should need to change. The work is narrowly scoped to
+two files:
+
+- `manifest.json`: add `sidebar_action.default_panel` (pointing at the
+  same `sidepanel/sidepanel.html`) alongside the existing `side_panel`
+  key — each browser reads the one it understands. Add
+  `background.scripts` alongside `background.service_worker` (same
+  cross-browser pattern). Add `browser_specific_settings.gecko.id`
+  (Firefox requires a stable extension id) and a
+  `strict_min_version: "128"` guard — Firefox only added
+  `content_scripts[].world: "MAIN"` support in version 128 (Jul 2024),
+  and `hook.js`'s WebSocket interception hard-depends on it.
+- `background.js`: `chrome.sidePanel` has no Firefox equivalent
+  (`sidebarAction` is a different, incompatible API/lifecycle) — needs
+  a small feature-detect branch (`chrome.sidePanel` present → current
+  code path; else → `browser.action.onClicked` +
+  `browser.sidebarAction.toggle()`). Isolated, doesn't touch the event
+  pipeline or session logic.
+
+Needs real manual testing in Firefox (`about:debugging` → load
+temporary add-on) — no automated harness covers `manifest.json`/
+`background.js` today, same limitation that already exists for Chrome/
+Edge. Publishing to addons.mozilla.org (vs. just loading unpacked) adds
+Mozilla's separate signing/review process, outside of code effort.
+
+Zen Browser would follow for free once this lands — it's a Firefox
+fork (Gecko engine), same `sidebarAction` surface.
+
+### Brave
+
+Currently blocked on Brave's own side, not ours: `chrome.sidePanel`
+has open, unresolved bugs in Brave (panel opens then disappears after
+~1s; their sidebar has no UI yet to activate side panel extensions) —
+tracked upstream at
+[brave/brave-browser#32132](https://github.com/brave/brave-browser/issues/32132)
+and
+[#31334](https://github.com/brave/brave-browser/issues/31334), tagged
+low priority (P3) on their roadmap. Nothing to build here — revisit if
+Brave fixes it.
+
+### Opera / Vivaldi
+
+Chromium-based, likely already work — never actually tested. Low
+effort if/when it's worth confirming (just needs someone to load the
+unpacked extension and check).

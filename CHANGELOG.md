@@ -5,6 +5,68 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed — Full EN-US translation of the on-screen UI
+- Every user-facing PT-BR string in `manifest.json`, `sidepanel.html`,
+  `sidepanel.js`, `preview.html`, and `preview.js` translated to
+  EN-US: manifest `description`/`action.default_title`; `lang="pt-BR"`
+  → `lang="en"`; `aria-label`s; filter labels (`De/Até` → `From/To`,
+  `Tema` → `Theme`, `Pokébola` → `Capsule`, `Elemento` → `Element`);
+  buttons (`Filtrar`/`Limpar`/`Carregar mais`/`Voltar`/`Apagar esta
+  sessão` → `Filter`/`Clear`/`Load more`/`Back`/`Delete this session`);
+  empty states and warnings; the delete-session `confirm()` dialog; the
+  History detail summary's per-metric labels (renamed to match
+  Current's own naming: `XP/h You`/`XP/h Poké`/`Dollar/h`/
+  `Expenses/h`); Compare's theme subtitle (`Agrupado por...` →
+  `Grouped by...`); the `ex:` input placeholders → `e.g.`; the preview
+  banner/footer/alert.
+- Verified the IndexedDB model itself needed no changes — field names,
+  enum values, and everything actually persisted were already English
+  (confirmed by inspection before starting this pass).
+- Any table header in the UI now uses an abbreviation where one made
+  sense, consistent with the style already established elsewhere
+  (`Cap.`/`Nat`/`Qlt`): History's list table `Início`/`Duração` →
+  `Start`/`Dur.`; the History detail and Compare tables' `Nv` (a PT-BR
+  abbreviation for "Nível") → `Lvl`; History detail's `Gender`/`Result`
+  → `Gen.`/`Res.`, and its `Quality` column → `Qlt` (matching
+  Current's Captured list, same underlying field). Row-identifying
+  columns (`Pokémon`, `Rarity`) are left unabbreviated on purpose.
+- `docs/ARCHITECTURE.md`/`docs/DEVELOPMENT.md`: updated the handful of
+  spots that quoted exact former UI label text (`"Tema"` toggle, the
+  `Pokébola`/`Elemento` filters, the History detail column list) so
+  they match what's now on screen. Doc/formula concept names like
+  "Dólar/h"/"Gastos/h" used as analysis jargon elsewhere in the docs
+  were deliberately left as-is — out of scope for this pass (UI +
+  IndexedDB model only, not prose).
+
+### Changed — History detail table columns
+- `Espécie` → `Pokémon`, `Gênero` → `Gender`, `Resultado` → `Result`.
+- Removed the `Elementos` column (species elements aren't shown in
+  History anymore — they're still Compare's filter, untouched).
+- The old `Quality` column (which actually showed the discrete rarity
+  tier, e.g. `epic`) renamed to `Rarity`; a new `Quality` column added
+  right after it, showing `qualityMultiplier` (the continuous score,
+  e.g. `1.48`) via the existing `formatQualityMultiplier` — same field
+  already shown in Current's Captured list, now also here.
+- `preview.js`'s `mockEncounter()`/`MOCK_HISTORY_SESSIONS` gained
+  `qualityMultiplier` values so the preview's History detail matches
+  what production now shows.
+
+### Changed — Captured list IV column simplified further
+- Dropped the summed `ivTotal` prefix from the Captured table's IV
+  cell — was `186 (31-31-31-31-31-31)`, now just `31-31-31-31-31-31`.
+  Header simplified to match: `IV (HP-ATK-DEF-SATK-SDEF-SPE)` →
+  `HP-ATK-DEF-SATK-SDEF-SPE`. Frees up more width; the "IV Total >"
+  filter is unaffected (still reads `encounter.ivTotal` directly, only
+  the display changed).
+
+### Docs — post-v1.0.0 roadmap
+- `docs/DEVELOPMENT.md §10`: captured the browser-compatibility
+  analysis (Firefox — low-to-moderate effort, concretely scoped to
+  `manifest.json` + a small `background.js` branch; Brave — blocked on
+  their own unresolved `chrome.sidePanel` bugs, not ours to fix; Opera/
+  Vivaldi — likely fine, untested). Not scheduled, not started — just
+  written down so the analysis isn't lost.
+
 ### Security — least privilege + session message sender validation
 - `manifest.json`: removed the unused `storage` permission — nothing in
   the codebase calls `chrome.storage.*` (the extension persists
