@@ -1,212 +1,79 @@
-# PokePixel Hunt Counter — v0.3.0
+# PokePixel Hunt Counter
 
-Extensão MV3 para Microsoft Edge.
+Extensão standalone Manifest V3 para Microsoft Edge / Chromium:
+observa passivamente o WebSocket do PokePixel e mantém analytics
+locais e persistentes de Hunt num painel lateral (Side Panel).
 
-## Novidades da v0.3.0
+**Status**: em desenvolvimento — Fase 5 (Hardening + Release) da v1,
+ainda não `v1.0.0` (ver `docs/DEVELOPMENT.md §6/§8`). Baseline atual:
+`v0.3.0` (manifest).
 
-Além dos contadores de captura, a extensão agora calcula:
+## O que faz
 
-- Tempo ativo da Hunt
-- EXP/h Treinador
-- EXP Treinador total
-- Dólar/h
-- Dólar total
+- **Current**: status da Hunt ao vivo (tempo ativo, EXP/h, Dólar/h,
+  Lucro Total, Seen/Captured/Failed e taxas, By Rarity com contagem de
+  shiny, lista de capturados com Nature/Quality/IVs).
+- **History**: histórico paginado de Hunts anteriores, filtro por
+  data, detalhe por sessão, exclusão.
+- **Compare**: agregação por espécie+nível+config ("By Cycle") ou por
+  raridade ("By Rarity"), com filtros por Pokémon/Pokébola/Elemento.
+- **Export**: backup JSON completo (sessões, configs, encontros) — sem
+  tokens, cookies ou frames WebSocket brutos.
 
-Tudo continua sendo agregado em `chrome.storage.session`.
+Tudo persistido localmente em IndexedDB (`pokepixel_hunt_analyzer`) —
+sobrevive a fechar o Edge e a reiniciar o navegador
+(`docs/ARCHITECTURE.md §7`).
 
-Não existe log de eventos nem histórico individual de Pokémon.
+## Privacidade / segurança
 
-## Eventos usados
+A extensão é estritamente passiva:
 
-### `combat.started`
+- nunca envia, repete, modifica ou automatiza mensagens WebSocket do
+  jogo;
+- nunca persiste tokens, cookies, cabeçalhos de autenticação, URLs de
+  WebSocket autenticadas ou frames brutos;
+- permissões mínimas (`storage`, `sidePanel`, host permission só pro
+  domínio do jogo).
 
-- incrementa `Seen`;
-- inicia ou retoma o cronômetro como fallback.
+Ver `docs/ARCHITECTURE.md §1` (escopo) e `docs/DEVELOPMENT.md §1`
+(segurança) para os detalhes completos.
 
-### `capture.success`
+## Instalação (modo desenvolvedor)
 
-- incrementa `Captured`.
+1. Abra `edge://extensions`.
+2. Ative **Modo do desenvolvedor**.
+3. Clique **Carregar sem compactação** e selecione a pasta deste
+   projeto (ou recarregue a extensão existente se já estiver instalada
+   nesta pasta).
+4. Abra o PokePixel e recarregue a aba (F5).
+5. Abra o painel lateral: atalho `Ctrl+Shift+7` ou o ícone da extensão
+   na barra de ferramentas.
 
-### `capture.failed`
+## Desenvolvimento
 
-- incrementa `Failed`.
-
-### `loot.received`
-
-Acumula:
-
-```text
-trainer_exp
-pokemon_exp
-gold
-```
-
-A interface usa:
-
-```text
-EXP/h Treinador = trainer_exp acumulado / horas ativas
-Dólar/h         = gold acumulado / horas ativas
-```
-
-### `hunt.stopped`
-
-Pausa o cronômetro.
-
-### `hunt.analyzer_reset`
-
-Não zera a extensão.
-
-Ele é tratado apenas como sinal de atividade/início.
-
-O botão `Reset` da própria extensão continua sendo a autoridade para
-começar uma nova medição.
-
-## Cronômetro
-
-A extensão NÃO incrementa um contador a cada segundo.
-
-Ela persiste:
-
-```javascript
-{
-  running: true,
-  startedAt: 1234567890,
-  accumulatedMs: 0
-}
-```
-
-E calcula:
-
-```text
-tempo = accumulatedMs + (agora - startedAt)
-```
-
-Isso evita o problema clássico de cronômetro visual congelar quando um
-timer JavaScript deixa de executar temporariamente.
-
-O `setInterval` do Side Panel serve apenas para atualizar a tela.
-
-## Config Key preparada
-
-Foi deixada uma estrutura preparada para uma evolução futura:
-
-```javascript
-species + level + expRate + captureConfig
-```
-
-Exemplo:
-
-```text
-kabutops|90|2x|ultra
-```
-
-A chave NÃO está ativa nesta versão e NÃO é usada como identificador único
-de encontro.
-
-A v0.3.0 continua tratando tudo como uma única Hunt até o usuário apertar
-`Reset`.
-
-## Instalação / atualização
-
-1. Extraia o ZIP.
-2. Abra:
-   `edge://extensions`
-3. Ative **Modo do desenvolvedor**.
-4. Se já estiver usando uma versão anterior na mesma pasta, substitua os
-   arquivos e clique em **Recarregar**.
-5. Se estiver usando esta pasta como instalação nova, clique:
-   **Carregar sem compactação**.
-6. Selecione:
-   `pokepixel-capture-counter-sidepanel-v0.3.0`
-7. Faça F5 no PokePixel.
-8. Abra:
-   `edge://extensions/shortcuts`
-9. Confirme:
-   `Ctrl+Shift+7`
-
-## Preview visual
-
-Execute:
+Domínio e persistência (`domain/`, `data/`, `services/`) têm testes
+automatizados; UI (`sidepanel/`) é verificada manualmente/via preview:
 
 ```powershell
-.\start-preview.ps1
+npm test
 ```
 
-Depois abra:
+### Preview visual (sem instalar a extensão)
 
-```text
-http://127.0.0.1:8000/preview.html
-```
+`sidepanel/preview.html`/`preview.js` são um clone autocontido do Side
+Panel real, com dados fictícios determinísticos — sem `chrome.*`, sem
+IndexedDB real. Sirva a pasta com qualquer servidor HTTP estático
+(ex.: `python -m http.server`, ou `start-preview.ps1`) e abra
+`sidepanel/preview.html`.
 
-O preview inclui dados fictícios de Tempo, EXP/h e Dólar/h.
+## Documentação
 
-Para alterar cores/layout:
-
-```text
-sidepanel/sidepanel.css
-```
-
-Para alterar os mocks:
-
-```text
-sidepanel/preview.js
-```
-
-## Estado agregado
-
-Conceitualmente:
-
-```javascript
-{
-  totals: {
-    seen: 0,
-    captured: 0,
-    failed: 0
-  },
-
-  hunt: {
-    running: false,
-    startedAt: null,
-    accumulatedMs: 0,
-
-    trainerExp: 0,
-    pokemonExp: 0,
-    dollars: 0,
-    lootEvents: 0,
-
-    config: {
-      key: null,
-      speciesId: null,
-      level: null,
-      expRate: null,
-      captureConfig: null
-    }
-  }
-}
-```
-
-## Sem armazenamento individual
-
-Não são persistidos:
-
-- payloads WebSocket;
-- `wild_monster_id`;
-- espécie por encontro;
-- IV individual;
-- timestamps de cada Pokémon;
-- tokens;
-- URLs de WebSocket;
-- histórico da Hunt.
-
-## Observação sobre pausa/retomada
-
-`hunt.stopped` pausa o relógio.
-
-Nos dados analisados, `hunt.resume` pode ocorrer no sentido cliente → servidor,
-enquanto esta extensão observa principalmente os frames recebidos.
-
-Por isso `combat.started`, `hunt.analyzer_reset` e `loot.received` funcionam
-como fallback de retomada.
-
-Na prática, ao voltar a caçar, o relógio retoma assim que a atividade da Hunt
-volta a ser observada.
+- `docs/ARCHITECTURE.md` — schema IndexedDB, identidade de
+  encontro/sessão, fluxo de dados, decisões de layout da UI.
+- `docs/PROTOCOL_AND_ANALYTICS.md` — quais campos do protocolo são
+  extraídos e as fórmulas exatas de cada métrica.
+- `docs/DEVELOPMENT.md` — fases de implementação, critérios de aceite
+  do `v1.0.0`, convenções de git.
+- `CHANGELOG.md` — histórico de mudanças.
+- `CLAUDE.md` — convenções do projeto para desenvolvimento assistido
+  por IA.
