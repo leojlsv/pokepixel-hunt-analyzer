@@ -72,6 +72,18 @@ Validate `event.source`, origin, channel, event type and field types before forw
 ### Service worker
 Coordinates domain operations and persistence. Business rules should gradually move out of a monolithic background file into testable modules.
 
+Validates the sender of every message it acts on before touching the
+database — `background.js`'s `chrome.runtime.onMessage` listener:
+`protocol.event` must come from a tab on `https://pokepixel.nietore.com`
+(`isPokePixelSender`); `session.new`/`pause`/`resume`/`end` must come
+from one of this extension's own pages, never a content script
+(`isOwnExtensionSender` — checks `sender.url`'s scheme is
+`chrome-extension:`, not `sender.tab`'s presence, since a Side Panel
+sender can carry a `tab` too). Neither is currently reachable by an
+external page (no `externally_connectable` declared), but both fail
+closed (`{ ok: false, error: "invalid_sender" }`) rather than assuming
+that stays true forever.
+
 ## 4. IndexedDB
 
 Database: `pokepixel_hunt_analyzer`

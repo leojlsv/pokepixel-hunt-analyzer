@@ -1,73 +1,125 @@
 # PokePixel Hunt Counter
 
-Extensão standalone Manifest V3 para Microsoft Edge / Chromium:
-observa passivamente o WebSocket do PokePixel e mantém analytics
-locais e persistentes de Hunt num painel lateral (Side Panel).
+Uma extensão para Microsoft Edge / Chrome que acompanha suas Hunts no
+**PokePixel** em tempo real, direto num painel lateral do navegador —
+sem precisar alt-tab pra planilha nenhuma.
 
-**Status**: `v1.0.0` — os 15 critérios de aceite de
-`docs/DEVELOPMENT.md §8` foram verificados e passam.
+Ela fica ouvindo (só ouvindo) o tráfego do jogo enquanto você joga
+normalmente, e calcula tudo sozinha: quantos Pokémon você viu, quantos
+capturou, quanto ganhou de EXP e dinheiro por hora, e guarda o
+histórico de cada Hunt pra você comparar depois.
 
-## O que faz
+**Status atual**: `v1.0.0` ✅
 
-- **Current**: status da Hunt ao vivo (tempo ativo, EXP/h, Dólar/h,
-  Lucro Total, Seen/Captured/Failed e taxas, By Rarity com contagem de
-  shiny, lista de capturados com Nature/Quality/IVs).
-- **History**: histórico paginado de Hunts anteriores, filtro por
-  data, detalhe por sessão, exclusão.
-- **Compare**: agregação por espécie+nível+config ("By Cycle") ou por
-  raridade ("By Rarity"), com filtros por Pokémon/Pokébola/Elemento.
-- **Export**: backup JSON completo (sessões, configs, encontros) — sem
-  tokens, cookies ou frames WebSocket brutos.
+---
 
-Tudo persistido localmente em IndexedDB (`pokepixel_hunt_analyzer`) —
-sobrevive a fechar o Edge e a reiniciar o navegador
-(`docs/ARCHITECTURE.md §7`).
+## 🧭 O que ela faz
 
-## Privacidade / segurança
+### Current — sua Hunt, ao vivo
+Abra o painel e veja, atualizando sozinho a cada segundo:
+- tempo ativo da Hunt (pausa automaticamente se você parar de caçar);
+- EXP/h (seu e do Pokémon), Dólar/h e Lucro Total (ganho − gasto com
+  Pokébolas e Potions);
+- quantos Pokémon você **viu**, **capturou** e **deixou escapar**, e a
+  taxa de captura;
+- uma tabela por raridade (Weak → Mythical), com contagem de shinies
+  destacada;
+- a lista de tudo que você já capturou nessa Hunt, com Natureza,
+  Qualidade e os IVs de cada um — filtrável por raridade, qualidade
+  mínima e total de IV.
 
-A extensão é estritamente passiva:
+### History — suas Hunts passadas
+Todo Hunt que você fez fica salvo. Filtre por data, entre em qualquer
+sessão antiga pra ver o detalhe completo (espécie, nível, elementos,
+gênero, IV, se era shiny, se capturou ou não), ou apague uma sessão se
+quiser.
 
-- nunca envia, repete, modifica ou automatiza mensagens WebSocket do
-  jogo;
-- nunca persiste tokens, cookies, cabeçalhos de autenticação, URLs de
-  WebSocket autenticadas ou frames brutos;
-- permissões mínimas (`storage`, `sidePanel`, host permission só pro
-  domínio do jogo).
+### Compare — qual Pokémon/config vale mais a pena
+Agrupa tudo que você já capturou por **espécie + nível + configuração**
+("By Cycle") ou por **raridade** ("By Rarity"), com filtros por
+Pokémon, Pokébola usada e Elemento. Útil pra descobrir onde seu tempo
+de Hunt está rendendo mais.
 
-Ver `docs/ARCHITECTURE.md §1` (escopo) e `docs/DEVELOPMENT.md §1`
-(segurança) para os detalhes completos.
+### Export — leve seus dados pra onde quiser
+Um clique baixa um backup completo em JSON (sessões, configs,
+encontros) — sem token, sem cookie, sem nada que possa comprometer sua
+conta.
 
-## Instalação (modo desenvolvedor)
+Tudo fica salvo **localmente no seu navegador** (IndexedDB) — sobrevive
+a fechar o Edge/Chrome e reiniciar o computador. Nada é enviado pra
+lugar nenhum.
 
-1. Abra `edge://extensions`.
-2. Ative **Modo do desenvolvedor**.
+---
+
+## 🌐 Compatibilidade de navegadores
+
+| Navegador | Funciona? |
+|---|---|
+| **Microsoft Edge** (versão 114+) | ✅ Sim — navegador alvo do projeto |
+| **Google Chrome** (versão 114+) | ✅ Sim — mesma tecnologia de base |
+| Brave / Opera / Vivaldi (recentes) | ⚠️ Provavelmente, mas não testado oficialmente |
+| Firefox | ❌ Não — o navegador não tem a API de painel lateral que a extensão usa |
+| Safari | ❌ Não — modelo de extensões incompatível |
+
+Em resumo: se seu navegador é baseado em **Chromium** e foi atualizado
+nos últimos anos, deve funcionar. Edge e Chrome são os garantidos.
+
+---
+
+## 🔒 Privacidade e segurança
+
+A extensão é estritamente **passiva** — ela só observa, nunca age:
+
+- nunca envia, repete, modifica ou automatiza mensagens do jogo (não é
+  um bot, não interfere na jogatina);
+- nunca guarda tokens, cookies, senha, ou qualquer coisa que dê acesso
+  à sua conta;
+- pede o mínimo de permissão possível ao navegador, e só tem acesso ao
+  domínio do próprio jogo;
+- toda comunicação interna da extensão valida de onde a mensagem veio
+  antes de fazer qualquer coisa.
+
+Detalhes técnicos completos em `docs/ARCHITECTURE.md §1` e
+`docs/DEVELOPMENT.md §1`.
+
+---
+
+## 📦 Instalação
+
+1. Abra `edge://extensions` (ou `chrome://extensions` no Chrome).
+2. Ative o **Modo do desenvolvedor** (canto da tela).
 3. Clique **Carregar sem compactação** e selecione a pasta deste
-   projeto (ou recarregue a extensão existente se já estiver instalada
-   nesta pasta).
-4. Abra o PokePixel e recarregue a aba (F5).
-5. Abra o painel lateral: atalho `Ctrl+Shift+7` ou o ícone da extensão
-   na barra de ferramentas.
+   projeto.
+4. Abra o PokePixel e recarregue a aba (F5) pra extensão começar a
+   observar.
+5. Abra o painel: atalho `Ctrl+Shift+7` ou clicando no ícone da
+   extensão na barra de ferramentas.
 
-## Desenvolvimento
+---
+
+## 🛠️ Desenvolvimento
 
 Domínio e persistência (`domain/`, `data/`, `services/`) têm testes
-automatizados; UI (`sidepanel/`) é verificada manualmente/via preview:
+automatizados; a interface (`sidepanel/`) é verificada manualmente e
+via preview:
 
 ```powershell
 npm test
 ```
 
-### Preview visual (sem instalar a extensão)
+### Preview visual (sem precisar instalar a extensão)
 
-`sidepanel/preview.html`/`preview.js` são um clone autocontido do Side
-Panel real, com dados fictícios determinísticos — sem `chrome.*`, sem
-IndexedDB real. Sirva a pasta com qualquer servidor HTTP estático
-(ex.: `python -m http.server`, ou `start-preview.ps1`) e abra
+`sidepanel/preview.html`/`preview.js` são um clone autocontido do
+painel real, com dados fictícios — sem depender do navegador ter a
+extensão instalada. Sirva a pasta com qualquer servidor HTTP estático
+(ex.: `python -m http.server`, ou rode `start-preview.ps1`) e abra
 `sidepanel/preview.html`.
 
-## Documentação
+---
 
-- `docs/ARCHITECTURE.md` — schema IndexedDB, identidade de
+## 📚 Documentação
+
+- `docs/ARCHITECTURE.md` — schema do banco local, identidade de
   encontro/sessão, fluxo de dados, decisões de layout da UI.
 - `docs/PROTOCOL_AND_ANALYTICS.md` — quais campos do protocolo são
   extraídos e as fórmulas exatas de cada métrica.

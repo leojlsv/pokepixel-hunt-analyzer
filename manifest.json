@@ -4,7 +4,6 @@
   "version": "1.0.0",
   "description": "Contador de encontros, capturas e eficiência da Hunt do PokePixel em um painel lateral do Edge, sem armazenar logs individuais.",
   "permissions": [
-    "storage",
     "sidePanel"
   ],
   "host_permissions": [
