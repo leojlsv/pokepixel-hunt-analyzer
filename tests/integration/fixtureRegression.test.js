@@ -31,6 +31,51 @@ function chronological(events) {
   return events.slice().sort((a, b) => a.ts - b.ts);
 }
 
+// Replaying all 4300+ fixture events through the real pipeline against
+// fake-indexeddb costs ~25s (measured, Fase 5 step 3 performance audit —
+// fake-indexeddb is a pure-JS polyfill, far slower per-operation than a
+// real browser's native IndexedDB; this cost is a test-suite artifact, not
+// a production concern, confirmed separately by benchmarking the actual
+// Current/History/Compare read paths at this same fixture's scale). Two
+// tests below each need their own full replay's end state — memoizing it
+// here means the expensive part only ever runs once no matter which test
+// (or both) actually execute, instead of ~50s combined.
+let replayOnce = null;
+
+function replayFixture() {
+  if (!replayOnce) {
+    replayOnce = (async () => {
+      const fixture = loadFixture();
+      const events = chronological(fixture.events);
+
+      const db = await openDatabase({ indexedDBFactory: new IDBFactory() });
+      const pipeline = createEventPipeline(db, { now: () => Date.now() });
+
+      const resultCounts = { ok: 0, ignored: 0 };
+
+      for (const event of events) {
+        const result = await pipeline.handle({
+          type: event.type,
+          seq: event.seq,
+          ts: event.ts,
+          socketId: 1, // single continuous connection for this fixture
+          data: event.data
+        });
+
+        if (result.ok) {
+          resultCounts.ok += 1;
+        } else {
+          resultCounts.ignored += 1;
+        }
+      }
+
+      return { fixture, events, db, resultCounts };
+    })();
+  }
+
+  return replayOnce;
+}
+
 test("domain/events.js recognizes every event in the fixture (no silent drops)", () => {
   const fixture = loadFixture();
 
@@ -71,29 +116,7 @@ test("capture.failed quality tally matches the fixture's documented baseline", (
 });
 
 test("the full event pipeline replays all 4000+ fixture events without throwing", async (t) => {
-  const fixture = loadFixture();
-  const events = chronological(fixture.events);
-
-  const db = await openDatabase({ indexedDBFactory: new IDBFactory() });
-  const pipeline = createEventPipeline(db, { now: () => Date.now() });
-
-  const resultCounts = { ok: 0, ignored: 0 };
-
-  for (const event of events) {
-    const result = await pipeline.handle({
-      type: event.type,
-      seq: event.seq,
-      ts: event.ts,
-      socketId: 1, // single continuous connection for this fixture
-      data: event.data
-    });
-
-    if (result.ok) {
-      resultCounts.ok += 1;
-    } else {
-      resultCounts.ignored += 1;
-    }
-  }
+  const { fixture, events, db, resultCounts } = await replayFixture();
 
   // Every event in this fixture is one of the 6 documented types with a
   // well-formed payload, so none should be dropped as unrecognized/malformed.
@@ -115,21 +138,7 @@ test("the Automatic Hunt lifecycle splits the fixture into its 3 real Hunts", as
   // (server_session_0001/0002/0003, each with its own zoneId, ~50min-1h40
   // apart) — a real-data proof of domain/huntLifecycle.js's boundary
   // decision, not just the synthetic cases in tests/unit/huntLifecycle.test.js.
-  const fixture = loadFixture();
-  const events = chronological(fixture.events);
-
-  const db = await openDatabase({ indexedDBFactory: new IDBFactory() });
-  const pipeline = createEventPipeline(db, { now: () => Date.now() });
-
-  for (const event of events) {
-    await pipeline.handle({
-      type: event.type,
-      seq: event.seq,
-      ts: event.ts,
-      socketId: 1,
-      data: event.data
-    });
-  }
+  const { db } = await replayFixture();
 
   const sessions = await createRepository(db, STORE_NAMES.SESSIONS).getAll();
 
