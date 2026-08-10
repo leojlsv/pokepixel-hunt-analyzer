@@ -1,6 +1,6 @@
 {
   "name": "pokepixel-hunt-analyzer",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Local domain/persistence modules for the PokePixel Hunt Analyzer Edge extension.",
   "type": "module",

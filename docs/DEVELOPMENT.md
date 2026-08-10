@@ -120,8 +120,10 @@ No UI or WebSocket behavior change.
 - diagnostics — done, docs/ARCHITECTURE.md §13;
 - performance — audited, docs/ARCHITECTURE.md §14 (no production
   change needed at realistic scale);
-- documentation;
-- final release checklist.
+- documentation — done, README.md rewritten for v1, doc consistency
+  pass;
+- final release checklist — done, all 15 criteria in §8 verified,
+  `v1.0.0` released.
 
 ## 7. Git
 

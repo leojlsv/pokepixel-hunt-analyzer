@@ -4,7 +4,7 @@
 
 Standalone Microsoft Edge / Chromium Manifest V3 extension for passive, local PokePixel hunt analytics.
 
-Current baseline: v0.3.0.
+Current baseline: v1.0.0.
 
 The current extension works and must be evolved incrementally. Do not rewrite working code without a concrete migration reason.
 
