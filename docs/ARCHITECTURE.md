@@ -85,6 +85,21 @@ configs
 encounters
 ```
 
+### `meta`
+
+Generic out-of-line-key store (no fixed record shape) — a plain
+key/value bucket for whatever small pointers/bookkeeping don't warrant
+their own object store. Two known keys today:
+
+```text
+currentSessionId      the current local Hunt's sessionId (§9,
+                       data/sessionsRepository.js)
+diagnosticsCounters   the 6 cumulative diagnostics counters (§13,
+                       data/diagnosticsRepository.js) — the other 3
+                       diagnostics fields are computed on demand, never
+                       stored here
+```
+
 ### `sessions`
 
 ```text
@@ -274,6 +289,45 @@ activeStartedAtMs = null
 
 Resume on the next valid Hunt activity.
 
+### IndexedDB connection robustness (Fase 5, step 2)
+
+`data/db.js`'s `openDatabase()` already handled `onblocked`/
+`onupgradeneeded`/`onerror` correctly, but two real gaps had no
+handling and no test coverage until this step:
+
+- `background.js` memoized `openDatabase()`'s Promise
+  (`dbPromise`/`eventPipelinePromise` for the derived pipeline) but
+  never reset it on rejection. A rejected Promise is still truthy, so a
+  transient failure (e.g. `onblocked` for a moment during an extension
+  update, while an older Side Panel connection hasn't closed yet) used
+  to be cached as permanently broken for that service worker's entire
+  lifetime — every later event failing instantly without ever
+  retrying. Both getters now reset their memo to `null` in a `.catch`
+  before rethrowing, so the next message tries a fresh `openDatabase()`
+  call instead of replaying a stale failure.
+- `sidepanel/sidepanel.js`'s `openDb()` already closes its connection
+  on `db.onversionchange` (correct — it's what lets another context's
+  upgrade proceed), but afterward — or if `openDb()` fails on the very
+  first attempt — the 1s poll (`loadAndRender()`) kept silently
+  retrying against a dead/nonexistent connection forever, visible only
+  as a repeating `console.error`. Both paths now call `showDbWarning()`
+  (unhides `#db-warning`, reusing the existing `.warning` style from
+  `#unknown-warning`) and, for the `onversionchange` case, `stopPolling()`
+  (clears the interval) — the panel tells the user to close/reopen it
+  instead of quietly doing nothing. `preview.html`/`preview.js` mirror
+  the same `#db-warning` element for structural parity; it's never
+  shown there since the preview has no real connection to lose.
+
+`tests/integration/db.test.js` closes the coverage gap on the
+`data/db.js` side: `onblocked` is now actually exercised (a second
+connection opened while an older one deliberately doesn't close),
+a migration that throws mid-upgrade is confirmed to abort the whole
+transaction atomically (no partial index survives — a native IndexedDB
+guarantee the whole migration system depends on but that had never
+actually been verified against `fake-indexeddb`), and opening at a
+version lower than what's already persisted is confirmed to reject
+cleanly with no special-casing needed on our side.
+
 ## 8. Edge profile assumption
 
 v1 assumes one active game account/session per Edge profile. Explicit multi-account support within one profile is post-v1.
@@ -321,7 +375,7 @@ doesn't start at `All (*)` like the three filters beside it:
   group's own denominator. Config is never shown (no column, no hash,
   no raw `auto_capture` snapshot) — `groupKey` already encodes it, and
   the UI has no use for the raw id.
-- **By Rarity**: the exact same table as Current's own By Rarity (§2) —
+- **By Rarity**: the exact same table as Current's own By Rarity (§12) —
   one row per rarity tier (Weak…Mythical, always all 7, even at zero),
   Seen/Captured/Failed/Rate — computed by
   `domain/rarityBreakdown.js`'s `computeRarityBreakdown()` over
@@ -508,3 +562,95 @@ Dollar / Profit) and the Lucro Total card's `↑ <gold total>` half was
 dropped — it now shows only `↓ <expenses total>` (`.flow-out`), no
 `.flow-in`. None of this touched `computeSessionMetrics`'s output —
 `attemptRate` is still computed, just no longer read by the UI.
+
+## 13. Diagnostics counters (Fase 5, step 1 — no UI yet)
+
+The 9 safe counters from `docs/DEVELOPMENT.md §9` split into two kinds:
+
+- **6 cumulative, persisted** in the `meta` store (already existed for
+  `sessionsRepository.js`'s `currentSessionId` pointer) under a single
+  `diagnosticsCounters` key: `eventsReceived`, `eventsIgnored`,
+  `parseErrors`, `dbErrors`, `orphanEvents`, `duplicateEvents`.
+  `data/diagnosticsRepository.js` is a thin read-modify-write wrapper
+  (`getCounters()`/`increment(patch)`) — same shape as
+  `data/configsRepository.js`. No new object store, no migration.
+- **3 point-in-time, computed on demand**: `activeEncounters` (=
+  `trackerState.inProgress.size`, only ever exists in the event
+  pipeline's in-memory tracker state), `dbVersion` (=
+  `SCHEMA_VERSION`), `appVersion` (injected into
+  `createEventPipeline(db, { appVersion })` from
+  `chrome.runtime.getManifest().version` by `background.js` — kept
+  injectable, never imported directly, so `services/eventPipeline.js`
+  stays testable in plain Node, same convention as its existing `now`
+  parameter). These three would go stale the instant they're persisted
+  with no reader, so they're never written to `meta` — only assembled
+  live by `getDiagnosticsSnapshot()`.
+
+Where each of the 6 persisted counters increments, all observed from
+outside `domain/encounterTracker.js`/`domain/events.js` — neither
+needed to change:
+
+- `eventsReceived` — every message `services/eventPipeline.js`'s
+  `handle()` is called with, valid or not.
+- `eventsIgnored` vs `parseErrors` — when `normalizeEvent()` returns
+  null, `EVENT_TYPES` (already exported by `domain/events.js`) tells
+  the pipeline whether `message.type` is a type PokePixel Hunt Analyzer
+  doesn't model at all (`eventsIgnored`, expected/deliberate) or a
+  known type whose payload the normalizer rejected
+  (`parseErrors`, e.g. `combat.started` with no `enemy` object).
+- `duplicateEvents` — once normalized, the only way `applyEvent()`
+  produces zero effects for a known event type is its own exact
+  `socketId|type|seq` dedupe (§7). Every other known event type always
+  emits at least one effect, so `result.effects.length === 0` is an
+  unambiguous signal.
+- `orphanEvents` — counted whenever `result.effects` contains an
+  `encounter.create` whose `row.state === "orphan"` (§7's "wild-id
+  reuse and orphans").
+- `dbErrors` — incremented from `background.js`'s existing per-message
+  `.catch()` blocks (`protocol.event` and every `session.*` action),
+  best-effort, on top of the existing `console.error`.
+
+Every increment call is wrapped in `.catch(() => {})` —
+`docs/DEVELOPMENT.md §1`'s "Analytics failures must fail closed" means
+a diagnostics write failing must never surface as a user-facing error
+or block the real event/session handling it's observing.
+
+No UI surfaces these yet (deliberate, for this step) —
+`getDiagnosticsSnapshot()` exists and is tested so a future consumer
+(a debug view, a console command, or folding them into the JSON export)
+has a ready, correct data source without having to design the
+collection logic again.
+
+## 14. Performance audit (Fase 5, step 3)
+
+Benchmarked the real pipeline against `tests/fixtures/
+rhyxus_hunting2.regression.json` — 4324 real events, 3 Hunts, 4128
+persisted encounters, the largest single session holding 2319 of
+them. This is the largest realistic scale available in the project
+(bigger than any single real Hunt is likely to get before a player
+manually ends it), used to check the read paths that matter for a
+responsive UI:
+
+| Path | Measured cost |
+|---|---|
+| Current's 1s poll — `encountersRepo.getBySessionId()` + `computeSessionMetrics()`, worst case (the 2319-encounter session) | ~17-23ms/poll |
+| Compare tab open — `encountersRepo.getAll()` (whole store, 4128 rows) | ~20-30ms |
+| History page load — 3 sessions, sequential fetch+compute per row | ~55ms |
+
+**Conclusion: no production code change needed.** The 1s poll spends
+roughly 2% of its own budget even at this worst-case scale; Compare
+and History are both well under what a user would perceive as slow.
+The indexes already in place (`sessionId` on `encounters`,
+`startedAtMs` on `sessions`, docs §4) are already the ones used on
+these paths — nothing to add.
+
+The one real finding was about the test suite, not the app:
+`tests/integration/fixtureRegression.test.js` had 2 tests each
+independently replaying the same 4324-event fixture through the real
+pipeline against `fake-indexeddb` (a pure-JS polyfill, far slower
+per-operation than a real browser's native IndexedDB) — ~25s per
+replay, ~50s combined, out of a ~50-75s full `npm test` run. Fixed by
+memoizing the replay (a cached Promise at module scope) so both tests
+share one run's end state instead of repeating the expensive part —
+same two independent pass/fail results, `npm test` total dropped to
+~28s.

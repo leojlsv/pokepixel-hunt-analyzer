@@ -115,10 +115,11 @@ No UI or WebSocket behavior change.
 - deletion controls.
 
 ### Phase 5 — Hardening + Release
-- migration robustness;
-- restart recovery;
-- diagnostics;
-- performance;
+- migration robustness — done, docs/ARCHITECTURE.md §7;
+- restart recovery — already covered since Phase 3, docs/ARCHITECTURE.md §7;
+- diagnostics — done, docs/ARCHITECTURE.md §13;
+- performance — audited, docs/ARCHITECTURE.md §14 (no production
+  change needed at realistic scale);
 - documentation;
 - final release checklist.
 
@@ -166,3 +167,10 @@ active_encounters
 db_version
 app_version
 ```
+
+Implemented (Fase 5, step 1 — docs/ARCHITECTURE.md §13):
+`data/diagnosticsRepository.js` persists the 6 cumulative counters in
+`meta`; `services/eventPipeline.js`'s `getDiagnosticsSnapshot()` adds
+the 3 point-in-time ones (`activeEncounters`/`dbVersion`/`appVersion`)
+computed live. No UI reads them yet — nothing in the Side Panel
+surfaces this data on purpose, for now.

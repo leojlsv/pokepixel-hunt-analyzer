@@ -13,6 +13,7 @@ import { openDatabase } from "./data/db.js";
 import { createEventPipeline } from "./services/eventPipeline.js";
 import { createSessionsRepository } from "./data/sessionsRepository.js";
 import { createEncountersRepository } from "./data/encountersRepository.js";
+import { createDiagnosticsRepository } from "./data/diagnosticsRepository.js";
 import { computeSessionMetrics } from "./domain/sessionMetrics.js";
 
 let updateQueue = Promise.resolve();
@@ -22,9 +23,17 @@ let updateQueue = Promise.resolve();
 // below instead of opening a new one each time.
 let dbPromise = null;
 
+// A rejected Promise is still a truthy value, so without resetting it here
+// a transient openDatabase() failure (e.g. onblocked for a moment during an
+// extension update, while an older Side Panel connection hasn't closed yet)
+// would otherwise be cached as broken for the rest of this service worker's
+// lifetime — every later message failing instantly without ever retrying.
 function getDb() {
   if (!dbPromise) {
-    dbPromise = openDatabase();
+    dbPromise = openDatabase().catch((error) => {
+      dbPromise = null;
+      throw error;
+    });
   }
 
   return dbPromise;
@@ -34,10 +43,22 @@ let eventPipelinePromise = null;
 
 function getEventPipeline() {
   if (!eventPipelinePromise) {
-    eventPipelinePromise = getDb().then((db) => createEventPipeline(db));
+    eventPipelinePromise = getDb()
+      .then((db) => createEventPipeline(db, { appVersion: chrome.runtime.getManifest().version }))
+      .catch((error) => {
+        eventPipelinePromise = null;
+        throw error;
+      });
   }
 
   return eventPipelinePromise;
+}
+
+// Diagnostics must never affect the game (docs/DEVELOPMENT.md §1) — every
+// call site below is best-effort, swallowed with .catch(() => {}).
+async function recordDbError() {
+  const db = await getDb();
+  await createDiagnosticsRepository(db).increment({ dbErrors: 1 });
 }
 
 // Toolbar badge derives from v1 session/encounter data (docs/DEVELOPMENT.md
@@ -162,6 +183,8 @@ chrome.runtime.onMessage.addListener(
             error
           );
 
+          recordDbError().catch(() => {});
+
           sendResponse({
             ok: false,
             error: "protocol_event_failed"
@@ -181,6 +204,7 @@ chrome.runtime.onMessage.addListener(
         .then(() => sendResponse({ ok: true }))
         .catch((error) => {
           console.error("PokePixel Hunt Analyzer (session.new):", error);
+          recordDbError().catch(() => {});
           sendResponse({ ok: false, error: "session_new_failed" });
         });
 
@@ -198,6 +222,7 @@ chrome.runtime.onMessage.addListener(
         .then(() => sendResponse({ ok: true }))
         .catch((error) => {
           console.error("PokePixel Hunt Analyzer (session.pause):", error);
+          recordDbError().catch(() => {});
           sendResponse({ ok: false, error: "session_pause_failed" });
         });
 
@@ -213,6 +238,7 @@ chrome.runtime.onMessage.addListener(
         .then(() => sendResponse({ ok: true }))
         .catch((error) => {
           console.error("PokePixel Hunt Analyzer (session.resume):", error);
+          recordDbError().catch(() => {});
           sendResponse({ ok: false, error: "session_resume_failed" });
         });
 
@@ -231,6 +257,7 @@ chrome.runtime.onMessage.addListener(
         .then(() => sendResponse({ ok: true }))
         .catch((error) => {
           console.error("PokePixel Hunt Analyzer (session.end):", error);
+          recordDbError().catch(() => {});
           sendResponse({ ok: false, error: "session_end_failed" });
         });
 

@@ -5,6 +5,71 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Docs — README rewrite + consistency pass (Phase 5, step 4)
+- `README.md` fully rewritten — it still described the retired v0.3.0
+  `chrome.storage.session` model with no mention of Current/History/
+  Compare, IndexedDB, or the session/encounter model. Now covers what
+  the extension actually does, privacy/security guarantees, install
+  steps, `npm test`, the preview workflow, and pointers to the other
+  docs.
+- `docs/ARCHITECTURE.md`: fixed a stale cross-reference (Compare's By
+  Rarity pointed at §2, the data-flow diagram, instead of §12 where
+  that table's current behavior is actually documented); added a
+  `### meta` subsection under §4 (the store existed and was used, but
+  had no schema documentation of its own like `sessions`/`configs`/
+  `encounters` do).
+
+### Performance audit — no production changes needed (Phase 5, step 3)
+- Benchmarked Current's 1s poll, Compare's full-store scan, and History's
+  page load against the largest realistic scale available (the 4324-event
+  regression fixture — 4128 persisted encounters, largest single session
+  2319 of them). Worst case: ~17-23ms/poll for Current (~2% of its 1s
+  budget), ~20-30ms for Compare, ~55ms for a History page. No code change
+  needed — existing indexes (`sessionId`/`startedAtMs`) are already used
+  on the right paths. See `docs/ARCHITECTURE.md §14`.
+- The one real finding was in the test suite, not the app:
+  `tests/integration/fixtureRegression.test.js` had 2 tests each
+  independently replaying the same ~4300-event fixture (~25s each,
+  ~50s combined) against `fake-indexeddb`. Now memoized to replay once
+  and share the result — same two independent pass/fail results, `npm
+  test` total dropped from ~50-75s to ~28s.
+
+### Fixed — IndexedDB connection robustness (Phase 5, step 2)
+- `background.js`: fixed a real bug where a transient `openDatabase()`
+  failure (e.g. `onblocked` briefly during an extension update) was
+  cached forever as broken — `dbPromise`/`eventPipelinePromise` are now
+  reset to `null` on rejection so the next event retries instead of
+  failing instantly for the rest of that service worker's lifetime.
+- `sidepanel.js`/`preview.js`/`.html`: new `#db-warning` element
+  (reuses the existing `.warning` style) shown whenever the Side
+  Panel's own IndexedDB connection is lost — either `openDb()` fails
+  outright or `db.onversionchange` fires later (extension updated
+  while the panel was open). The 1s poll now stops cleanly
+  (`stopPolling()`) instead of silently retrying against a dead
+  connection forever.
+- `tests/integration/db.test.js`: 3 new tests closing real coverage
+  gaps — `onblocked` is now exercised, a migration throwing mid-upgrade
+  is confirmed to abort atomically (no partial index left behind), and
+  opening at a lower version than what's persisted is confirmed to
+  reject cleanly.
+
+### Added — Diagnostics counters (Phase 5, step 1)
+- New `data/diagnosticsRepository.js`: persists the 6 cumulative safe
+  counters from `docs/DEVELOPMENT.md §9` (`eventsReceived`,
+  `eventsIgnored`, `parseErrors`, `dbErrors`, `orphanEvents`,
+  `duplicateEvents`) in the existing `meta` IndexedDB store — no new
+  object store, no migration.
+- `services/eventPipeline.js` increments these from existing signals
+  (unknown event type vs. malformed known-type payload, the exact
+  `socketId|type|seq` dedupe, orphan encounter creation) and exposes
+  `getDiagnosticsSnapshot()`, which adds 3 live point-in-time values
+  (`activeEncounters`, `dbVersion`, `appVersion`) computed on demand
+  instead of persisted.
+- `background.js` records `dbErrors` from its existing per-message
+  `.catch()` blocks and injects `appVersion` from the manifest.
+- No UI change — nothing surfaces these yet on purpose (decided for
+  this step); see `docs/ARCHITECTURE.md §13`.
+
 ### Changed — Captured list IV column merge (pre-Phase 5)
 - The 6 separate IV columns (HP/Atk/Def/SAtk/SDef/Spe) in the Current
   view's Captured table are now one column: header `IV
