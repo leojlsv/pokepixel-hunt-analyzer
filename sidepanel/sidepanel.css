@@ -390,18 +390,18 @@ tbody tr:last-child td {
    this column's tightly-packed "186 (31-31-31-31-31-31)" content). */
 .captured-table th:first-child,
 .captured-table td:first-child {
-  width: 27%;
+  width: 24%;
 }
 
 .captured-table th:nth-child(2),
 .captured-table td:nth-child(2) {
-  width: 14%;
+  width: 18%;
   overflow-wrap: anywhere;
 }
 
 .captured-table th:nth-child(3),
 .captured-table td:nth-child(3) {
-  width: 9%;
+  width: 8%;
 }
 
 .captured-table th:nth-child(4),

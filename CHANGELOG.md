@@ -5,6 +5,20 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Security — least privilege + session message sender validation
+- `manifest.json`: removed the unused `storage` permission — nothing in
+  the codebase calls `chrome.storage.*` (the extension persists
+  everything in IndexedDB, which needs no permission grant); it was a
+  leftover from the retired v0.3.0 `chrome.storage.session` model.
+- `background.js`: `session.new`/`pause`/`resume`/`end` now validate
+  the sender before acting, same as `protocol.event` already did.
+  New `isOwnExtensionSender` checks `sender.id` and that `sender.url`'s
+  scheme is `chrome-extension:` (an extension page, not a content
+  script) — not `sender.tab`'s presence, since a Side Panel sender can
+  carry a `tab` too. Not currently reachable by an external page (no
+  `externally_connectable` declared), but fails closed instead of
+  assuming that stays true forever. See `docs/ARCHITECTURE.md §3`.
+
 ## [1.0.0] - 2026-08-10
 
 All 15 acceptance criteria in `docs/DEVELOPMENT.md §8` verified passing

@@ -100,6 +100,28 @@ function isPokePixelSender(sender) {
   }
 }
 
+// session.* messages must only come from this extension's own pages (the
+// Side Panel) — never from a content script. `sender.tab` isn't a
+// reliable discriminator here: a side panel's sender can carry a `tab`
+// too (the tab it's currently associated with), so this checks
+// `sender.url`'s scheme instead — a content script's sender.url is the
+// *page* it's injected into (`https://pokepixel.nietore.com/...`), while
+// an extension page's (side panel/background/popup) is always
+// `chrome-extension://<id>/...`. `sender.id` is checked too as
+// defense-in-depth: without `externally_connectable` in the manifest,
+// chrome.runtime.onMessage already can't be reached by another extension
+// or a web page, so this can't currently fail — but it stays correct if
+// that's ever added later.
+function isOwnExtensionSender(sender) {
+  if (sender?.id !== chrome.runtime.id) return false;
+
+  try {
+    return new URL(sender.url).protocol === "chrome-extension:";
+  } catch {
+    return false;
+  }
+}
+
 async function configureSidePanel() {
   await chrome.sidePanel.setPanelBehavior({
     openPanelOnActionClick: true
@@ -150,6 +172,25 @@ chrome.runtime.onMessage.addListener(
     if (
       pageMessageTypes.has(message.type) &&
       !isPokePixelSender(sender)
+    ) {
+      sendResponse({
+        ok: false,
+        error: "invalid_sender"
+      });
+
+      return false;
+    }
+
+    const sessionMessageTypes = new Set([
+      "session.new",
+      "session.pause",
+      "session.resume",
+      "session.end"
+    ]);
+
+    if (
+      sessionMessageTypes.has(message.type) &&
+      !isOwnExtensionSender(sender)
     ) {
       sendResponse({
         ok: false,
