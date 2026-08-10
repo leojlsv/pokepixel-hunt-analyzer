@@ -57,12 +57,16 @@ lugar nenhum.
 |---|---|
 | **Microsoft Edge** (versão 114+) | ✅ Sim — navegador alvo do projeto |
 | **Google Chrome** (versão 114+) | ✅ Sim — mesma tecnologia de base |
-| Brave / Opera / Vivaldi (recentes) | ⚠️ Provavelmente, mas não testado oficialmente |
+| Opera / Vivaldi (recentes) | ⚠️ Provavelmente, mas não testado oficialmente |
+| Brave | ❌ Não, hoje — o `chrome.sidePanel` tem bugs abertos e não resolvidos no Brave (o painel some sozinho depois de ~1s, e a sidebar deles ainda não tem UI própria pra ativar extensões de side panel; [issues](https://github.com/brave/brave-browser/issues/32132) [reportadas](https://github.com/brave/brave-browser/issues/31334), baixa prioridade no roadmap deles) |
 | Firefox | ❌ Não — o navegador não tem a API de painel lateral que a extensão usa |
+| Zen Browser | ❌ Não — é baseado no motor do Firefox (Gecko), não no Chromium; mesma incompatibilidade do Firefox |
 | Safari | ❌ Não — modelo de extensões incompatível |
 
-Em resumo: se seu navegador é baseado em **Chromium** e foi atualizado
-nos últimos anos, deve funcionar. Edge e Chrome são os garantidos.
+Em resumo: **Edge e Chrome são os garantidos.** Chromium sozinho não é
+garantia de funcionar (o caso do Brave mostra isso) — qualquer outro
+navegador, mesmo que baseado em Chromium, vale a pena testar antes de
+confiar.
 
 ---
 
