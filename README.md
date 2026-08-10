@@ -4,9 +4,8 @@ Extensão standalone Manifest V3 para Microsoft Edge / Chromium:
 observa passivamente o WebSocket do PokePixel e mantém analytics
 locais e persistentes de Hunt num painel lateral (Side Panel).
 
-**Status**: em desenvolvimento — Fase 5 (Hardening + Release) da v1,
-ainda não `v1.0.0` (ver `docs/DEVELOPMENT.md §6/§8`). Baseline atual:
-`v0.3.0` (manifest).
+**Status**: `v1.0.0` — os 15 critérios de aceite de
+`docs/DEVELOPMENT.md §8` foram verificados e passam.
 
 ## O que faz
 

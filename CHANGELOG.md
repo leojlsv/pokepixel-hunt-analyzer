@@ -5,6 +5,16 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-08-10
+
+All 15 acceptance criteria in `docs/DEVELOPMENT.md §8` verified passing
+(Phase 5, step 5 — final release checklist). This release folds in
+everything accumulated below since the `v0.3.0` baseline: Phases 1-4
+(IndexedDB foundation, event pipeline, Current/Config, History/Compare/
+Export) and Phase 5 (diagnostics counters, IndexedDB connection
+robustness, a performance audit with no code changes needed, and this
+documentation pass).
+
 ### Docs — README rewrite + consistency pass (Phase 5, step 4)
 - `README.md` fully rewritten — it still described the retired v0.3.0
   `chrome.storage.session` model with no mention of Current/History/
