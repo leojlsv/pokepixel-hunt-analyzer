@@ -420,14 +420,39 @@ function wireCapturedFilters() {
 }
 
 let db;
+let pollIntervalId = null;
+
+// Fase 5 step 2 (migration robustness): a broken/closed connection used to
+// fail silently forever — the poll's own .catch(console.error) is the only
+// thing that ever saw it. Surface it instead, and stop retrying against a
+// connection that can never come back on its own.
+function showDbWarning() {
+  document.getElementById("db-warning").hidden = false;
+}
+
+function stopPolling() {
+  if (pollIntervalId !== null) {
+    clearInterval(pollIntervalId);
+    pollIntervalId = null;
+  }
+}
 
 async function openDb() {
-  db = await openDatabase();
+  try {
+    db = await openDatabase();
+  } catch (error) {
+    showDbWarning();
+    throw error;
+  }
 
   // A future schema migration (Fase 5) would otherwise be blocked by this
-  // long-lived Side Panel connection sitting on an older version.
+  // long-lived Side Panel connection sitting on an older version — closing
+  // here is what lets that other connection's upgrade proceed. This panel's
+  // own connection is now dead, though, so it can't just keep polling.
   db.onversionchange = () => {
     db.close();
+    showDbWarning();
+    stopPolling();
   };
 
   return db;
@@ -987,7 +1012,7 @@ async function init() {
   // entre contextos), então recomputa a cada 1s — mesmo padrão do
   // relógio visual da v0.3.0. Só a view Current precisa disso ao vivo;
   // History/Compare recarregam quando abertas ou após uma ação.
-  setInterval(() => {
+  pollIntervalId = setInterval(() => {
     if (activeView !== "current") return;
 
     loadAndRender().catch((error) => console.error("PokePixel Hunt Analyzer:", error));

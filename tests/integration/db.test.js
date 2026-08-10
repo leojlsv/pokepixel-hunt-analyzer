@@ -4,6 +4,7 @@ import { IDBFactory } from "fake-indexeddb";
 
 import {
   openDatabase,
+  DB_NAME,
   SCHEMA_VERSION,
   STORE_NAMES
 } from "../../data/db.js";
@@ -133,4 +134,82 @@ test("upgrading v1 -> v2 adds sessions.startedAtMs without touching existing dat
   } finally {
     v2.close();
   }
+});
+
+// Fase 5 step 2 (migration robustness) — the 3 tests below exercise paths
+// data/db.js already handles but that had zero coverage until now.
+
+test("a stuck older connection blocks the upgrade and openDatabase() rejects via onblocked", async () => {
+  const indexedDBFactory = freshIndexedDBFactory();
+
+  // Deliberately does not close on versionchange — simulates a stuck/
+  // unresponsive connection. In production, sidepanel.js's real
+  // `db.onversionchange = () => db.close()` is what normally prevents this
+  // from ever blocking for long.
+  const older = await openDatabase({ indexedDBFactory, version: 1 });
+
+  await assert.rejects(
+    () => openDatabase({ indexedDBFactory, version: SCHEMA_VERSION }),
+    /blocked/
+  );
+
+  older.close();
+});
+
+test("a migration that throws mid-upgrade aborts atomically — no partial index survives", async () => {
+  const indexedDBFactory = freshIndexedDBFactory();
+
+  const v1 = await openDatabase({ indexedDBFactory, version: 1 });
+  v1.close();
+
+  // Simulates a broken v2 migration directly against the raw IndexedDB API
+  // (bypassing data/migrations.js on purpose) — partially creates an index,
+  // then throws, to confirm the whole upgrade transaction rolls back
+  // atomically instead of leaving a half-migrated store behind. This is a
+  // native IndexedDB guarantee data/migrations.js's design depends on but
+  // that was never actually verified against fake-indexeddb until now.
+  const brokenOpen = indexedDBFactory.open(DB_NAME, 2);
+
+  const brokenResult = await new Promise((resolve) => {
+    brokenOpen.onupgradeneeded = () => {
+      brokenOpen.transaction
+        .objectStore(STORE_NAMES.SESSIONS)
+        .createIndex("startedAtMs", "startedAtMs");
+
+      throw new Error("simulated migration failure");
+    };
+
+    brokenOpen.onerror = () => resolve({ ok: false });
+    brokenOpen.onsuccess = () => resolve({ ok: true, db: brokenOpen.result });
+  });
+
+  assert.equal(brokenResult.ok, false);
+
+  // Reopening at v1 (the last version that actually committed) should show
+  // no trace of the aborted index.
+  const reopened = await openDatabase({ indexedDBFactory, version: 1 });
+
+  try {
+    assert.equal(reopened.version, 1);
+
+    const store = reopened
+      .transaction(STORE_NAMES.SESSIONS, "readonly")
+      .objectStore(STORE_NAMES.SESSIONS);
+
+    assert.deepEqual(Array.from(store.indexNames), []);
+  } finally {
+    reopened.close();
+  }
+});
+
+test("opening at a version lower than what is already persisted rejects cleanly", async () => {
+  const indexedDBFactory = freshIndexedDBFactory();
+
+  const atCurrent = await openDatabase({ indexedDBFactory, version: SCHEMA_VERSION });
+  atCurrent.close();
+
+  // Simulates reverting the extension to an older build after a newer one
+  // already upgraded the schema. No special handling needed on our side —
+  // this documents the native IndexedDB rejection already covers it.
+  await assert.rejects(() => openDatabase({ indexedDBFactory, version: 1 }));
 });
