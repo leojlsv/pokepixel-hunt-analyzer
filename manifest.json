@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PokePixel Capture Counter",
   "version": "1.0.0",
-  "description": "Contador de encontros, capturas e eficiência da Hunt do PokePixel em um painel lateral do Edge, sem armazenar logs individuais.",
+  "description": "Tracks PokePixel Hunt encounters, captures, and efficiency in a side panel — passive observation only, no raw data stored.",
   "permissions": [
     "sidePanel"
   ],
@@ -14,7 +14,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Abrir/fechar PokePixel Capture Counter"
+    "default_title": "Open/close PokePixel Capture Counter"
   },
   "side_panel": {
     "default_path": "sidepanel/sidepanel.html"

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta
@@ -16,7 +16,7 @@
       <div>
         <h1>PokePixel Hunt Counter</h1>
         <p class="muted">
-          Dados da sessão local (v1)
+          Local session data (v1)
         </p>
       </div>
     </header>
@@ -26,7 +26,7 @@
       class="warning"
       hidden
     >
-      Conexão com os dados perdida. Feche e reabra o painel para continuar.
+      Connection to data lost. Close and reopen the panel to continue.
     </p>
 
     <nav class="tab-bar" aria-label="Views">
@@ -58,7 +58,7 @@
     <div id="view-current">
       <section
         class="actions-row"
-        aria-label="Ações da Hunt"
+        aria-label="Hunt actions"
       >
         <button
           id="new-hunt-button"
@@ -144,7 +144,7 @@
 
       <section
         class="summary-grid"
-        aria-label="Resumo de captura"
+        aria-label="Capture summary"
       >
         <article class="summary-card">
           <span class="label">Seen</span>
@@ -209,7 +209,7 @@
               id="captured-filter-quality-min"
               type="number"
               step="0.01"
-              placeholder="ex: 1.10"
+              placeholder="e.g. 1.10"
             >
           </label>
 
@@ -220,7 +220,7 @@
               type="number"
               step="1"
               min="0"
-              placeholder="ex: 100"
+              placeholder="e.g. 100"
             >
           </label>
         </div>
@@ -232,7 +232,7 @@
                 <th>Pokémon</th>
                 <th>Nat</th>
                 <th>Qlt</th>
-                <th>IV (HP-ATK-DEF-SATK-SDEF-SPE)</th>
+                <th>HP-ATK-DEF-SATK-SDEF-SPE</th>
               </tr>
             </thead>
 
@@ -245,7 +245,7 @@
           class="muted"
           hidden
         >
-          Nenhum Pokémon capturado ainda.
+          No Pokémon captured yet.
         </p>
       </section>
 
@@ -254,8 +254,8 @@
         class="warning"
         hidden
       >
-        Rarity desconhecida detectada.
-        O protocolo do jogo pode ter mudado.
+        Unknown rarity detected.
+        The game's protocol may have changed.
       </p>
     </div>
 
@@ -269,14 +269,14 @@
             class="action-button"
             type="button"
           >
-            Exportar backup (JSON)
+            Export backup (JSON)
           </button>
         </div>
 
         <div id="history-list-panel">
           <div class="filter-row">
             <label>
-              De
+              From
               <input
                 id="history-filter-from"
                 type="date"
@@ -284,7 +284,7 @@
             </label>
 
             <label>
-              Até
+              To
               <input
                 id="history-filter-to"
                 type="date"
@@ -296,7 +296,7 @@
               class="action-button"
               type="button"
             >
-              Filtrar
+              Filter
             </button>
 
             <button
@@ -304,7 +304,7 @@
               class="action-button"
               type="button"
             >
-              Limpar
+              Clear
             </button>
           </div>
 
@@ -312,8 +312,8 @@
             <table>
               <thead>
                 <tr>
-                  <th>Início</th>
-                  <th>Duração</th>
+                  <th>Start</th>
+                  <th>Dur.</th>
                   <th>Seen</th>
                   <th>Cap.</th>
                   <th>Fail</th>
@@ -330,7 +330,7 @@
             class="muted"
             hidden
           >
-            Nenhuma Hunt no histórico ainda.
+            No Hunts in history yet.
           </p>
 
           <button
@@ -339,7 +339,7 @@
             type="button"
             hidden
           >
-            Carregar mais
+            Load more
           </button>
         </div>
 
@@ -350,7 +350,7 @@
               class="action-button"
               type="button"
             >
-              ← Voltar
+              ← Back
             </button>
 
             <button
@@ -358,7 +358,7 @@
               class="action-button danger"
               type="button"
             >
-              Apagar esta sessão
+              Delete this session
             </button>
           </div>
 
@@ -371,14 +371,14 @@
             <table>
               <thead>
                 <tr>
-                  <th>Espécie</th>
-                  <th>Nv</th>
-                  <th>Quality</th>
-                  <th>Elementos</th>
-                  <th>Gênero</th>
+                  <th>Pokémon</th>
+                  <th>Lvl</th>
+                  <th>Rarity</th>
+                  <th>Qlt</th>
+                  <th>Gen.</th>
                   <th>IV (/186)</th>
                   <th>Shiny</th>
-                  <th>Resultado</th>
+                  <th>Res.</th>
                 </tr>
               </thead>
 
@@ -398,7 +398,7 @@
 
         <div class="filter-row">
           <label>
-            Tema
+            Theme
             <select id="compare-theme-select">
               <option value="cycle">By Cycle</option>
               <option value="rarity">By Rarity</option>
@@ -411,12 +411,12 @@
           </label>
 
           <label>
-            Pokébola
+            Capsule
             <select id="compare-filter-capsule"></select>
           </label>
 
           <label>
-            Elemento
+            Element
             <select id="compare-filter-element"></select>
           </label>
         </div>
@@ -426,7 +426,7 @@
             <thead>
               <tr id="compare-head-row">
                 <th>Pokémon</th>
-                <th>Nv</th>
+                <th>Lvl</th>
                 <th>Seen</th>
                 <th>Cap.</th>
                 <th>Fail</th>
@@ -444,13 +444,13 @@
           class="muted"
           hidden
         >
-          Nenhum encontro registrado ainda.
+          No encounters recorded yet.
         </p>
       </section>
     </div>
 
     <footer>
-      Ctrl+Shift+7 · Hunt local (v1)
+      Ctrl+Shift+7 · Local Hunt (v1)
     </footer>
   </main>
 

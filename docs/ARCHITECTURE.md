@@ -359,10 +359,13 @@ offset pagination so it stays cheap as history grows. The same method
 serves both "next page" and the date-range filter (`after`/`before` are
 just narrower bounds).
 
-Selecting a session shows its encounters, including the qualitative
-fields captured in §4 (`elements`, `gender`, `ivTotal` shown as `n/186`)
-— no technical IDs (`wildMonsterId`, `capsuleItemId`, full `configId`)
-ever reach this view.
+Selecting a session shows its encounters — columns: Pokémon, Lvl,
+Rarity (`quality`, the discrete tier), Qlt (`qualityMultiplier`, the
+continuous score, §10), Gen. (Gender), IV (`ivTotal` shown as `n/186`),
+Shiny, Res. (Result). No technical IDs (`wildMonsterId`,
+`capsuleItemId`, full `configId`) ever reach this view, and `elements`
+isn't shown here either — it's Compare's filter (§9 below), not a
+History display field.
 
 Deleting a session (`sessionsRepository.deleteSession`) never touches
 `configs` (config snapshots are shared/immutable, §5) and clears
@@ -373,7 +376,7 @@ Callers must delete that session's encounters first
 
 ### Compare
 
-A "Tema" (theme) selector switches between two aggregations over the
+A "Theme" selector switches between two aggregations over the
 same filtered encounter set — a mode toggle, not a data filter, so it
 doesn't start at `All (*)` like the three filters beside it:
 
@@ -396,7 +399,7 @@ doesn't start at `All (*)` like the three filters beside it:
   (which uses it for Current) rather than duplicated, since the
   bucketing rule is identical either way.
 
-Three dropdown filters (Pokémon / Pokébola / Elemento), all starting at
+Three dropdown filters (Pokémon / Capsule / Element), all starting at
 `All (*)`, populated from distinct values actually present in the
 fetched encounters (not a fixed list) and applied to the encounter array
 *before* either grouping above. `elements` is the only qualitative field
@@ -411,8 +414,8 @@ capitalized from the protocol; an unresolved encounter's fallback
 from the prototype chain, so a default like `{ valueOf = (o) => o } =
 {}` silently never applies (`{}.valueOf` resolves to
 `Object.prototype.valueOf`, never `undefined`) and throws the moment
-it's invoked as a bare function. This caused a real bug: the Pokébola/
-Elemento dropdowns never populated because the second `populateSelect`
+it's invoked as a bare function. This caused a real bug: the Capsule/
+Element dropdowns never populated because the second `populateSelect`
 call (the first one without an explicit `valueOf`/`labelOf` override)
 threw and aborted the rest of `loadCompare()`.
 
@@ -478,11 +481,16 @@ colored bar on the Pokémon name (`.rarity-name`, same colors/classes as
 By Rarity) and Gender is a ♂/♀ symbol on the name's other side, freeing
 width in a narrow panel.
 
-The IV column itself merges the summed `ivTotal` and the 6 individual
-stats (`ivs.hp/atk/def/spa/spd/spe`, docs/PROTOCOL_AND_ANALYTICS.md §2)
-into one cell instead of 6 separate columns — header `IV
-(HP-ATK-DEF-SATK-SDEF-SPE)`, cell e.g. `186 (31-31-31-31-31-31)`
-(`formatIvBreakdown` in `sidepanel.js`/`preview.js`). Frees up enough
+The IV column itself merges the 6 individual stats
+(`ivs.hp/atk/def/spa/spd/spe`, docs/PROTOCOL_AND_ANALYTICS.md §2) into
+one cell instead of 6 separate columns — header
+`HP-ATK-DEF-SATK-SDEF-SPE`, cell e.g. `31-31-31-31-31-31`
+(`formatIvBreakdown` in `sidepanel.js`/`preview.js`). The summed
+`ivTotal` is deliberately not shown here — it was originally prefixed
+onto the cell (`186 (31-31-31-31-31-31)`, with a matching `IV (...)`
+header) but got dropped to save even more width, since it's not
+essential once the 6 stats are visible; the "IV Total >" filter still
+reads `encounter.ivTotal` directly, unaffected. Frees up enough
 horizontal width that Nature stops getting clipped in a narrow panel.
 
 The generic table CSS splits every non-first column evenly, which left

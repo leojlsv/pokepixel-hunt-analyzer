@@ -92,16 +92,16 @@ function formatIvStat(value) {
   return Number.isFinite(value) ? String(value) : "—";
 }
 
-// Single-column IV presentation for the Captured table: "186 (31-31-31-31-31-31)"
-// — ivTotal up front, then the 6 individual stats in HP-ATK-DEF-SATK-SDEF-SPE
-// order (matching the column header) instead of 6 separate columns. Frees up
-// horizontal space so Nature stops getting clipped in a narrow panel.
-function formatIvBreakdown(ivTotal, ivs) {
-  const total = Number.isFinite(ivTotal) ? String(ivTotal) : "—";
-  const stats = [ivs.hp, ivs.atk, ivs.def, ivs.spa, ivs.spd, ivs.spe]
+// Single-column IV presentation for the Captured table: "31-31-31-31-31-31"
+// — the 6 individual stats in HP-ATK-DEF-SATK-SDEF-SPE order (matching the
+// column header) instead of 6 separate columns. Frees up horizontal space
+// so Nature stops getting clipped in a narrow panel. ivTotal itself is
+// deliberately not shown here (still used by the "IV Total >" filter) —
+// dropped from display to save even more width.
+function formatIvBreakdown(ivs) {
+  return [ivs.hp, ivs.atk, ivs.def, ivs.spa, ivs.spd, ivs.spe]
     .map(formatIvStat)
     .join("-");
-  return `${total} (${stats})`;
 }
 
 function genderSymbol(gender) {
@@ -393,7 +393,7 @@ function renderCapturedList(encounters) {
     fillRow(row, [
       encounter.nature ?? "—",
       formatQualityMultiplier(encounter.qualityMultiplier),
-      formatIvBreakdown(encounter.ivTotal, ivs)
+      formatIvBreakdown(ivs)
     ]);
 
     body.appendChild(row);
@@ -570,14 +570,14 @@ function renderHistorySummary(metrics) {
   container.replaceChildren();
 
   const entries = [
-    ["Duração", formatDuration(metrics.activeMs)],
+    ["Duration", formatDuration(metrics.activeMs)],
     ["Seen", formatNumber(metrics.seen)],
     ["Captured", formatNumber(metrics.captured)],
     ["Failed", formatNumber(metrics.failed)],
-    ["EXP/h Treinador", formatPerHour(metrics.trainerExpPerHour)],
-    ["EXP/h Pokémon", formatPerHour(metrics.pokemonExpPerHour)],
-    ["Dólar/h", formatPerHour(metrics.goldPerHour)],
-    ["Gastos/h", formatPerHour(metrics.expensesPerHour)],
+    ["XP/h You", formatPerHour(metrics.trainerExpPerHour)],
+    ["XP/h Poké", formatPerHour(metrics.pokemonExpPerHour)],
+    ["Dollar/h", formatPerHour(metrics.goldPerHour)],
+    ["Expenses/h", formatPerHour(metrics.expensesPerHour)],
     ["Potions", formatNumber(metrics.potionsUsed)]
   ];
 
@@ -610,9 +610,7 @@ function renderHistoryEncounters(encounters) {
       encounter.speciesName || encounter.speciesId || "—",
       encounter.level ?? "—",
       encounter.quality ?? "—",
-      Array.isArray(encounter.elements) && encounter.elements.length
-        ? encounter.elements.join("/")
-        : "—",
+      formatQualityMultiplier(encounter.qualityMultiplier),
       encounter.gender ?? "—",
       formatIvTotal(encounter.ivTotal),
       encounter.isShiny ? "✓" : "—",
@@ -652,7 +650,7 @@ async function deleteCurrentHistoryDetail() {
   if (!sessionId) return;
 
   const confirmed = window.confirm(
-    "Apagar esta sessão e todos os encontros dela? Essa ação não pode ser desfeita."
+    "Delete this session and all its encounters? This action cannot be undone."
   );
   if (!confirmed) return;
 
@@ -751,11 +749,11 @@ function wireHistory() {
 
 const COMPARE_THEMES = {
   cycle: {
-    label: "Agrupado por espécie + nível + config",
-    headers: ["Pokémon", "Nv", "Seen", "Cap.", "Fail", "EXP/Cycle h", "$/Cycle h"]
+    label: "Grouped by species + level + config",
+    headers: ["Pokémon", "Lvl", "Seen", "Cap.", "Fail", "EXP/Cycle h", "$/Cycle h"]
   },
   rarity: {
-    label: "Agrupado por raridade",
+    label: "Grouped by rarity",
     headers: ["Rarity", "Seen", "Cap.", "Fail", "Rate"]
   }
 };
