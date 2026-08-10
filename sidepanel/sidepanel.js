@@ -37,6 +37,29 @@ function formatPerHour(value) {
   return value === null || value === undefined ? "—" : formatNumber(value);
 }
 
+// Hunt card only: numbers over 5 digits (>= 100,000) get their last 3
+// digits abbreviated into a "K" suffix instead of wrapping/overflowing
+// the narrow card (e.g. "185.673" -> "186K").
+function formatCompactNumber(value) {
+  const num = Number(value) || 0;
+  if (Math.abs(num) >= 100_000) {
+    return `${formatNumber(Math.round(num / 1000))}K`;
+  }
+  return formatNumber(num);
+}
+
+function formatCompactNumberSmall(value) {
+  const num = Number(value) || 0;
+  if (Math.abs(num) >= 1_000) {
+    return `${formatNumber(Math.round(num / 1000))}K`;
+  }
+  return formatNumber(num);
+}
+
+function formatCompactPerHour(value) {
+  return value === null || value === undefined ? "—" : formatCompactNumber(value);
+}
+
 function formatRate(fraction) {
   if (fraction === null || fraction === undefined) return "—";
   return `${(fraction * 100).toFixed(2)}%`;
@@ -67,6 +90,18 @@ function formatQualityMultiplier(value) {
 
 function formatIvStat(value) {
   return Number.isFinite(value) ? String(value) : "—";
+}
+
+// Single-column IV presentation for the Captured table: "186 (31-31-31-31-31-31)"
+// — ivTotal up front, then the 6 individual stats in HP-ATK-DEF-SATK-SDEF-SPE
+// order (matching the column header) instead of 6 separate columns. Frees up
+// horizontal space so Nature stops getting clipped in a narrow panel.
+function formatIvBreakdown(ivTotal, ivs) {
+  const total = Number.isFinite(ivTotal) ? String(ivTotal) : "—";
+  const stats = [ivs.hp, ivs.atk, ivs.def, ivs.spa, ivs.spd, ivs.spe]
+    .map(formatIvStat)
+    .join("-");
+  return `${total} (${stats})`;
 }
 
 function genderSymbol(gender) {
@@ -165,13 +200,30 @@ function createRarityRows() {
   }
 }
 
+// "Qty (ShinyQty)" — the shiny count is an annotation, never additive:
+// bucket.seen/captured/failed already include the shiny ones.
+function renderCountWithShiny(cell, count, shinyCount) {
+  cell.replaceChildren(document.createTextNode(formatNumber(count)));
+
+  if (shinyCount > 0) {
+    const span = document.createElement("span");
+    span.className = "shiny-count";
+    span.textContent = ` (${formatNumber(shinyCount)})`;
+    cell.appendChild(span);
+  }
+}
+
 function renderRarityRow(key, bucket) {
   const row = document.querySelector(`[data-rarity="${key}"]`);
   if (!row || !bucket) return;
 
-  row.querySelector('[data-field="seen"]').textContent = formatNumber(bucket.seen);
-  row.querySelector('[data-field="captured"]').textContent = formatNumber(bucket.captured);
-  row.querySelector('[data-field="failed"]').textContent = formatNumber(bucket.failed);
+  renderCountWithShiny(row.querySelector('[data-field="seen"]'), bucket.seen, bucket.shinySeen);
+  renderCountWithShiny(
+    row.querySelector('[data-field="captured"]'),
+    bucket.captured,
+    bucket.shinyCaptured
+  );
+  renderCountWithShiny(row.querySelector('[data-field="failed"]'), bucket.failed, bucket.shinyFailed);
   row.querySelector('[data-field="rate"]').textContent = formatRate(
     bucket.seen ? bucket.captured / bucket.seen : null
   );
@@ -207,19 +259,30 @@ function renderMetrics(metrics) {
   document.getElementById("hunt-time").textContent = formatDuration(metrics.activeMs);
 
   document.getElementById("trainer-exp-hour").textContent =
-    formatPerHour(metrics.trainerExpPerHour);
-  document.getElementById("trainer-exp-total").textContent = formatNumber(metrics.trainerExp);
+    formatCompactPerHour(metrics.trainerExpPerHour);
+  document.getElementById("trainer-exp-total").textContent =
+    formatCompactNumber(metrics.trainerExp);
 
   document.getElementById("pokemon-exp-hour").textContent =
-    formatPerHour(metrics.pokemonExpPerHour);
-  document.getElementById("pokemon-exp-total").textContent = formatNumber(metrics.pokemonExp);
+    formatCompactPerHour(metrics.pokemonExpPerHour);
+  document.getElementById("pokemon-exp-total").textContent =
+    formatCompactNumber(metrics.pokemonExp);
 
-  document.getElementById("dollars-hour").textContent = formatPerHour(metrics.goldPerHour);
-  document.getElementById("dollars-total").textContent = formatNumber(metrics.gold);
+  // Dólar shows the total up front now, the per-hour rate demoted below.
+  document.getElementById("dollars-total").textContent = formatCompactNumber(metrics.gold);
+  document.getElementById("dollars-hour").textContent = formatCompactPerHour(metrics.goldPerHour);
 
-  document.getElementById("expenses-hour").textContent = formatPerHour(metrics.expensesPerHour);
-  document.getElementById("expenses-total").textContent = formatNumber(metrics.expenses);
-  document.getElementById("potions-used").textContent = formatNumber(metrics.potionsUsed);
+  // Lucro Total: a straight total (gold - expenses), no per-hour rate —
+  // it deliberately doesn't care how long the Hunt has been running.
+  // The breakdown below is just ↑ income / ↓ expenses — no labels, no
+  // Potions (dropped from this card).
+  const profitTotal = metrics.gold - metrics.expenses;
+  const profitEl = document.getElementById("profit-total");
+  profitEl.textContent = formatCompactNumber(profitTotal);
+  profitEl.classList.toggle("positive", profitTotal > 0);
+  profitEl.classList.toggle("negative", profitTotal < 0);
+  document.getElementById("profit-expenses-total").textContent =
+    formatCompactNumber(metrics.expenses);
 
   const status = document.getElementById("hunt-status");
   status.classList.remove("running", "paused");
@@ -237,14 +300,8 @@ function renderMetrics(metrics) {
   document.getElementById("total-seen").textContent = formatNumber(metrics.seen);
   document.getElementById("total-captured").textContent = formatNumber(metrics.captured);
   document.getElementById("total-failed").textContent = formatNumber(metrics.failed);
-  document.getElementById("rare-plus-failed").textContent = formatNumber(metrics.rarePlusFailed);
 
   document.getElementById("seen-rate").textContent = formatRate(metrics.seenToCaptureRate);
-  document.getElementById("attempt-rate").textContent = formatRate(metrics.attemptRate);
-
-  document.getElementById("shiny-seen").textContent = formatNumber(metrics.shiny.seen);
-  document.getElementById("shiny-captured").textContent = formatNumber(metrics.shiny.captured);
-  document.getElementById("shiny-failed").textContent = formatNumber(metrics.shiny.failed);
 
   for (const [key] of RARITY_LABELS) {
     renderRarityRow(key, metrics.rarities[key]);
@@ -306,6 +363,8 @@ function renderCapturedList(encounters) {
 
   for (const encounter of filtered) {
     const row = document.createElement("tr");
+    if (encounter.isShiny) row.classList.add("captured-row-shiny");
+
     const ivs = encounter.ivs || {};
 
     // Rarity moves from its own column to a colored bar on the name
@@ -317,7 +376,10 @@ function renderCapturedList(encounters) {
 
     const nameSpan = document.createElement("span");
     nameSpan.className = `rarity-name rarity-${rarityKeyFor(encounter.quality)}`;
-    nameSpan.textContent = speciesLabel(encounter.speciesName, encounter.speciesId);
+    // Asterisk on the name is the only per-Pokémon shiny marker — the row
+    // highlight (captured-row-shiny) does the rest.
+    nameSpan.textContent =
+      speciesLabel(encounter.speciesName, encounter.speciesId) + (encounter.isShiny ? " *" : "");
 
     const genderSpan = document.createElement("span");
     const symbol = genderSymbol(encounter.gender);
@@ -331,12 +393,7 @@ function renderCapturedList(encounters) {
     fillRow(row, [
       encounter.nature ?? "—",
       formatQualityMultiplier(encounter.qualityMultiplier),
-      formatIvStat(ivs.hp),
-      formatIvStat(ivs.atk),
-      formatIvStat(ivs.def),
-      formatIvStat(ivs.spa),
-      formatIvStat(ivs.spd),
-      formatIvStat(ivs.spe)
+      formatIvBreakdown(encounter.ivTotal, ivs)
     ]);
 
     body.appendChild(row);

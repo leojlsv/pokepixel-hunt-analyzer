@@ -13,19 +13,14 @@
  */
 
 import { activeMs as sessionActiveMs } from "./sessionTiming.js";
-import { QUALITIES, computeRarityBreakdown } from "./rarityBreakdown.js";
+import {
+  QUALITIES,
+  computeRarityBreakdown,
+  buildEmptyRarities,
+  emptyBucket
+} from "./rarityBreakdown.js";
 
 export { QUALITIES };
-
-function emptyBucket() {
-  return { seen: 0, captured: 0, failed: 0 };
-}
-
-function buildEmptyRarities() {
-  const rarities = { unknown: emptyBucket() };
-  for (const quality of QUALITIES) rarities[quality] = emptyBucket();
-  return rarities;
-}
 
 function perHour(amount, elapsedMs) {
   if (!(elapsedMs > 0)) return null;

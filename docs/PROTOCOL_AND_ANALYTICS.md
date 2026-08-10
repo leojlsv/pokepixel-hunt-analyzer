@@ -176,9 +176,25 @@ Finalize/remove on capture result, wild-id reuse by a new `combat.started`, or c
 
 ## 7. Wild-id reuse and orphans
 
-A new start with a reused wild id creates a new `encounter_id`.
-Do not force orphan events onto old encounters just because the wild id matches.
+A new start with a **genuinely different** individual on a reused wild id
+creates a new `encounter_id`. Do not force orphan events onto old
+encounters just because the wild id matches.
 Useful orphan data may be stored with `state = orphan` and excluded from metrics requiring reliable `cycle_ms`.
+
+**Not every `combat.started` on an already-tracked wild id is reuse.**
+Confirmed against a real backup: the game sometimes re-announces the
+exact same individual (identical `species_id`/`level`/`quality`/
+`gender`/`nature`/`ivs`/`quality_multiplier`) more than once for the
+same real encounter — likely a resend/resync the `seq` dedupe (§8)
+doesn't catch, since it's keyed on `socketId|type|seq`, not content.
+Treating every re-announcement as "the old one is abandoned" finalized
+the real encounter as `incomplete` and created a duplicate that then
+stole the actual loot/capture result — a real bug, confirmed at ~36% of
+all persisted encounters in one real backup (99.4% of the resulting
+`incomplete` rows were the same individual re-announcing, not a new
+spawn). Compare the full individual fingerprint before finalizing: if
+it matches, it's the same encounter — just refresh `updatedAtMs`, don't
+finalize or create anything.
 
 **Exception — not every unmatched `loot.received` is an orphan.** The
 auto-potion-used variant (§3) has no `wild_monster_id` on purpose; it is
@@ -243,7 +259,13 @@ Attempt Rate   = captured / (captured + failed)
 ```
 
 Rare+ is `rare + epic + legendary + mythical`.
-Track shiny `seen`, `captured`, `failed`.
+
+Track shiny `seen`/`captured`/`failed` per rarity tier too
+(`shinySeen`/`shinyCaptured`/`shinyFailed` — an annotation, always a
+subset already counted in the tier's plain `seen`/`captured`/`failed`,
+never additive), not just the single cross-tier total. Current's By
+Rarity table (docs/ARCHITECTURE.md §12 — there is no separate Shiny
+section) renders it as `"Qty (ShinyQty)"`.
 
 **Gastos/h (Hunt expenses):**
 

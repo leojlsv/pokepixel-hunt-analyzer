@@ -5,8 +5,127 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed — Captured list IV column merge (pre-Phase 5)
+- The 6 separate IV columns (HP/Atk/Def/SAtk/SDef/Spe) in the Current
+  view's Captured table are now one column: header `IV
+  (HP-ATK-DEF-SATK-SDEF-SPE)`, cell e.g. `186 (31-31-31-31-31-31)`
+  (`formatIvBreakdown` in `sidepanel.js`/`preview.js`). Frees up
+  horizontal width so Nature stops getting clipped in a narrow panel.
+  No data model change — `ivTotal`/`ivs.*` are unchanged, only display.
+
+### Fixed — Captured table column widths / layout break in Edge (pre-Phase 5)
+- The generic even column split left Nat/Qlt too wide and the new IV
+  column too narrow, overflowing its fixed width instead of wrapping —
+  visible as a broken layout in Edge's narrower side panel. New
+  `.captured-table` class gives explicit widths (Pokémon 26% / Nat 13%
+  / Qlt 11% / IV 50%) plus `overflow-wrap: anywhere` on the Pokémon/Nat
+  cells so an unusually long value wraps in place instead of bleeding
+  into the next column. Also fixed the Pokémon/gender-symbol gap, which
+  `justify-content: space-between` was stretching across the whole
+  (now narrower) column instead of keeping them together.
+
+### Changed — Current view Hunt card relabeling + card removal (pre-Phase 5)
+- Hunt card labels translated to English: Elapsed Time / XP/h You /
+  XP/h Poké / Dollar / Profit (was Tempo / EXP/h Treinador / EXP/h
+  Pokémon / Dólar / Lucro Total).
+- Profit card's `<small>` breakdown dropped its `↑ <gold total>` half —
+  shows only `↓ <expenses total>` now.
+- `.summary-grid` dropped the Attempt Rate card and the old
+  `Rare+ Failed` accent card; Seen→Capture's label shortened to
+  "Capture". 4-across instead of 5. No domain change — `attemptRate`
+  is still computed by `computeSessionMetrics`, just no longer read by
+  the UI.
+- `preview.js`/`preview.html` updated to match (avoid diff from
+  production).
+
+### Changed — Hunt card number formatting/layout (pre-Phase 5)
+- **Compact numbers**: any Hunt card value over 5 digits (≥ 100,000)
+  now abbreviates its last 3 digits into a "K" suffix instead of
+  wrapping/overflowing the narrow card (e.g. `185.673` → `186K`;
+  `formatCompactNumber`/`formatCompactPerHour` in `sidepanel.js`/
+  `preview.js`). 5-digit-or-under values are unaffected.
+- **Dólar card flips its primary metric**: shows the gold **total** up
+  front now (was the per-hour rate); `Dólar/h` moves to the `<small>`
+  line below instead.
+- **Lucro Total's breakdown simplified**: `<small>` now shows just
+  `↑ <gold total>` / `↓ <expenses total>` (green/red, `.flow-in`/
+  `.flow-out`) instead of labeled `Dólar: X · Gastos: Y · Potions: Z`.
+  Potions dropped from this card entirely (still tracked in the domain
+  layer, just not shown here).
+
+### Fixed — Phantom "no interaction" encounters in History (pre-Phase 5)
+- **Root cause found and fixed**: `domain/encounterTracker.js`'s
+  `applyCombatStarted` treated *any* new `combat.started` for an
+  already-tracked `wild_monster_id` as "the previous encounter was
+  abandoned, start a new one" — finalizing the real encounter as
+  `incomplete` (`captureResult: none`) and creating a duplicate that
+  then received the actual loot/capture result. Confirmed against a
+  real backup: the game sometimes re-announces the *exact same*
+  individual (species/level/quality/gender/nature/ivs/qualityMultiplier
+  all identical) more than once for one real encounter — likely a
+  resend the `seq`-based dedupe can't catch, since it's keyed on
+  `socketId|type|seq`, not content. In one real backup this was ~36%
+  of all persisted encounters (690/1895), and 99.4% of the resulting
+  `incomplete` rows (498/501) were confirmed to be the same individual
+  re-announcing, not a genuine new spawn reusing the wild-id slot.
+- **Fix**: before finalizing on wild-id reuse, compare the full
+  individual fingerprint against the already-tracked draft. If it
+  matches, it's the same real encounter — no finalize, no duplicate,
+  just an `encounter.update` refreshing `updatedAtMs` so it doesn't go
+  stale. A genuinely different individual (the 3 real cases found)
+  keeps the exact old behavior (finalize as `incomplete`, start fresh).
+- **Scope**: this only prevents *new* duplicates going forward.
+  Historical phantom rows already in a user's IndexedDB are untouched
+  by this fix — no destructive cleanup was in scope for this change.
+
+### Changed — Current view layout QOL (pre-Phase 5)
+- **Hunt card reflowed**: Tempo alone on its own row, the other 4
+  metrics (EXP/h Treinador, EXP/h Pokémon, Dólar/h, Lucro Total) in a
+  row below (`.hunt-metrics-layout`/`.hunt-metrics-grid` in
+  `sidepanel.css`, additive — the old `.hunt-metrics` 5-card grid rule
+  is untouched).
+- **Fixed**: those 4 cards initially kept `.hunt-metric`'s label-and-value
+  side-by-side grid (`1fr auto`), which needs real width — in a
+  ~340px panel split 4 ways, a label like "EXP/h Treinador" left no
+  room for its own value, which rendered half outside the card
+  (`.hunt-metrics-grid .hunt-metric` now stacks label above value
+  instead, like `.summary-card` already does; `overflow-wrap: anywhere`
+  on the value as a safety net for very large numbers).
+- **Seen/Captured/Failed/Seen→Capture/Attempt Rate merged into one
+  5-across row**: the old 3-card `.summary-grid` and 2-card `.rate-row`
+  below it (Current view only — History's own `.rate-row` detail
+  summary is untouched, different element) are now a single
+  `.summary-grid` with 5 `.summary-card`s. `Seen`/`Captured`/`Failed`
+  are colored (`.count-seen` light blue, `.count-captured` light green,
+  `.count-failed` light red — reusing the app's existing gender-male/
+  running-status/danger colors instead of introducing new ones).
+  `.summary-card strong` shrunk 20px → 16px with `overflow-wrap: anywhere`
+  for the tighter 5-column width. Removed the now-dead `.accent-card`
+  rule (was Rare+ Failed's, already removed from the markup earlier).
+- **"Gastos/h" → "Lucro Total"**: the 4th metric card no longer shows an
+  expense rate — it shows `gold - expenses`, a straight total with no
+  per-hour component at all, colored green/red by sign. Its `<small>`
+  breaks out the raw Dólar/Gastos/Potions totals for context (`gold`/
+  `expenses` already existed on `computeSessionMetrics`'s output — no
+  domain change needed for this part).
+- **Shiny section removed**; its 3 numbers move into By Rarity as a
+  `"Qty (ShinyQty)"` gold annotation on Seen/Cap./Fail, per rarity tier —
+  `domain/rarityBreakdown.js`'s `computeRarityBreakdown()` now tracks
+  `shinySeen`/`shinyCaptured`/`shinyFailed` per tier (still just an
+  annotation, always included in the plain count, never additive); the
+  old cross-tier `shiny` aggregate stays computed too, just unused by
+  the UI now.
+- **Captured list**: a shiny capture gets a trailing ` *` on its name
+  and a `.captured-row-shiny` gold-tinted row highlight — the only
+  per-Pokémon shiny marker there.
+- Validated first in `preview.html`/`preview.js` with mock data, then
+  replicated to `sidepanel.html`/`sidepanel.js` unchanged in behavior.
+  No persisted schema change — `isShiny`, `gold`, `expenses` were
+  already there; only the derived/computed shapes grew.
+
 ### Added — Captured list (Current view, pre-Phase 5)
-- New "Captured" module below By Rarity and Shiny: one row per
+- New "Captured" module below By Rarity (and, at the time, Shiny —
+  since removed, see "Current view layout QOL" above): one row per
   successfully captured Pokémon this session — Pokémon (with Rarity
   shown as a colored bar on the name, same colors as By Rarity, and
   Gender as a ♂/♀ symbol on the name's other side, instead of two

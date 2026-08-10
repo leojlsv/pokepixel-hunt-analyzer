@@ -15,6 +15,12 @@
  * "seen" — it may have just shown up in the raw log without any real
  * battle interaction. This also means an orphan CAN be "seen" if it
  * still carries a real capture attempt (docs/PROTOCOL_AND_ANALYTICS.md §10).
+ *
+ * Each rarity bucket also carries `shinySeen`/`shinyCaptured`/
+ * `shinyFailed` — always a subset already included in the plain
+ * seen/captured/failed counts, never additive. Current's "By Rarity"
+ * table (no separate Shiny card anymore) renders them as
+ * "Qty (ShinyQty)" in gold next to the plain count.
  */
 
 export const QUALITIES = Object.freeze([
@@ -27,13 +33,21 @@ export const QUALITIES = Object.freeze([
   "mythical"
 ]);
 
-function emptyBucket() {
+export function emptyBucket() {
   return { seen: 0, captured: 0, failed: 0 };
 }
 
-function buildEmptyRarities() {
-  const rarities = { unknown: emptyBucket() };
-  for (const quality of QUALITIES) rarities[quality] = emptyBucket();
+// Same shape as emptyBucket() plus shiny sub-counts — annotations only,
+// never additive: shinySeen/shinyCaptured/shinyFailed are always a
+// subset already included in seen/captured/failed above. Current's "By
+// Rarity" table renders them as "Qty (ShinyQty)".
+function emptyRarityBucket() {
+  return { ...emptyBucket(), shinySeen: 0, shinyCaptured: 0, shinyFailed: 0 };
+}
+
+export function buildEmptyRarities() {
+  const rarities = { unknown: emptyRarityBucket() };
+  for (const quality of QUALITIES) rarities[quality] = emptyRarityBucket();
   return rarities;
 }
 
@@ -58,18 +72,27 @@ export function computeRarityBreakdown(encounters = []) {
     if (isCaptured) {
       captured += 1;
       rarities[key].captured += 1;
-      if (encounter.isShiny) shiny.captured += 1;
+      if (encounter.isShiny) {
+        shiny.captured += 1;
+        rarities[key].shinyCaptured += 1;
+      }
     }
 
     if (isFailed) {
       failed += 1;
       rarities[key].failed += 1;
-      if (encounter.isShiny) shiny.failed += 1;
+      if (encounter.isShiny) {
+        shiny.failed += 1;
+        rarities[key].shinyFailed += 1;
+      }
     }
 
     if (isSeen) {
       rarities[key].seen += 1;
-      if (encounter.isShiny) shiny.seen += 1;
+      if (encounter.isShiny) {
+        shiny.seen += 1;
+        rarities[key].shinySeen += 1;
+      }
     }
   }
 

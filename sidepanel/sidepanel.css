@@ -177,8 +177,67 @@ h2 {
 
 .hunt-metrics {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 7px;
+}
+
+/* New Current layout — Tempo on its own line, the other 4 metrics in a
+   row below. Kept as a separate class from .hunt-metrics above (which
+   is now unused but left in place) rather than repurposing it. */
+.hunt-metrics-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.hunt-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+/* .hunt-metric's default layout (label and value side by side) needs
+   real width to work — fine for the full-width Tempo row, but 4-across
+   in a narrow panel isn't wide enough for a label like "EXP/h
+   Treinador" and a value on the same line: the grid's "auto" value
+   column was winning the fight for space and rendering half outside
+   the card. Stack label above value here instead, like .summary-card
+   already does. */
+.hunt-metrics-grid .hunt-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hunt-metrics-grid .hunt-metric strong {
+  text-align: left;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.hunt-metrics-grid .hunt-metric small {
+  text-align: left;
+}
+
+.hunt-profit strong.positive {
+  color: #77c386;
+}
+
+.hunt-profit strong.negative {
+  color: #e59aa4;
+}
+
+.hunt-profit small {
+  display: flex;
+  gap: 10px;
+}
+
+.flow-in {
+  color: #77c386;
+}
+
+.flow-out {
+  color: #e59aa4;
 }
 
 .hunt-metric {
@@ -219,7 +278,7 @@ h2 {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 7px;
   margin-top: 17px;
 }
@@ -240,11 +299,20 @@ h2 {
 }
 
 .summary-card strong {
-  font-size: 20px;
+  font-size: 16px;
+  overflow-wrap: anywhere;
 }
 
-.accent-card {
-  border-color: #68434a;
+.count-seen {
+  color: #6fa8dc;
+}
+
+.count-captured {
+  color: #77c386;
+}
+
+.count-failed {
+  color: #e59aa4;
 }
 
 .rate-row {
@@ -312,9 +380,40 @@ tbody tr:last-child td {
   border-bottom: 0;
 }
 
+/* Captured table only: the generic even 3-way split across Nat/Qlt/IV
+   (docs/ARCHITECTURE.md §11 merged those 6 IV columns into 1) leaves
+   Nat/Qlt way wider than their short content needs while starving the
+   IV column, which then overflows its fixed width instead of wrapping
+   — the layout break reported in Edge's narrower side panel. Give Nat/
+   Qlt just enough room and hand the rest to IV; overflow-wrap forces a
+   break even mid-run (hyphens alone aren't a reliable break point for
+   this column's tightly-packed "186 (31-31-31-31-31-31)" content). */
+.captured-table th:first-child,
+.captured-table td:first-child {
+  width: 27%;
+}
+
+.captured-table th:nth-child(2),
+.captured-table td:nth-child(2) {
+  width: 14%;
+  overflow-wrap: anywhere;
+}
+
+.captured-table th:nth-child(3),
+.captured-table td:nth-child(3) {
+  width: 9%;
+}
+
+.captured-table th:nth-child(4),
+.captured-table td:nth-child(4) {
+  width: 50%;
+  overflow-wrap: anywhere;
+}
+
 .rarity-name {
   position: relative;
   padding-left: 10px;
+  overflow-wrap: anywhere;
 }
 
 .rarity-name::before {
@@ -330,37 +429,41 @@ tbody tr:last-child td {
 }
 
 .rarity-weak {
-  --rarity-color: #727272;
+  --rarity-color: #d9dde3;
 }
 
 .rarity-common {
-  --rarity-color: #89919a;
+  --rarity-color: #61d479;
 }
 
 .rarity-uncommon {
-  --rarity-color: #73a778;
+  --rarity-color: #54cfd8;
 }
 
 .rarity-rare {
-  --rarity-color: #5fc5f3;
+  --rarity-color: #be83f3;
 }
 
 .rarity-epic {
-  --rarity-color: #b85ce5;
+  --rarity-color: #f0cf5b;
 }
 
 .rarity-legendary {
-  --rarity-color: #e9ad36;
+  --rarity-color: #f19a4a;
 }
 
 .rarity-mythical {
-  --rarity-color: #e85d7d;
+  --rarity-color: #e75b66;
 }
 
 .captured-pokemon {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* flex-start, not space-between: with the Pokémon column now narrower
+     (see .captured-table above), space-between was stretching the
+     gap between name and gender symbol across the whole column instead
+     of keeping them together next to the name. */
+  justify-content: flex-start;
   gap: 6px;
 }
 
@@ -377,34 +480,17 @@ tbody tr:last-child td {
   color: #e88fb0;
 }
 
-/* SHINY */
-
-.shiny-section {
-  padding: 10px;
-  border: 1px solid #45402a;
-  border-radius: 6px;
-  background: #22211d;
+.shiny-count {
+  color: #d8b866;
+  font-weight: 600;
 }
 
-.shiny-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 5px;
+.captured-row-shiny td {
+  background: rgba(216, 184, 102, 0.08);
 }
 
-.shiny-grid div {
-  display: flex;
-  flex-direction: column;
-}
-
-.shiny-grid span {
-  color: #8f8f8f;
-  font-size: 10px;
-}
-
-.shiny-grid strong {
-  margin-top: 2px;
-  font-size: 16px;
+.captured-row-shiny .rarity-name {
+  color: #d8b866;
 }
 
 .warning {
@@ -419,9 +505,8 @@ tbody tr:last-child td {
 /* HISTORY / COMPARE */
 
 .filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 7px;
   margin-bottom: 10px;
 }
@@ -497,6 +582,10 @@ footer {
   .actions-row,
   .tab-bar {
     grid-template-columns: 1fr;
+  }
+
+  .hunt-metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   th,

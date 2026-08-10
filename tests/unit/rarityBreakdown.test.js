@@ -12,7 +12,14 @@ test("empty input returns zeroed buckets for every known quality plus unknown", 
   assert.equal(breakdown.hasUnknownQuality, false);
 
   for (const quality of [...QUALITIES, "unknown"]) {
-    assert.deepEqual(breakdown.rarities[quality], { seen: 0, captured: 0, failed: 0 });
+    assert.deepEqual(breakdown.rarities[quality], {
+      seen: 0,
+      captured: 0,
+      failed: 0,
+      shinySeen: 0,
+      shinyCaptured: 0,
+      shinyFailed: 0
+    });
   }
 });
 
@@ -76,4 +83,24 @@ test("shiny buckets follow the same seen/captured/failed split as totals", () =>
   assert.equal(breakdown.shiny.seen, 2);
   assert.equal(breakdown.shiny.captured, 1);
   assert.equal(breakdown.shiny.failed, 1);
+});
+
+test("per-rarity shiny sub-counts are an annotation, already included in seen/captured/failed", () => {
+  const encounters = [
+    { state: "success", quality: "rare", captureResult: "success", isShiny: true },
+    { state: "failed", quality: "common", captureResult: "failed", isShiny: true },
+    { state: "success", quality: "common", captureResult: "success", isShiny: false }
+  ];
+
+  const breakdown = computeRarityBreakdown(encounters);
+
+  assert.equal(breakdown.rarities.rare.captured, 1);
+  assert.equal(breakdown.rarities.rare.shinyCaptured, 1);
+  assert.equal(breakdown.rarities.rare.shinySeen, 1);
+
+  assert.equal(breakdown.rarities.common.seen, 2); // 1 shiny-failed + 1 non-shiny-captured
+  assert.equal(breakdown.rarities.common.failed, 1);
+  assert.equal(breakdown.rarities.common.shinyFailed, 1);
+  assert.equal(breakdown.rarities.common.shinySeen, 1);
+  assert.equal(breakdown.rarities.common.shinyCaptured, 0); // the common capture wasn't shiny
 });

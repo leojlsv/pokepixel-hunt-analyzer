@@ -235,7 +235,7 @@ test("no capture event: a looted encounter also becomes incomplete after the sta
   assert.equal(stale.effects[0].patch.state, "incomplete");
 });
 
-test("wild-id reuse: a new combat.started finalizes the previous unresolved encounter and starts a new one", () => {
+test("wild-id reuse by a genuinely different individual finalizes the previous unresolved encounter and starts a new one", () => {
   resetIds();
   let state = createTrackerState();
 
@@ -243,7 +243,18 @@ test("wild-id reuse: a new combat.started finalizes the previous unresolved enco
   state = first.state;
   const firstEncounterId = first.effects[1].row.encounterId;
 
-  const second = applyEvent(state, combatStarted("wild_1", { ts: 5000, seq: 2 }), nextId);
+  // Different level and IVs — a genuinely different Pokémon reusing the
+  // same wild_monster_id slot, not the same individual re-announced.
+  const second = applyEvent(
+    state,
+    combatStarted("wild_1", {
+      ts: 5000,
+      seq: 2,
+      level: 95,
+      ivs: { atk: 10, def: 10, hp: 10, spa: 10, spd: 10, spe: 10 }
+    }),
+    nextId
+  );
   state = second.state;
 
   const finalizePrevious = second.effects.find(
@@ -255,6 +266,61 @@ test("wild-id reuse: a new combat.started finalizes the previous unresolved enco
   const createSecond = second.effects.find((e) => e.type === "encounter.create");
   assert.notEqual(createSecond.row.encounterId, firstEncounterId);
   assert.equal(state.activeByWildMonsterId.get("wild_1"), createSecond.row.encounterId);
+});
+
+test("combat.started re-announcing the SAME individual on the same wild_monster_id does not duplicate the encounter", () => {
+  resetIds();
+  let state = createTrackerState();
+
+  const first = applyEvent(state, combatStarted("wild_1", { ts: 1000, seq: 1 }), nextId);
+  state = first.state;
+  const firstEncounterId = first.effects[1].row.encounterId;
+
+  // Exact same species/level/quality/gender/nature/ivs/qualityMultiplier
+  // (all combatStarted() defaults) — the game re-announcing the same
+  // real encounter, confirmed against a real backup (docs/PROTOCOL_AND_
+  // ANALYTICS.md §7).
+  const second = applyEvent(state, combatStarted("wild_1", { ts: 5000, seq: 2 }), nextId);
+  state = second.state;
+
+  assert.equal(
+    second.effects.some((e) => e.type === "encounter.finalize"),
+    false,
+    "must not finalize the original as incomplete"
+  );
+  assert.equal(
+    second.effects.some((e) => e.type === "encounter.create"),
+    false,
+    "must not create a duplicate encounter"
+  );
+
+  const touch = second.effects.find(
+    (e) => e.type === "encounter.update" && e.encounterId === firstEncounterId
+  );
+  assert.ok(touch, "expected an encounter.update touching the original encounter");
+  assert.equal(touch.patch.updatedAtMs, 5000);
+
+  assert.equal(state.activeByWildMonsterId.get("wild_1"), firstEncounterId);
+  assert.ok(state.inProgress.has(firstEncounterId));
+});
+
+test("after a same-individual re-announcement, a capture result still attaches to the original encounterId", () => {
+  resetIds();
+  let state = createTrackerState();
+
+  const first = applyEvent(state, combatStarted("wild_1", { ts: 1000, seq: 1 }), nextId);
+  state = first.state;
+  const firstEncounterId = first.effects[1].row.encounterId;
+
+  ({ state } = applyEvent(state, combatStarted("wild_1", { ts: 5000, seq: 2 }), nextId));
+  ({ state } = applyEvent(state, lootReceived("wild_1", { ts: 5500, seq: 3 }), nextId));
+
+  const result = applyEvent(state, captureFailed("wild_1", { ts: 6000, seq: 4 }), nextId);
+
+  const finalize = result.effects.find((e) => e.type === "encounter.finalize");
+  assert.ok(finalize, "expected a finalize effect");
+  assert.equal(finalize.encounterId, firstEncounterId);
+  assert.equal(finalize.patch.captureResult, "failed");
 });
 
 test("orphan: loot.received with no active encounter creates an orphan row", () => {

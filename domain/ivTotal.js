@@ -7,7 +7,7 @@
  * contributes 0 instead of poisoning the total with NaN.
  */
 
-const IV_STATS = Object.freeze(["atk", "def", "hp", "spa", "spd", "spe"]);
+export const IV_STATS = Object.freeze(["atk", "def", "hp", "spa", "spd", "spe"]);
 
 export function sumIvs(ivs) {
   const source = ivs && typeof ivs === "object" ? ivs : {};

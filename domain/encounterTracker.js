@@ -19,7 +19,7 @@
  * from the draft's `autoCaptureSnapshot` before persisting.
  */
 
-import { sumIvs } from "./ivTotal.js";
+import { sumIvs, IV_STATS } from "./ivTotal.js";
 
 // docs/PROTOCOL_AND_ANALYTICS.md §6 "conservative stale timeout" — no
 // value is specified there; 30 minutes is this implementation's choice.
@@ -144,17 +144,57 @@ function orphanRow({ encounterId, wildMonsterId, socketId, envelope, patch }) {
   };
 }
 
+// Confirmed against real captures: the game sometimes re-emits
+// combat.started more than once for the exact same wild encounter
+// (same seq-dedupe not catching it — likely a resend/resync on the
+// game's side, not something we control). Comparing the full individual
+// fingerprint tells that apart from a genuine new spawn reusing the
+// same wild_monster_id slot (docs/PROTOCOL_AND_ANALYTICS.md §7).
+function sameIvs(a, b) {
+  if (!a || !b) return a === b;
+  return IV_STATS.every((stat) => a[stat] === b[stat]);
+}
+
+function sameIndividual(existing, enemy) {
+  return (
+    existing.speciesId === enemy.species_id &&
+    existing.level === enemy.level &&
+    existing.quality === enemy.quality &&
+    existing.gender === enemy.gender &&
+    existing.nature === enemy.nature &&
+    existing.qualityMultiplier === enemy.quality_multiplier &&
+    sameIvs(existing.ivs, enemy.ivs)
+  );
+}
+
 function applyCombatStarted(state, envelope, generateId) {
   const { enemy, session } = envelope.data;
   const wildMonsterId = enemy.id;
   const next = cloneState(state);
   const effects = [{ type: "session.activity" }];
 
-  // Wild-id reuse: whatever was previously tracked for this id never got
-  // a capture result — it's done, but unresolved.
   if (wildMonsterId && next.activeByWildMonsterId.has(wildMonsterId)) {
     const previousEncounterId = next.activeByWildMonsterId.get(wildMonsterId);
+    const previous = next.inProgress.get(previousEncounterId);
 
+    // Same individual re-announced — not a new encounter. Keep tracking
+    // the same draft instead of finalizing it as incomplete and creating
+    // a duplicate that will steal the real loot/capture result.
+    if (previous && sameIndividual(previous, enemy)) {
+      const touched = { ...previous, updatedAtMs: envelope.ts };
+      next.inProgress.set(previousEncounterId, touched);
+      effects.push({
+        type: "encounter.update",
+        encounterId: previousEncounterId,
+        patch: { updatedAtMs: envelope.ts }
+      });
+
+      return { state: next, effects };
+    }
+
+    // Wild-id reuse by a genuinely different individual: whatever was
+    // previously tracked for this id never got a capture result — it's
+    // done, but unresolved.
     if (next.inProgress.has(previousEncounterId)) {
       effects.push({
         type: "encounter.finalize",

@@ -89,49 +89,48 @@
           </span>
         </div>
 
-        <div class="hunt-metrics">
+        <div class="hunt-metrics-layout">
           <article class="hunt-metric hunt-time">
-            <span class="label">Tempo</span>
+            <span class="label">Elapsed Time</span>
             <strong id="hunt-time">00:00</strong>
           </article>
 
-          <article class="hunt-metric">
-            <span class="label">EXP/h Treinador</span>
-            <strong id="trainer-exp-hour">—</strong>
-            <small>
-              Total:
-              <span id="trainer-exp-total">0</span>
-            </small>
-          </article>
+          <div class="hunt-metrics-grid">
+            <article class="hunt-metric">
+              <span class="label">XP/h You</span>
+              <strong id="trainer-exp-hour">—</strong>
+              <small>
+                Total:
+                <span id="trainer-exp-total">0</span>
+              </small>
+            </article>
 
-          <article class="hunt-metric">
-            <span class="label">EXP/h Pokémon</span>
-            <strong id="pokemon-exp-hour">—</strong>
-            <small>
-              Total:
-              <span id="pokemon-exp-total">0</span>
-            </small>
-          </article>
+            <article class="hunt-metric">
+              <span class="label">XP/h Poké</span>
+              <strong id="pokemon-exp-hour">—</strong>
+              <small>
+                Total:
+                <span id="pokemon-exp-total">0</span>
+              </small>
+            </article>
 
-          <article class="hunt-metric">
-            <span class="label">Dólar/h</span>
-            <strong id="dollars-hour">—</strong>
-            <small>
-              Total:
-              <span id="dollars-total">0</span>
-            </small>
-          </article>
+            <article class="hunt-metric">
+              <span class="label">Dollar</span>
+              <strong id="dollars-total">0</strong>
+              <small>
+                $/h:
+                <span id="dollars-hour">—</span>
+              </small>
+            </article>
 
-          <article class="hunt-metric">
-            <span class="label">Gastos/h</span>
-            <strong id="expenses-hour">—</strong>
-            <small>
-              Total:
-              <span id="expenses-total">0</span>
-              · Potions:
-              <span id="potions-used">0</span>
-            </small>
-          </article>
+            <article class="hunt-metric hunt-profit">
+              <span class="label">Profit</span>
+              <strong id="profit-total">—</strong>
+              <small>
+                <span class="flow-out">↓ <span id="profit-expenses-total">0</span></span>
+              </small>
+            </article>
+          </div>
         </div>
       </section>
 
@@ -141,45 +140,30 @@
       >
         <article class="summary-card">
           <span class="label">Seen</span>
-          <strong id="total-seen">0</strong>
+          <strong id="total-seen" class="count-seen">0</strong>
         </article>
 
         <article class="summary-card">
           <span class="label">Captured</span>
-          <strong id="total-captured">0</strong>
+          <strong id="total-captured" class="count-captured">0</strong>
         </article>
 
         <article class="summary-card">
           <span class="label">Failed</span>
-          <strong id="total-failed">0</strong>
+          <strong id="total-failed" class="count-failed">0</strong>
         </article>
 
-        <article class="summary-card accent-card">
-          <span class="label">Rare+ Failed</span>
-          <strong id="rare-plus-failed">0</strong>
-        </article>
-      </section>
-
-      <section
-        class="rate-row"
-        aria-label="Taxas de captura"
-      >
-        <div>
-          <span>Seen → Capture</span>
+        <article class="summary-card">
+          <span class="label">Capture</span>
           <strong id="seen-rate">—</strong>
-        </div>
-
-        <div>
-          <span>Attempt Rate</span>
-          <strong id="attempt-rate">—</strong>
-        </div>
+        </article>
       </section>
 
       <section class="section">
         <div class="section-title-row">
           <h2>By Rarity</h2>
           <span class="muted">
-            Seen · Captured · Failed
+            Seen · Captured · Failed · (Shiny)
           </span>
         </div>
 
@@ -200,29 +184,6 @@
         </div>
       </section>
 
-      <section class="section shiny-section">
-        <div class="section-title-row">
-          <h2>Shiny</h2>
-        </div>
-
-        <div class="shiny-grid">
-          <div>
-            <span>Seen</span>
-            <strong id="shiny-seen">0</strong>
-          </div>
-
-          <div>
-            <span>Captured</span>
-            <strong id="shiny-captured">0</strong>
-          </div>
-
-          <div>
-            <span>Failed</span>
-            <strong id="shiny-failed">0</strong>
-          </div>
-        </div>
-      </section>
-
       <section class="section">
         <div class="section-title-row">
           <h2>Captured</h2>
@@ -235,7 +196,7 @@
           </label>
 
           <label>
-            Qualidade >
+            Quality >
             <input
               id="captured-filter-quality-min"
               type="number"
@@ -257,18 +218,13 @@
         </div>
 
         <div class="table-wrap">
-          <table>
+          <table class="captured-table">
             <thead>
               <tr>
                 <th>Pokémon</th>
-                <th>Nature</th>
-                <th>Quality</th>
-                <th>HP</th>
-                <th>Atk</th>
-                <th>Def</th>
-                <th>SpAtk</th>
-                <th>SpDef</th>
-                <th>Spe</th>
+                <th>Nat</th>
+                <th>Qlt</th>
+                <th>IV (HP-ATK-DEF-SATK-SDEF-SPE)</th>
               </tr>
             </thead>
 

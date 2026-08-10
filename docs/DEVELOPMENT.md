@@ -22,7 +22,7 @@ Views: `Current`, `History`, `Compare` (tabs; no separate `Config` view
 — removed in Phase 3, config detail does not surface as raw
 technical/UUID data anywhere in the UI, see docs/ARCHITECTURE.md §9).
 
-Current should show Hunt status/time, Trainer and Pokémon EXP totals/h, Dollar totals/h, Gastos/h (Pokébolas + Potions, docs/ARCHITECTURE.md §10), Seen/Captured/Failed, rates, rarity, shiny, and a filterable list of captured Pokémon (Rarity/Gender/Nature/Quality/individual IVs, docs/ARCHITECTURE.md §11).
+Current should show Hunt status/time, Trainer and Pokémon EXP totals/h, Dollar totals/h, Lucro Total (Dólar - Gastos, no time component, docs/ARCHITECTURE.md §12), Seen/Captured/Failed, rates, rarity (with shiny counts folded in as an annotation, no separate Shiny section, docs/ARCHITECTURE.md §12), and a filterable list of captured Pokémon (Nature/Quality/individual IVs, shiny marked with an asterisk + row highlight, docs/ARCHITECTURE.md §11).
 
 Actions: `New Hunt`, `Pause/Resume`, `End Hunt`.
 

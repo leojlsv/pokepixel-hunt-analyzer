@@ -185,6 +185,16 @@ Initial indexes: `sessionId`, `groupKey`, `speciesId`, `quality`, `startedAtMs`.
 
 `wild_monster_id` is a temporary event-correlation key. It may be reused and is never the IndexedDB primary key.
 
+Reuse detection (`domain/encounterTracker.js`'s `applyCombatStarted`)
+compares the full individual fingerprint (species/level/quality/gender/
+nature/ivs/qualityMultiplier) before deciding a `wild_monster_id` was
+actually handed to a new individual — the game sometimes re-announces
+the same individual via a second `combat.started` for the same real
+encounter (docs/PROTOCOL_AND_ANALYTICS.md §7). Treating that as reuse
+used to finalize the real encounter as `incomplete` and create a
+duplicate that stole the real result — confirmed at ~36% of persisted
+encounters in one real backup before this fix.
+
 `config_id` is a deterministic SHA-256 hash of canonical configuration: schema version + EXP rate state + normalized `auto_capture` snapshot.
 
 `group_key` is:
@@ -393,14 +403,35 @@ Three metric corrections/additions made together, pre-Fase-5
 
 ## 11. Captured list (Current view)
 
-Below By Rarity and Shiny: every encounter of the current session with
-`captureResult === "success"`, one row per Pokémon — Pokémon / Nature /
-Quality (the continuous `qualityMultiplier`, §10) / the 6 individual IV
-stats (`ivs.hp/atk/def/spa/spd/spe`, docs/PROTOCOL_AND_ANALYTICS.md §2).
-Rarity (the discrete `quality` tier) and Gender aren't separate columns
-— Rarity is a colored bar on the Pokémon name (`.rarity-name`, same
-colors/classes as By Rarity) and Gender is a ♂/♀ symbol on the name's
-other side, freeing width for the IV columns in a narrow panel.
+Below By Rarity (§12 — there is no separate Shiny section anymore):
+every encounter of the current session with `captureResult ===
+"success"`, one row per Pokémon — Pokémon / Nature / Quality (the
+continuous `qualityMultiplier`, §10) / IV. Rarity (the discrete
+`quality` tier) and Gender aren't separate columns — Rarity is a
+colored bar on the Pokémon name (`.rarity-name`, same colors/classes as
+By Rarity) and Gender is a ♂/♀ symbol on the name's other side, freeing
+width in a narrow panel.
+
+The IV column itself merges the summed `ivTotal` and the 6 individual
+stats (`ivs.hp/atk/def/spa/spd/spe`, docs/PROTOCOL_AND_ANALYTICS.md §2)
+into one cell instead of 6 separate columns — header `IV
+(HP-ATK-DEF-SATK-SDEF-SPE)`, cell e.g. `186 (31-31-31-31-31-31)`
+(`formatIvBreakdown` in `sidepanel.js`/`preview.js`). Frees up enough
+horizontal width that Nature stops getting clipped in a narrow panel.
+
+The generic table CSS splits every non-first column evenly, which left
+Nat/Qlt much wider than their short content needs while starving the
+now much longer IV column — overflowing its fixed width instead of
+wrapping (visible as a layout break in Edge's narrower side panel).
+Fixed with a `.captured-table` class (only this table) giving explicit
+per-column widths — Pokémon 26%, Nat 13%, Qlt 11%, IV the remaining
+50% — plus `overflow-wrap: anywhere` on the Pokémon/Nat cells so an
+unusually long name or nature wraps within its own cell instead of
+bleeding into the next one.
+
+If `encounter.isShiny`, the name also gets a trailing ` *` and the row
+gets a `.captured-row-shiny` highlight (subtle gold tint) — the only
+per-Pokémon shiny marker in this list, no separate column.
 
 No new query: `sidepanel.js`'s existing per-poll
 `encountersRepository.getBySessionId()` fetch (already used for
@@ -420,3 +451,60 @@ Three filters, all narrowing the already-`success`-filtered list:
 
 Current view only — History/Compare don't get this module or its two
 new columns in this pass.
+
+## 12. Current view layout QOL
+
+Current's Hunt card was tall enough to push everything else below the
+fold, so it was reflowed (`.hunt-metrics-layout`/`.hunt-metrics-grid` in
+`sidepanel.css`, replacing the old flat 5-card `.hunt-metrics` grid):
+Tempo alone on its own row, the other 4 metrics in a row below it.
+
+The 4th metric card changed identity: it used to be "Gastos/h" (a rate);
+it's now **"Lucro Total"** — `gold - expenses`, computed straight in
+`sidepanel.js`'s `renderMetrics` (both terms already existed on
+`computeSessionMetrics`'s output, no domain change needed) — and
+deliberately has no per-hour rate at all, unlike every other card here.
+Its `<small>` is just `↑ <gold total>` / `↓ <expenses total>`
+(`.flow-in`/`.flow-out`, green/red) — no labels, no Potions (dropped
+from this card; still tracked in the domain layer, just not surfaced
+here). The `<strong>` gets a `.positive`/`.negative` class (green/red)
+based on sign.
+
+The Dólar card also flipped which number is primary: it shows the
+gold **total** up front now, with `Dólar/h` demoted to the `<small>`
+line — the opposite of every other card here, which leads with the
+per-hour rate.
+
+Any Hunt card value over 5 digits (≥ 100,000) gets its last 3 digits
+abbreviated into a "K" suffix instead of wrapping/overflowing the
+narrow card (`formatCompactNumber`/`formatCompactPerHour` in
+`sidepanel.js`/`preview.js`, e.g. `185.673` → `186K`) — scoped to
+the Hunt card only, not used anywhere else in the Side Panel.
+
+Shiny no longer has its own section. `domain/rarityBreakdown.js`'s
+`computeRarityBreakdown()` now tracks `shinySeen`/`shinyCaptured`/
+`shinyFailed` per rarity tier (still just an annotation — always a
+subset already counted in the plain seen/captured/failed) instead of
+only the old single cross-tier `shiny` aggregate (kept, still computed,
+just no longer read by the UI). By Rarity renders it as
+`"Qty (ShinyQty)"`, the shiny count in gold (`.shiny-count`), whenever
+it's non-zero.
+
+Seen/Captured/Failed and Seen→Capture were briefly one 5-across
+`.summary-grid` row together with Attempt Rate, replacing a 3-card row
+plus a separate 2-card `.rate-row` below it (Current's own usage
+only — History's detail summary is a different element that also
+happens to be named `.rate-row`, untouched). `Seen`/`Captured`/`Failed`
+are colored (`.count-seen`/`.count-captured`/`.count-failed` — light
+blue/green/red, reusing colors already established elsewhere:
+gender-male's blue, the running-status/positive-profit green, the
+danger/negative-profit red).
+
+Since then, the Attempt Rate card and the old `Rare+ Failed` accent
+card were both dropped, and Seen→Capture's label shortened to just
+"Capture" — `.summary-grid` is 4-across now. The Hunt card labels were
+also translated to English (Elapsed Time / XP/h You / XP/h Poké /
+Dollar / Profit) and the Lucro Total card's `↑ <gold total>` half was
+dropped — it now shows only `↓ <expenses total>` (`.flow-out`), no
+`.flow-in`. None of this touched `computeSessionMetrics`'s output —
+`attemptRate` is still computed, just no longer read by the UI.
