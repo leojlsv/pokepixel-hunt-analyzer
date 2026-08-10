@@ -12,7 +12,7 @@
  * accepted limitation, not a correctness bug.
  */
 
-import { normalizeEvent } from "../domain/events.js";
+import { normalizeEvent, EVENT_TYPES } from "../domain/events.js";
 import {
   createTrackerState,
   applyEvent,
@@ -24,11 +24,22 @@ import { decideSessionTransition } from "../domain/huntLifecycle.js";
 import { createConfigsRepository } from "../data/configsRepository.js";
 import { createEncountersRepository } from "../data/encountersRepository.js";
 import { createSessionsRepository } from "../data/sessionsRepository.js";
+import { createDiagnosticsRepository } from "../data/diagnosticsRepository.js";
+import { SCHEMA_VERSION } from "../data/migrations.js";
 
-export function createEventPipeline(db, { now = Date.now } = {}) {
+const KNOWN_EVENT_TYPES = new Set(EVENT_TYPES);
+
+export function createEventPipeline(db, { now = Date.now, appVersion = null } = {}) {
   const sessionsRepo = createSessionsRepository(db, { now });
   const encountersRepo = createEncountersRepository(db);
   const configsRepo = createConfigsRepository(db, { now });
+  const diagnosticsRepo = createDiagnosticsRepository(db);
+
+  // Diagnostics must never affect the game (docs/DEVELOPMENT.md §1:
+  // "Analytics failures must fail closed") — every call is best-effort.
+  function bumpDiagnostics(patch) {
+    return diagnosticsRepo.increment(patch).catch(() => {});
+  }
 
   let trackerState = createTrackerState();
 
@@ -179,9 +190,18 @@ export function createEventPipeline(db, { now = Date.now } = {}) {
    *                 rejects so the caller can fail closed.
    */
   async function handle(message) {
+    await bumpDiagnostics({ eventsReceived: 1 });
+
     const normalized = normalizeEvent(message.type, message.data);
 
     if (!normalized) {
+      // Known event type but the normalizer rejected the payload (missing/
+      // malformed data) is a parse error; a type we don't model at all is
+      // an expected, deliberate ignore — not a bug (docs/DEVELOPMENT.md §9).
+      await bumpDiagnostics(
+        KNOWN_EVENT_TYPES.has(message.type) ? { parseErrors: 1 } : { eventsIgnored: 1 }
+      );
+
       return { ok: false, reason: "ignored" };
     }
 
@@ -201,8 +221,38 @@ export function createEventPipeline(db, { now = Date.now } = {}) {
     trackerState = result.state;
     await applyEffects(result.effects);
 
+    // Once normalized, the only way applyEvent() produces zero effects is
+    // its own exact socketId|type|seq dedupe (domain/encounterTracker.js) —
+    // every other known event type always emits at least one effect.
+    if (result.effects.length === 0) {
+      await bumpDiagnostics({ duplicateEvents: 1 });
+    } else {
+      const orphansCreated = result.effects.filter(
+        (effect) => effect.type === "encounter.create" && effect.row.state === "orphan"
+      ).length;
+
+      if (orphansCreated > 0) {
+        await bumpDiagnostics({ orphanEvents: orphansCreated });
+      }
+    }
+
     return { ok: true };
   }
 
-  return { handle, recoverOnStartup: sessionsRepo.recoverOnStartup };
+  async function getDiagnosticsSnapshot() {
+    const counters = await diagnosticsRepo.getCounters();
+
+    return {
+      ...counters,
+      activeEncounters: trackerState.inProgress.size,
+      dbVersion: SCHEMA_VERSION,
+      appVersion
+    };
+  }
+
+  return {
+    handle,
+    recoverOnStartup: sessionsRepo.recoverOnStartup,
+    getDiagnosticsSnapshot
+  };
 }

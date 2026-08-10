@@ -2,15 +2,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { IDBFactory } from "fake-indexeddb";
 
-import { openDatabase, STORE_NAMES } from "../../data/db.js";
+import { openDatabase, STORE_NAMES, SCHEMA_VERSION } from "../../data/db.js";
 import { createRepository } from "../../data/repository.js";
 import { createEncountersRepository } from "../../data/encountersRepository.js";
 import { createSessionsRepository } from "../../data/sessionsRepository.js";
 import { createEventPipeline } from "../../services/eventPipeline.js";
 
-async function setup(now = () => 0) {
+async function setup(now = () => 0, options = {}) {
   const db = await openDatabase({ indexedDBFactory: new IDBFactory() });
-  const pipeline = createEventPipeline(db, { now });
+  const pipeline = createEventPipeline(db, { now, ...options });
   return { db, pipeline };
 }
 
@@ -361,4 +361,88 @@ test("an unrecognized event type is ignored without touching the database", asyn
   const sessions = await createRepository(db, STORE_NAMES.SESSIONS).getAll();
   assert.equal(encounters.length, 0);
   assert.equal(sessions.length, 0);
+
+  const diagnostics = await pipeline.getDiagnosticsSnapshot();
+  assert.equal(diagnostics.eventsReceived, 1);
+  assert.equal(diagnostics.eventsIgnored, 1);
+  assert.equal(diagnostics.parseErrors, 0);
+});
+
+// ============================================================
+// Diagnostics (docs/DEVELOPMENT.md §9 — Fase 5, no UI yet)
+// ============================================================
+
+test("a known event type with a malformed payload counts as a parse error, not an ignore", async () => {
+  const { pipeline } = await setup();
+
+  // combat.started with no `enemy` at all — normalizeEvent() rejects it
+  // (domain/events.js), but the type itself is recognized.
+  const result = await pipeline.handle({
+    type: "combat.started",
+    seq: 1,
+    ts: 1000,
+    socketId: 1,
+    data: {}
+  });
+
+  assert.deepEqual(result, { ok: false, reason: "ignored" });
+
+  const diagnostics = await pipeline.getDiagnosticsSnapshot();
+  assert.equal(diagnostics.eventsReceived, 1);
+  assert.equal(diagnostics.parseErrors, 1);
+  assert.equal(diagnostics.eventsIgnored, 0);
+});
+
+test("eventsReceived counts every message handled, valid or not", async () => {
+  const { pipeline } = await setup();
+
+  await pipeline.handle(combatStarted({ wildId: "wild_1", seq: 1, ts: 1000 }));
+  await pipeline.handle({ type: "some.unknown.event", seq: 2, ts: 1100, socketId: 1, data: {} });
+  await pipeline.handle(lootReceived({ wildId: "wild_1", seq: 3, ts: 1200 }));
+
+  const diagnostics = await pipeline.getDiagnosticsSnapshot();
+  assert.equal(diagnostics.eventsReceived, 3);
+});
+
+test("resending the exact same socketId|type|seq counts as a duplicate, not a new orphan/effect", async () => {
+  const { db, pipeline } = await setup();
+
+  const event = combatStarted({ wildId: "wild_1", seq: 1, ts: 1000 });
+  await pipeline.handle(event);
+  await pipeline.handle(event); // exact resend — same socketId/type/seq
+
+  const encounters = await createEncountersRepository(db).getAll();
+  assert.equal(encounters.length, 1); // no duplicate row created
+
+  const diagnostics = await pipeline.getDiagnosticsSnapshot();
+  assert.equal(diagnostics.duplicateEvents, 1);
+  assert.equal(diagnostics.orphanEvents, 0);
+});
+
+test("an orphan encounter (loot with no active correlated encounter) counts as an orphan event", async () => {
+  const { pipeline } = await setup();
+
+  await pipeline.handle(lootReceived({ wildId: "wild_9", seq: 1, ts: 1000 }));
+
+  const diagnostics = await pipeline.getDiagnosticsSnapshot();
+  assert.equal(diagnostics.orphanEvents, 1);
+  assert.equal(diagnostics.duplicateEvents, 0);
+});
+
+test("getDiagnosticsSnapshot reports live activeEncounters, the current schema version, and the injected appVersion", async () => {
+  const { pipeline } = await setup(() => 0, { appVersion: "1.0.0-test" });
+
+  await pipeline.handle(combatStarted({ wildId: "wild_1", seq: 1, ts: 1000 }));
+
+  const diagnostics = await pipeline.getDiagnosticsSnapshot();
+  assert.equal(diagnostics.activeEncounters, 1); // wild_1 still in progress, no loot/result yet
+  assert.equal(diagnostics.dbVersion, SCHEMA_VERSION);
+  assert.equal(diagnostics.appVersion, "1.0.0-test");
+});
+
+test("getDiagnosticsSnapshot defaults appVersion to null when the caller does not inject one", async () => {
+  const { pipeline } = await setup();
+
+  const diagnostics = await pipeline.getDiagnosticsSnapshot();
+  assert.equal(diagnostics.appVersion, null);
 });
