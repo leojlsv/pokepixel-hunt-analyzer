@@ -156,8 +156,11 @@ export function createCurrentView(shadow) {
     pauseButton.textContent = metrics.status === "running" ? "Pause" : "Resume";
     shadow.getElementById("end-hunt").disabled = metrics.status === "waiting";
 
-    shadow.getElementById("hud-xp").textContent = metrics.trainerExpPerHour == null
-      ? "—" : formatCompact(metrics.trainerExpPerHour);
+    const hudSummary = shadow.querySelector(".hud-xp");
+    hudSummary.querySelector("span").textContent = formatNumber(metrics.seen);
+    hudSummary.querySelector("strong").textContent = metrics.seenPerHour == null
+      ? "(—/h)"
+      : `(${formatNumber(metrics.seenPerHour)}/h)`;
   }
 
   function renderRarities(metrics) {
