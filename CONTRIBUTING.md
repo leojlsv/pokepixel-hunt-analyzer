@@ -10,10 +10,10 @@ Requisitos:
 - npm;
 - Tampermonkey para testes no jogo.
 
-Instale as dependências e valide o projeto:
+Instale exatamente as dependências registradas no `package-lock.json` e valide o projeto:
 
 ```bash
-npm install
+npm ci
 npm run validate
 ```
 
@@ -38,6 +38,7 @@ Mantenha cada mudança focada em um problema. Evite misturar feature, refactor e
 - Regras de domínio ficam em `domain/`, persistência em `data/` e coordenação em `services/`.
 - A UI não deve recalcular regras que já existem no domínio.
 - `package.json` é a única fonte da versão da aplicação.
+- `package-lock.json` deve permanecer versionado e sincronizado com `package.json`.
 - Não criar arquivos de patch por versão (`*-v123.js`). Evolua os módulos por responsabilidade.
 - Não registrar changelog em comentários de código. Histórico de release pertence ao `CHANGELOG.md`.
 - Não adicionar dependências sem uma necessidade concreta.
