@@ -16,6 +16,7 @@
     "type": "git",
     "url": "git+https://github.com/leojlsv/pokepixel-analyzer-sidepanel.git"
   },
+  "license": "MIT",
   "devDependencies": {
     "esbuild": "^0.25.9",
     "fake-indexeddb": "^6.0.0"
