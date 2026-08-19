@@ -1,7 +1,7 @@
 import "./interaction-v154.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
-const UI_VERSION = "1.5.5";
+const UI_VERSION = "1.5.6";
 const ALPHA_KEY = "pokepixel_hunt_analyzer_alpha_v1";
 const ALPHA_LEVELS = [1, 0.9, 0.8, 0.7, 0.6, 0.5];
 
@@ -144,5 +144,5 @@ async function init() {
 }
 
 init().catch((error) =>
-  console.error("PokePixel Hunt Analyzer (alpha v1.5.5):", error)
+  console.error("PokePixel Hunt Analyzer (alpha v1.5.6):", error)
 );
