@@ -67,10 +67,8 @@ function installStyles(shadow) {
     }
 
     .pha-resize-bottom-left {
-      position: absolute;
-      left: 0;
-      bottom: 0;
-      z-index: 30;
+      position: fixed;
+      z-index: 2147483647;
       width: 15px;
       height: 15px;
       padding: 0;
@@ -147,22 +145,40 @@ function installWheelScrolling(panel) {
     if (axis === "x") target.scrollLeft += delta;
     else target.scrollTop += delta;
 
-    // Keep the game/page from consuming or cancelling wheel while the pointer
-    // is inside the Analyzer. Scrolling has already been applied above.
+    // The game can consume wheel at page level. Once the pointer is inside
+    // the Analyzer, scrolling is owned locally and must not bubble outward.
     event.preventDefault();
     event.stopPropagation();
   }, { capture: true, passive: false });
 }
 
-function installBottomLeftResize(panel) {
-  if (panel.querySelector(".pha-resize-bottom-left")) return;
+function installBottomLeftResize(shadow, panel) {
+  if (shadow.getElementById("pha-resize-bottom-left")) return;
 
   const handle = document.createElement("button");
+  handle.id = "pha-resize-bottom-left";
   handle.type = "button";
   handle.className = "pha-resize-bottom-left";
   handle.title = "Resize from bottom-left";
   handle.setAttribute("aria-label", "Resize Analyzer from bottom-left");
-  panel.appendChild(handle);
+  shadow.appendChild(handle);
+
+  const syncHandle = () => {
+    if (panel.hidden) {
+      handle.hidden = true;
+      return;
+    }
+
+    const rect = panel.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      handle.hidden = true;
+      return;
+    }
+
+    handle.hidden = false;
+    handle.style.left = `${Math.round(rect.left)}px`;
+    handle.style.top = `${Math.round(rect.bottom - 15)}px`;
+  };
 
   let resize = null;
 
@@ -184,7 +200,6 @@ function installBottomLeftResize(panel) {
       startLeft: rect.left,
       startTop: rect.top,
       startRight: rect.right,
-      startWidth: rect.width,
       startHeight: rect.height,
       minWidth: Number.parseFloat(style.minWidth) || 360,
       minHeight: Number.parseFloat(style.minHeight) || 280
@@ -200,17 +215,23 @@ function installBottomLeftResize(panel) {
 
     const dx = event.clientX - resize.startX;
     const dy = event.clientY - resize.startY;
-
-    const minLeft = EDGE_GAP;
     const maxLeft = resize.startRight - resize.minWidth;
-    const left = clamp(resize.startLeft + dx, minLeft, maxLeft);
+    const left = clamp(resize.startLeft + dx, EDGE_GAP, maxLeft);
     const width = resize.startRight - left;
-    const maxHeight = Math.max(resize.minHeight, window.innerHeight - resize.startTop - EDGE_GAP);
-    const height = clamp(resize.startHeight + dy, resize.minHeight, maxHeight);
+    const maxHeight = Math.max(
+      resize.minHeight,
+      window.innerHeight - resize.startTop - EDGE_GAP
+    );
+    const height = clamp(
+      resize.startHeight + dy,
+      resize.minHeight,
+      maxHeight
+    );
 
     panel.style.left = `${left}px`;
     panel.style.width = `${width}px`;
     panel.style.height = `${height}px`;
+    syncHandle();
 
     event.preventDefault();
     event.stopPropagation();
@@ -222,11 +243,21 @@ function installBottomLeftResize(panel) {
     if (handle.hasPointerCapture(event.pointerId)) {
       handle.releasePointerCapture(event.pointerId);
     }
+    syncHandle();
     event.stopPropagation();
   };
 
   handle.addEventListener("pointerup", finish);
   handle.addEventListener("pointercancel", finish);
+
+  new ResizeObserver(syncHandle).observe(panel);
+  new MutationObserver(syncHandle).observe(panel, {
+    attributes: true,
+    attributeFilter: ["style", "hidden"]
+  });
+  window.addEventListener("resize", syncHandle);
+
+  syncHandle();
 }
 
 function pokemonLabel(count) {
@@ -283,7 +314,7 @@ async function init() {
 
   installStyles(shadow);
   installWheelScrolling(panel);
-  installBottomLeftResize(panel);
+  installBottomLeftResize(shadow, panel);
 
   const badgeTimer = setInterval(() => {
     const captured = shadow.getElementById("pha-current-captured-count");
