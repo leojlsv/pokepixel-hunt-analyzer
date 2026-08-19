@@ -21,6 +21,22 @@ export function formatNumber(value) {
   return numberFormatter.format(Number(value) || 0);
 }
 
+export function renderShinyCount(cell, total, shiny) {
+  cell.replaceChildren(document.createTextNode(formatNumber(total)));
+  if (!(Number(shiny) > 0)) return;
+
+  const shinyCount = document.createElement("span");
+  shinyCount.className = "shiny-count";
+  shinyCount.textContent = formatNumber(shiny);
+  shinyCount.title = "Shiny";
+
+  cell.append(
+    document.createTextNode(" ("),
+    shinyCount,
+    document.createTextNode(")")
+  );
+}
+
 export function formatCompact(value) {
   const number = Number(value) || 0;
   if (Math.abs(number) >= 100_000) {

@@ -520,6 +520,14 @@ tbody tr:last-child td { border-bottom: 0; }
 
 .rarity-section .table-wrap { max-height: 225px; }
 .rarity-section td { font-size: 12px; }
+.shiny-count { color: var(--gold); font-weight: 800; }
+
+.encounter-section .table-wrap { max-height: 168px; }
+.encounter-section th,
+.encounter-section td { height: 28px; }
+.encounter-row-shiny td { background: #383323; }
+.encounter-row-shiny:hover td { background: #443b27; }
+
 .gender { width: 28px; text-align: center; font-size: 12px; font-weight: 700; }
 .gender-male { color: #7fb3e8; }
 .gender-female { color: #e598b7; }
