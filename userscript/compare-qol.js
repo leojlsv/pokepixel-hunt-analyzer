@@ -93,7 +93,6 @@ function installStyles() {
     #view-compare thead th.pha-sortable {
       cursor: pointer;
       padding-right: 18px;
-      position: sticky;
     }
 
     #view-compare thead th.pha-sortable::after {
@@ -153,20 +152,25 @@ function installStyles() {
   shadow.appendChild(style);
 }
 
-function theme() {
+function currentTheme() {
   return shadow.getElementById(FILTER_IDS.theme)?.value || "cycle";
 }
 
 function defaultSort() {
-  return { ...DEFAULT_SORT[theme()] };
+  return { ...DEFAULT_SORT[currentTheme()] };
 }
 
 function normalizeSavedSort(saved) {
   if (!saved || typeof saved !== "object") return defaultSort();
+
   const column = Number(saved.column);
   const direction = saved.direction === "asc" ? "asc" : "desc";
-  const maxColumn = theme() === "rarity" ? 4 : 6;
-  if (!Number.isInteger(column) || column < 0 || column > maxColumn) return defaultSort();
+  const maxColumn = currentTheme() === "rarity" ? 4 : 6;
+
+  if (!Number.isInteger(column) || column < 0 || column > maxColumn) {
+    return defaultSort();
+  }
+
   return { column, direction };
 }
 
@@ -174,35 +178,42 @@ function parseNumeric(text) {
   const raw = String(text || "").trim();
   if (!raw || raw === "—") return Number.NEGATIVE_INFINITY;
 
-  const percent = raw.endsWith("%");
+  if (raw.endsWith("%")) {
+    const value = Number(raw.slice(0, -1).replace(",", "."));
+    return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
+  }
+
   const normalized = raw
-    .replace(/%/g, "")
     .replace(/\./g, "")
     .replace(/,/g, ".")
     .replace(/[^\d.+-]/g, "");
 
   const value = Number(normalized);
-  if (!Number.isFinite(value)) return Number.NEGATIVE_INFINITY;
-  return percent ? value / 100 : value;
+  return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
 }
 
 function cellValue(row, column) {
   const text = row.cells[column]?.textContent?.trim() || "";
 
-  if (theme() === "rarity" && column === 0) {
+  if (currentTheme() === "rarity" && column === 0) {
     return RARITY_ORDER.get(text.toLowerCase()) ?? 999;
   }
 
-  const numericColumns = theme() === "rarity"
+  const numericColumns = currentTheme() === "rarity"
     ? new Set([1, 2, 3, 4])
     : new Set([1, 2, 3, 4, 5, 6]);
 
-  return numericColumns.has(column) ? parseNumeric(text) : text.toLocaleLowerCase();
+  return numericColumns.has(column)
+    ? parseNumeric(text)
+    : text.toLocaleLowerCase();
 }
 
 function compareValues(a, b) {
   if (typeof a === "number" && typeof b === "number") return a - b;
-  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+  return String(a).localeCompare(String(b), undefined, {
+    numeric: true,
+    sensitivity: "base"
+  });
 }
 
 function decorateHeaders() {
@@ -211,18 +222,29 @@ function decorateHeaders() {
 
   [...head.children].forEach((th, column) => {
     th.classList.add("pha-sortable");
-    th.classList.toggle("pha-sort-asc", sortState?.column === column && sortState.direction === "asc");
-    th.classList.toggle("pha-sort-desc", sortState?.column === column && sortState.direction === "desc");
+    th.classList.toggle(
+      "pha-sort-asc",
+      sortState?.column === column && sortState.direction === "asc"
+    );
+    th.classList.toggle(
+      "pha-sort-desc",
+      sortState?.column === column && sortState.direction === "desc"
+    );
     th.title = "Sort column";
 
     if (th.dataset.phaSortBound === "1") return;
     th.dataset.phaSortBound = "1";
+
     th.addEventListener("click", () => {
       if (sortState?.column === column) {
-        sortState.direction = sortState.direction === "desc" ? "asc" : "desc";
+        sortState = {
+          column,
+          direction: sortState.direction === "desc" ? "asc" : "desc"
+        };
       } else {
         sortState = { column, direction: "desc" };
       }
+
       writeState({ sort: sortState });
       sortTable();
     });
@@ -241,41 +263,49 @@ function updateSummary(rowCount) {
     table.before(summary);
   }
 
-  const mode = theme() === "rarity" ? "rarity groups" : "cycle groups";
+  const mode = currentTheme() === "rarity" ? "rarity groups" : "cycle groups";
   summary.innerHTML = `<span>Ranking</span><strong>${rowCount} ${mode}</strong>`;
 }
 
 function sortTable() {
-  if (!shadow) return;
   const body = shadow.getElementById("compare-body");
   if (!body) return;
 
   if (!sortState) sortState = defaultSort();
-  const rows = [...body.querySelectorAll(":scope > tr")];
+
+  const original = [...body.querySelectorAll(":scope > tr")];
+  const sorted = original.slice();
   const direction = sortState.direction === "asc" ? 1 : -1;
 
-  rows.sort((a, b) => {
+  sorted.sort((a, b) => {
     const primary = compareValues(
       cellValue(a, sortState.column),
       cellValue(b, sortState.column)
     );
+
     if (primary !== 0) return primary * direction;
 
-    // Stable/useful tie-breaker: Pokémon/Rarity then level.
     const name = compareValues(cellValue(a, 0), cellValue(b, 0));
     if (name !== 0) return name;
-    if (theme() === "cycle") return compareValues(cellValue(a, 1), cellValue(b, 1));
-    return 0;
+
+    return currentTheme() === "cycle"
+      ? compareValues(cellValue(a, 1), cellValue(b, 1))
+      : 0;
   });
 
-  for (const row of rows) body.appendChild(row);
+  const orderChanged = sorted.some((row, index) => row !== original[index]);
+  if (orderChanged) {
+    for (const row of sorted) body.appendChild(row);
+  }
+
   decorateHeaders();
-  updateSummary(rows.length);
+  updateSummary(sorted.length);
 }
 
 function scheduleSort() {
   if (sortScheduled) return;
   sortScheduled = true;
+
   queueMicrotask(() => {
     sortScheduled = false;
     sortTable();
@@ -284,11 +314,18 @@ function scheduleSort() {
 
 function persistFilters() {
   if (applyingState) return;
+
   const filters = {};
   for (const [key, id] of Object.entries(FILTER_IDS)) {
-    filters[key] = shadow.getElementById(id)?.value || (key === "theme" ? "cycle" : "*");
+    filters[key] = shadow.getElementById(id)?.value ||
+      (key === "theme" ? "cycle" : "*");
   }
+
   writeState({ filters, sort: sortState });
+}
+
+function dispatchChange(select) {
+  select.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function applySavedFilters() {
@@ -298,23 +335,26 @@ function applySavedFilters() {
 
   for (const [key, id] of Object.entries(FILTER_IDS)) {
     const select = shadow.getElementById(id);
-    if (!select) continue;
     const wanted = filters[key];
-    if (wanted == null) continue;
-    if ([...select.options].some((option) => option.value === wanted)) {
-      select.value = wanted;
-    }
+
+    if (!select || wanted == null) continue;
+    if (![...select.options].some((option) => option.value === wanted)) continue;
+    if (select.value === wanted) continue;
+
+    select.value = wanted;
+    // main.js keeps its own compareFilters object. Trigger its production
+    // onchange path so restored controls and the actual filtered dataset stay
+    // synchronized instead of only looking restored on screen.
+    dispatchChange(select);
   }
 
   applyingState = false;
   sortState = normalizeSavedSort(saved.sort);
 }
 
-function dispatchChange(select) {
-  select.dispatchEvent(new Event("change", { bubbles: true }));
-}
-
 function resetCompare() {
+  applyingState = true;
+
   const themeSelect = shadow.getElementById(FILTER_IDS.theme);
   if (themeSelect) themeSelect.value = "cycle";
 
@@ -326,17 +366,24 @@ function resetCompare() {
   sortState = { ...DEFAULT_SORT.cycle };
   localStorage.removeItem(STATE_KEY);
 
-  // One change is enough: main.js reads all current compareFilters from
-  // each control's own listener, so dispatch each changed select explicitly.
   for (const id of Object.values(FILTER_IDS)) {
     const select = shadow.getElementById(id);
     if (select) dispatchChange(select);
   }
 
+  applyingState = false;
+
   writeState({
-    filters: { theme: "cycle", species: "*", capsule: "*", element: "*" },
+    filters: {
+      theme: "cycle",
+      species: "*",
+      capsule: "*",
+      element: "*"
+    },
     sort: sortState
   });
+
+  scheduleSort();
 }
 
 function installResetButton() {
@@ -356,13 +403,16 @@ function wireFilters() {
   for (const [key, id] of Object.entries(FILTER_IDS)) {
     const select = shadow.getElementById(id);
     if (!select || select.dataset.phaCompareBound === "1") continue;
+
     select.dataset.phaCompareBound = "1";
     select.addEventListener("change", () => {
+      if (applyingState) return;
+
       if (key === "theme") {
-        const savedSort = readState().sort;
-        sortState = normalizeSavedSort(savedSort);
-        if (sortState.column > (theme() === "rarity" ? 4 : 6)) sortState = defaultSort();
+        // Each mode has a different useful default ranking and column count.
+        sortState = defaultSort();
       }
+
       persistFilters();
       scheduleSort();
     });
@@ -375,11 +425,10 @@ function observeCompareRender() {
   if (!body || !head) return;
 
   const observer = new MutationObserver(() => {
-    // Options may have just been rebuilt by loadCompare(). Reapply saved
-    // values only when those options now exist, then sort the rendered rows.
     applySavedFilters();
     scheduleSort();
   });
+
   observer.observe(body, { childList: true });
   observer.observe(head, { childList: true });
 
