@@ -8,10 +8,9 @@ O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** qu
 **Status:** estável  
 **Execução:** 100% local  
 **Automação de gameplay:** nenhuma
-
 > Projeto não oficial da comunidade. Não possui vínculo com PokePixel, Nintendo, Game Freak ou The Pokémon Company.
 
-<img width="417" height="867" alt="Captura de tela 2026-08-19 154031" src="https://github.com/user-attachments/assets/3fa35245-616b-49ac-97e4-b14b68ba25ad" />
+### **[⬇️ Baixar a versão mais recente](https://github.com/leojlsv/pokepixel-analyzer-sidepanel/releases/tag/v1.6.1)**
 
 ---
 
@@ -140,7 +139,7 @@ pokepixel-hunt-analyzer.user.js
 
 na versão mais recente do projeto.
 
-**[LINK PARA DOWNLOAD / GITHUB RELEASES]**
+### **[⬇️ Baixar a versão mais recente](https://github.com/leojlsv/pokepixel-analyzer-sidepanel/releases/tag/v1.6.1)**
 
 > Para distribuição pública, o arquivo acima deve ser disponibilizado nas Releases do GitHub. Desenvolvedores também podem gerar esse arquivo localmente seguindo a seção de desenvolvimento deste README.
 
