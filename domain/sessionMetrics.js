@@ -2,8 +2,8 @@
  * "Current" view aggregation (docs/DEVELOPMENT.md §2, docs/PROTOCOL_AND_ANALYTICS.md §10-11).
  *
  * Pure: takes an already-fetched session row + its encounters and derives
- * every number the Side Panel's Current view shows. No IndexedDB access
- * here — sidepanel/sidepanel.js does the fetching, this just computes.
+ * every number the Current view shows. No IndexedDB access here — callers
+ * fetch the rows and this module only computes metrics.
  *
  * The rarity/seen/captured/failed bucketing (`Seen = Captured + Failed`,
  * exactly — see domain/rarityBreakdown.js's header) lives there —
@@ -43,6 +43,7 @@ function emptyMetrics() {
     gold: 0,
     goldPerHour: null,
     seen: 0,
+    seenPerHour: null,
     captured: 0,
     failed: 0,
     seenToCaptureRate: null,
@@ -108,6 +109,7 @@ export function computeSessionMetrics({ session, encounters = [], now = Date.now
     gold,
     goldPerHour: perHour(gold, elapsedMs),
     seen,
+    seenPerHour: perHour(seen, elapsedMs),
     captured,
     failed,
     seenToCaptureRate: rate(captured, seen),
