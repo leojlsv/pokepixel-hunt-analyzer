@@ -3,7 +3,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const packageUrl = new URL("../package.json", import.meta.url);
-const entryUrl = new URL("../userscript/compare-stable.js", import.meta.url);
+const entryUrl = new URL("../userscript/current-v15.js", import.meta.url);
 const distDirUrl = new URL("../dist/", import.meta.url);
 const outputUrl = new URL("../dist/pokepixel-hunt-analyzer.user.js", import.meta.url);
 
