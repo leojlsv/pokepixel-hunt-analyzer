@@ -1,7 +1,6 @@
 import "./interaction-v154.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
-const UI_VERSION = "1.5.8";
 const ALPHA_KEY = "pokepixel_hunt_analyzer_alpha_v1";
 const ALPHA_LEVELS = [1, 0.9, 0.8, 0.7, 0.6, 0.5];
 
@@ -118,31 +117,12 @@ function installAlphaButton(shadow) {
   }, 50);
 }
 
-function installVersionAuthority(shadow) {
-  const node = shadow.querySelector(".topbar small");
-  if (!node) return;
-
-  const expected = `Userscript ${UI_VERSION}`;
-  const apply = () => {
-    if (node.textContent !== expected) node.textContent = expected;
-  };
-
-  new MutationObserver(apply).observe(node, {
-    subtree: true,
-    childList: true,
-    characterData: true
-  });
-
-  apply();
-}
-
 async function init() {
   const shadow = await waitForShadow();
   installStyles(shadow);
   installAlphaButton(shadow);
-  installVersionAuthority(shadow);
 }
 
 init().catch((error) =>
-  console.error("PokePixel Hunt Analyzer (alpha v1.5.8):", error)
+  console.error("PokePixel Hunt Analyzer (alpha):", error)
 );
