@@ -3,7 +3,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const packageUrl = new URL("../package.json", import.meta.url);
-const entryUrl = new URL("../userscript/polish-v1510.js", import.meta.url);
+const entryUrl = new URL("../userscript/main.js", import.meta.url);
 const distDirUrl = new URL("../dist/", import.meta.url);
 const outputUrl = new URL("../dist/pokepixel-hunt-analyzer.user.js", import.meta.url);
 
@@ -35,8 +35,9 @@ await build({
   sourcemap: false,
   banner: { js: metadata },
   define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
     "process.env.NODE_ENV": '"production"'
   }
 });
 
-console.log("Built dist/pokepixel-hunt-analyzer.user.js");
+console.log(`Built dist/pokepixel-hunt-analyzer.user.js v${pkg.version}`);
