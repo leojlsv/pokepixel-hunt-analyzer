@@ -11,7 +11,7 @@ O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** qu
 
 > Projeto não oficial da comunidade. Não possui vínculo com PokePixel, Nintendo, Game Freak ou The Pokémon Company.
 
-[IMAGEM PRINCIPAL DO ANALYZER]
+<img width="417" height="867" alt="Captura de tela 2026-08-19 154031" src="https://github.com/user-attachments/assets/3fa35245-616b-49ac-97e4-b14b68ba25ad" />
 
 ---
 
@@ -27,7 +27,7 @@ Quando minimizado, o Analyzer continua mostrando rapidamente:
 - capturas por raridade;
 - cores correspondentes às raridades do Analyzer.
 
-[IMAGEM DA HUD]
+<img width="155" height="47" alt="Captura de tela 2026-08-19 154111" src="https://github.com/user-attachments/assets/ec47b02b-1099-4ce0-b884-877cd84d5c35" />
 
 ### Current
 
@@ -46,7 +46,7 @@ A tela principal acompanha a Hunt atual em tempo real:
 
 As listas de Captured e Failed exibem Pokémon, gênero, Nature, Quality e IVs disponíveis no evento observado.
 
-[IMAGEM DA TELA CURRENT]
+<img width="411" height="869" alt="Captura de tela 2026-08-19 154225" src="https://github.com/user-attachments/assets/36295356-d8fa-464e-884a-22e0aed6b6de" />
 
 ### Compare
 
@@ -61,7 +61,7 @@ O Compare possui:
 - filtro por Element;
 - ordenação pelas métricas da tabela.
 
-[IMAGEM DA TELA COMPARE]
+<img width="413" height="248" alt="Captura de tela 2026-08-19 154244" src="https://github.com/user-attachments/assets/4762accf-c306-4740-81a8-451087872afa" />
 
 ### Interface ajustável
 
@@ -107,8 +107,6 @@ Acesse o site oficial do Tampermonkey e instale a extensão correspondente ao se
 **https://www.tampermonkey.net/**
 
 O Analyzer é desenvolvido principalmente em **Microsoft Edge / Chromium desktop**.
-
-[IMAGEM DA INSTALAÇÃO DO TAMPERMONKEY]
 
 ### Chrome / Edge: permitir userscripts
 
@@ -158,7 +156,7 @@ O script deverá aparecer na lista de Installed Userscripts como:
 PokePixel Hunt Analyzer
 ```
 
-[IMAGEM DO SCRIPT NO TAMPERMONKEY]
+<img width="371" height="45" alt="image" src="https://github.com/user-attachments/assets/b0174b9a-d601-4e49-b9b5-b8c0a2935e2b" />
 
 ---
 
@@ -176,7 +174,7 @@ Abra ou recarregue o PokePixel com `F5`.
 
 Se tudo estiver correto, o HUD `PX` aparecerá sobre a interface do jogo.
 
-[IMAGEM DO HUD DENTRO DO JOGO]
+![Uploading Captura de tela 2026-08-19 154545.png…]()
 
 ---
 
