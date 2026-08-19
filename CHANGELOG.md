@@ -3,6 +3,25 @@
 All notable project changes should be recorded here.
 The project follows Semantic Versioning.
 
+## [1.6.2] - 2026-08-19
+
+### Changed — Project hygiene and runtime boundaries
+- Refactored the userscript runtime into responsibility-based modules for WebSocket observation, ACTIVE/STANDBY tab leadership and static UI markup.
+- Reduced responsibilities in `userscript/main.js` and `userscript/ui.js` without changing analytics formulas, IndexedDB contracts or user-facing behavior.
+- Removed obsolete Manifest V3 / Side Panel bootstrap, scaffold, preview and placeholder files that no longer belonged to the supported Tampermonkey runtime.
+- Rewrote architecture/development documentation to match the production runtime and added `CONTRIBUTING.md`, `SECURITY.md`, `.editorconfig`, `.nvmrc`, PR/Issue templates and GitHub Actions CI.
+- Standardized development and CI on Node.js 24 LTS and current `actions/checkout` / `actions/setup-node` releases.
+- CI now validates pull requests and `main` without duplicating branch runs.
+
+### Added
+- Unit coverage for passive WebSocket payload decoding.
+- Unit coverage for multi-tab leadership acquisition, renewal, takeover and release.
+
+### Validation
+- 190 automated tests passing with zero failures.
+- Production userscript v1.6.2 build validated by CI.
+- Live PokePixel smoke test approved: game connection, Current, Hunt actions, Captured/Failed filters, HUD, drag/resize/scroll/alpha, Compare, reload persistence and two-tab ACTIVE/STANDBY behavior.
+
 ## [1.6.0] - 2026-08-19
 
 ### Changed — Tampermonkey runtime consolidation
@@ -196,7 +215,7 @@ documentation pass).
   this step); see `docs/ARCHITECTURE.md §13`.
 
 ### Changed — Captured list IV column merge (pre-Phase 5)
-- The 6 separate IV columns (HP/Atk/Def/SAtk/SDef/Spe) in the Current
+- The 6 separate IV columns (HP/Atk/Def/SpAtk/SpDef/Spe) in the Current
   view's Captured table are now one column: header `IV
   (HP-ATK-DEF-SATK-SDEF-SPE)`, cell e.g. `186 (31-31-31-31-31-31)`
   (`formatIvBreakdown` in `sidepanel.js`/`preview.js`). Frees up

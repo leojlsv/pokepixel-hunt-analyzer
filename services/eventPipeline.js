@@ -1,15 +1,9 @@
 /**
- * Orchestrates the Phase 2 event pipeline. The only module in this phase
- * that performs real IndexedDB I/O — everything it calls
- * (domain/events.js, domain/encounterTracker.js, domain/config.js,
- * domain/groupKey.js) is pure and already unit-tested on its own.
+ * Coordinates protocol events with Hunt/session state, encounter tracking,
+ * configuration snapshots and IndexedDB repositories.
  *
- * `createEventPipeline(db)` returns a `handle(message)` that
- * services/background.js's `protocol.event` listener calls for every
- * observed protocol message. The in-memory encounter-tracker state lives
- * for the lifetime of this module instance (i.e. until the MV3 service
- * worker is suspended) — see the plan's "Risks" section for why that's an
- * accepted limitation, not a correctness bug.
+ * Tracker state is intentionally kept in memory for the lifetime of the
+ * userscript runtime; persisted rows remain the durable source of truth.
  */
 
 import { normalizeEvent, EVENT_TYPES } from "../domain/events.js";
@@ -35,18 +29,15 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
   const configsRepo = createConfigsRepository(db, { now });
   const diagnosticsRepo = createDiagnosticsRepository(db);
 
-  // Diagnostics must never affect the game (docs/DEVELOPMENT.md §1:
-  // "Analytics failures must fail closed") — every call is best-effort.
+  // Diagnostics are best-effort and must never break analytics processing.
   function bumpDiagnostics(patch) {
     return diagnosticsRepo.increment(patch).catch(() => {});
   }
 
   let trackerState = createTrackerState();
 
-  // No manual EXP rate input exists — expRateLabel is omitted and falls
-  // back to domain/config.js's "unknown" default (docs/ARCHITECTURE.md §6:
-  // "EXP rate remains manual/unknown until a reliable protocol field is
-  // confirmed").
+  // No reliable protocol EXP-rate field is confirmed, so configuration
+  // snapshots keep the existing "unknown" default.
   async function resolveConfigId(autoCaptureSnapshot) {
     const canonicalConfig = buildCanonicalConfig({
       captureConfig: autoCaptureSnapshot,
@@ -57,10 +48,8 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
     return configRow.configId;
   }
 
-  // Only `encounter.create` rows carry `autoCaptureSnapshot` (set by
-  // domain/encounterTracker.js's draftRow, i.e. only for combat.started
-  // -originated encounters). Orphan rows never have it — they can't be
-  // grouped without the config combat.started would have supplied.
+  // Only combat.started-derived rows carry autoCaptureSnapshot. Orphans do
+  // not have enough configuration context to produce a reliable group key.
   async function finishRowForPersistence(row, sessionId) {
     const hasAutoCapture = Object.prototype.hasOwnProperty.call(
       row,
@@ -82,24 +71,21 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
         configId
       });
     } catch {
-      // speciesId/level missing on a malformed payload — persist what we
-      // have instead of failing the whole encounter (fail closed).
+      // Persist useful encounter data even when malformed identity fields
+      // prevent grouping.
       groupKey = null;
     }
 
     return { ...rest, sessionId, configId, groupKey };
   }
 
-  // Automatic Hunt lifecycle boundary decision (docs/ARCHITECTURE.md §7,
-  // domain/huntLifecycle.js) — only a combat.started-originated
-  // encounter.create row carries both serverSessionId and zoneId, which is
-  // why it's the sole trigger for this check.
+  // combat.started is the event that carries the server session/zone context
+  // used to decide automatic Hunt boundaries.
   async function resolveSessionForCombatStarted(row) {
     const session = await sessionsRepo.getOrStartCurrent();
 
-    // A manual Pause/End Hunt freezes the session — only a manual
-    // Resume/New Hunt (background.js) may change it. Automatic boundary
-    // detection stays out of the way entirely while locked.
+    // Manual Pause/End locks the Hunt. Only explicit Resume/New Hunt should
+    // allow automatic boundary handling to resume.
     if (session.locked) {
       return session;
     }
@@ -134,10 +120,8 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
       return sessionId;
     }
 
-    // Resolve the boundary decision before anything else in this batch
-    // touches "current" — a combat.started's own session.activity effect
-    // (processed first, below) must land on the correct — possibly
-    // just-started — session, not a stale one about to be ended.
+    // Resolve a combat boundary before applying this batch so its activity
+    // and encounter effects land on the correct session.
     const combatStartedCreate = effects.find(
       (effect) =>
         effect.type === "encounter.create" &&
@@ -182,12 +166,10 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
   }
 
   /**
-   * @param message  { type, seq, ts, socketId, data } — `data` is the RAW
-   *                 protocol payload; normalization happens here.
-   * @returns        { ok: true } once persisted, or { ok: false, reason }
-   *                 for an unrecognized/malformed event — never throws for
-   *                 a bad *event*; a genuine IndexedDB failure still
-   *                 rejects so the caller can fail closed.
+   * Handles one observed protocol envelope.
+   *
+   * Invalid/unsupported events are ignored without throwing. Genuine
+   * persistence failures still reject so the runtime can report them.
    */
   async function handle(message) {
     await bumpDiagnostics({ eventsReceived: 1 });
@@ -195,9 +177,8 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
     const normalized = normalizeEvent(message.type, message.data);
 
     if (!normalized) {
-      // Known event type but the normalizer rejected the payload (missing/
-      // malformed data) is a parse error; a type we don't model at all is
-      // an expected, deliberate ignore — not a bug (docs/DEVELOPMENT.md §9).
+      // A known type rejected by its normalizer is a parse error; an unknown
+      // type is an expected ignore.
       await bumpDiagnostics(
         KNOWN_EVENT_TYPES.has(message.type) ? { parseErrors: 1 } : { eventsIgnored: 1 }
       );
@@ -221,9 +202,7 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
     trackerState = result.state;
     await applyEffects(result.effects);
 
-    // Once normalized, the only way applyEvent() produces zero effects is
-    // its own exact socketId|type|seq dedupe (domain/encounterTracker.js) —
-    // every other known event type always emits at least one effect.
+    // A normalized event with no effects is an exact tracker dedupe.
     if (result.effects.length === 0) {
       await bumpDiagnostics({ duplicateEvents: 1 });
     } else {

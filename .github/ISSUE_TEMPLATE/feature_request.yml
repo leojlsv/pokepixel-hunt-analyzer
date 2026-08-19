@@ -1,0 +1,40 @@
+name: Feature request
+description: Suggest an improvement to the Analyzer
+title: "[Feature] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What problem would this solve for players?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the expected user-facing behavior, not only an implementation idea.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - HUD
+        - Current
+        - Compare
+        - Analytics / metrics
+        - Persistence
+        - Installation / release
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add examples, screenshots or alternatives considered when useful.
