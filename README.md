@@ -62,9 +62,11 @@ O Compare possui:
 - ordenação pelas métricas da tabela.
 
 `By Cycle`
+
 <img width="413" height="248" alt="Captura de tela 2026-08-19 154244" src="https://github.com/user-attachments/assets/4762accf-c306-4740-81a8-451087872afa" />
 
 `By Rarity`
+
 <img width="417" height="315" alt="image" src="https://github.com/user-attachments/assets/1bf82dfd-11d7-4d2c-be37-d526d2aba7c7" />
 
 
