@@ -304,7 +304,7 @@ export function createUi({ onSessionAction, onLoadCompare }) {
         event.preventDefault();
         return;
       }
-      setPanelOpen(true);
+      setPanelOpen(panel.hidden);
     });
   }
 
