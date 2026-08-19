@@ -3,7 +3,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const packageUrl = new URL("../package.json", import.meta.url);
-const entryUrl = new URL("../userscript/view-visibility-fix.js", import.meta.url);
+const entryUrl = new URL("../userscript/compare-stable.js", import.meta.url);
 const distDirUrl = new URL("../dist/", import.meta.url);
 const outputUrl = new URL("../dist/pokepixel-hunt-analyzer.user.js", import.meta.url);
 
@@ -13,7 +13,7 @@ const metadata = `// ==UserScript==
 // @name         PokePixel Hunt Analyzer
 // @namespace    https://github.com/leojlsv/pokepixel-analyzer-sidepanel
 // @version      ${pkg.version}
-// @description  Passive local Hunt analytics for PokePixel. Current + Compare + JSON export.
+// @description  Passive local Hunt analytics for PokePixel. Current + Compare.
 // @author       Rhyxus
 // @match        https://pokepixel.nietore.com/*
 // @run-at       document-start
