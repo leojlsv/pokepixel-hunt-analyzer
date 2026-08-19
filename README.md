@@ -315,7 +315,7 @@ Consulte o [CHANGELOG.md](CHANGELOG.md) para acompanhar as mudanças.
 ```bash
 git clone https://github.com/leojlsv/pokepixel-analyzer-sidepanel.git
 cd pokepixel-analyzer-sidepanel
-npm install
+npm ci
 ```
 
 ## Testar e gerar o userscript
@@ -438,6 +438,14 @@ Se o problema estiver relacionado ao Analyzer, abra uma Issue informando:
 ### Meus dados são enviados para algum lugar?
 
 Não. O Analyzer atual não possui backend e trabalha com persistência local no navegador.
+
+---
+
+# Licença
+
+Distribuído sob a **MIT License**. Consulte [LICENSE](LICENSE).
+
+Copyright (c) 2026 Rhyxus.
 
 ---
 

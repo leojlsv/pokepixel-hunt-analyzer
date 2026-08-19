@@ -15,6 +15,7 @@ const metadata = `// ==UserScript==
 // @version      ${pkg.version}
 // @description  Passive local Hunt analytics for PokePixel. Current + Compare.
 // @author       Rhyxus
+// @license      MIT
 // @match        https://pokepixel.nietore.com/*
 // @run-at       document-start
 // @sandbox      raw
