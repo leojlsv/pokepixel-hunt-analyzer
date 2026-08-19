@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "build:userscript": "node scripts/build-userscript.mjs"
+    "build:userscript": "node scripts/build-userscript.mjs",
+    "validate": "npm test && npm run build:userscript"
   },
   "devDependencies": {
     "esbuild": "^0.25.9",
