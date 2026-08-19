@@ -102,6 +102,7 @@ export function createCurrentView(shadow) {
 
   bindFilters("captured");
   bindFilters("failed");
+  renderHudSummary({ seen: 0, seenPerHour: null });
 
   function bindFilters(prefix) {
     const filters = filtersByResult[prefix];
@@ -125,6 +126,14 @@ export function createCurrentView(shadow) {
     renderRarities(metrics);
     renderEncounterList("captured");
     renderEncounterList("failed");
+  }
+
+  function renderHudSummary(metrics) {
+    const hudSummary = shadow.querySelector(".hud-xp");
+    hudSummary.querySelector("span").textContent = formatNumber(metrics.seen);
+    hudSummary.querySelector("strong").textContent = metrics.seenPerHour == null
+      ? "(—/h)"
+      : `(${formatNumber(metrics.seenPerHour)}/h)`;
   }
 
   function renderMetrics(metrics) {
@@ -156,11 +165,7 @@ export function createCurrentView(shadow) {
     pauseButton.textContent = metrics.status === "running" ? "Pause" : "Resume";
     shadow.getElementById("end-hunt").disabled = metrics.status === "waiting";
 
-    const hudSummary = shadow.querySelector(".hud-xp");
-    hudSummary.querySelector("span").textContent = formatNumber(metrics.seen);
-    hudSummary.querySelector("strong").textContent = metrics.seenPerHour == null
-      ? "(—/h)"
-      : `(${formatNumber(metrics.seenPerHour)}/h)`;
+    renderHudSummary(metrics);
   }
 
   function renderRarities(metrics) {
