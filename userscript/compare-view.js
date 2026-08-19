@@ -6,6 +6,7 @@ import {
   formatNumber,
   formatRate,
   populateSelect,
+  renderShinyCount,
   speciesLabel
 } from "./ui-utils.js";
 
@@ -132,6 +133,11 @@ export function createCompareView(shadow, loadEncounters) {
           formatNumber(metric.failed),
           formatRate(captureRate)
         ],
+        shinyCounts: {
+          1: [metric.seen, metric.shinySeen],
+          2: [metric.captured, metric.shinyCaptured],
+          3: [metric.failed, metric.shinyFailed]
+        },
         rarity: key
       };
     });
@@ -209,7 +215,9 @@ export function createCompareView(shadow, loadEncounters) {
       const row = document.createElement("tr");
       rowData.cells.forEach((value, index) => {
         const cell = document.createElement("td");
-        cell.textContent = value;
+        const shinyCount = rowData.shinyCounts?.[index];
+        if (shinyCount) renderShinyCount(cell, shinyCount[0], shinyCount[1]);
+        else cell.textContent = value;
         if (index === 0 && rowData.rarity) cell.className = `rarity-${rowData.rarity}`;
         row.appendChild(cell);
       });

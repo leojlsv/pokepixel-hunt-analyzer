@@ -6,6 +6,7 @@ import {
   formatRate,
   populateSelect,
   rarityClass,
+  renderShinyCount,
   speciesLabel
 } from "./ui-utils.js";
 
@@ -66,6 +67,8 @@ function passesFilters(encounter, filters) {
 
 function createEncounterRow(encounter) {
   const row = document.createElement("tr");
+  if (encounter.isShiny) row.classList.add("encounter-row-shiny");
+
   const gender = genderInfo(encounter.gender);
 
   const pokemonCell = document.createElement("td");
@@ -174,15 +177,17 @@ export function createCurrentView(shadow) {
     for (const [key] of RARITIES) {
       const rarity = metrics.rarities[key];
       const row = shadow.querySelector(`[data-rarity="${key}"]`);
-      row.querySelector('[data-field="seen"]').textContent = rarity.shinySeen
-        ? `${formatNumber(rarity.seen)} (${formatNumber(rarity.shinySeen)})`
-        : formatNumber(rarity.seen);
-      row.querySelector('[data-field="captured"]').textContent = rarity.shinyCaptured
-        ? `${formatNumber(rarity.captured)} (${formatNumber(rarity.shinyCaptured)})`
-        : formatNumber(rarity.captured);
-      row.querySelector('[data-field="failed"]').textContent = rarity.shinyFailed
-        ? `${formatNumber(rarity.failed)} (${formatNumber(rarity.shinyFailed)})`
-        : formatNumber(rarity.failed);
+      renderShinyCount(row.querySelector('[data-field="seen"]'), rarity.seen, rarity.shinySeen);
+      renderShinyCount(
+        row.querySelector('[data-field="captured"]'),
+        rarity.captured,
+        rarity.shinyCaptured
+      );
+      renderShinyCount(
+        row.querySelector('[data-field="failed"]'),
+        rarity.failed,
+        rarity.shinyFailed
+      );
       row.querySelector('[data-field="rate"]').textContent = formatRate(
         rarity.seen ? rarity.captured / rarity.seen : null
       );

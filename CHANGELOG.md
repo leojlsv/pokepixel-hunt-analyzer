@@ -3,6 +3,18 @@
 All notable project changes should be recorded here.
 The project follows Semantic Versioning.
 
+## [1.6.3] - 2026-08-19
+
+### Changed — Shiny visibility and encounter list density
+- `By Rarity` in Current and Compare now renders counts as `X (Y)` when Shiny entries exist, keeping the total count normal and highlighting only the Shiny sub-count in gold.
+- Shiny rows in Captured and Failed now receive a subtle gold-tinted background while preserving the existing rarity text colors and Shiny `*` marker.
+- Captured and Failed now show up to 5 encounter rows before switching to vertical scrolling; filtering still applies to the full underlying list.
+
+### Validation
+- 190 automated tests passing with zero failures.
+- Production userscript v1.6.3 build validated by CI.
+- Live PokePixel smoke test approved for Shiny counters, Shiny row highlighting, 5-row limits, scrolling and encounter filters.
+
 ## [1.6.2] - 2026-08-19
 
 ### Changed — Project hygiene and runtime boundaries

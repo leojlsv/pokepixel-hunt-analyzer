@@ -4,7 +4,7 @@ Analytics de Hunt em tempo real para **PokePixel**, direto dentro do jogo.
 
 O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** que acompanha suas Hunts, calcula métricas de eficiência e mantém os dados localmente no navegador.
 
-**Versão atual:** `v1.6.2`  
+**Versão atual:** `v1.6.3`  
 **Status:** estável  
 **Execução:** 100% local  
 **Automação de gameplay:** nenhuma
