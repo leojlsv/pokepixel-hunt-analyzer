@@ -3,6 +3,17 @@
 All notable project changes should be recorded here.
 The project follows Semantic Versioning.
 
+## [1.6.4] - 2026-08-19
+
+### Changed — Launcher badge toggle
+- Clicking the compact `PX` launcher badge now toggles the Analyzer panel instead of only opening it.
+- When the panel is closed, clicking the badge opens it; when already open, clicking the badge closes it.
+- Dragging the launcher still only repositions it and does not toggle the panel.
+- The existing persisted open/closed state remains unchanged.
+
+### Validation
+- Automated test suite and production userscript build validated by CI.
+
 ## [1.6.3] - 2026-08-19
 
 ### Changed — Shiny visibility and encounter list density
