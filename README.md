@@ -181,7 +181,7 @@ Abra ou recarregue o PokePixel com `F5`.
 
 Se tudo estiver correto, o HUD `PX` aparecerá sobre a interface do jogo.
 
-![Uploading Captura de tela 2026-08-19 154545.png…]()
+<img width="156" height="42" alt="Captura de tela 2026-08-19 154545" src="https://github.com/user-attachments/assets/d915598a-c188-44d1-9618-bd23cffa7de2" />
 
 ---
 
