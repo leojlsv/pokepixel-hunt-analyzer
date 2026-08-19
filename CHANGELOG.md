@@ -3,7 +3,46 @@
 All notable project changes should be recorded here.
 The project follows Semantic Versioning.
 
-## [Unreleased]
+## [1.6.0] - 2026-08-19
+
+### Changed — Tampermonkey runtime consolidation
+- Tampermonkey userscript is now the sole production runtime.
+- Removed the retired Manifest V3 / Side Panel implementation:
+  `manifest.json`, `background.js`, `content.js`, `hook.js` and `sidepanel/**`.
+- Consolidated the incremental version-patch chain into responsibility-based modules:
+  `main.js`, `ui.js`, `current-view.js`, `compare-view.js`, `ui-utils.js` and `styles.js`.
+- Removed redundant MutationObservers, duplicate IndexedDB polling and duplicated event normalization.
+- Current, Captured, Failed, HUD and Compare now render directly from the state already available to the runtime.
+- Compare sorting now operates on data before rendering instead of repeatedly rearranging observed DOM.
+- Application version now has a single source of truth: `package.json` injected at build time.
+- Removed the retired JSON Export implementation and its obsolete unit test.
+- Added `npm run validate` to run tests and build together.
+- Updated `CLAUDE.md` to reflect the Tampermonkey-only architecture and clean-code constraints.
+
+### Validation
+- 183 automated tests passing.
+- v1.6.0 userscript build validated.
+- Live PokePixel smoke test approved with no observed regressions.
+
+### Fixed — Captured list froze after leaving and returning to the Hunt (e.g. a city trip)
+- `hook.js`'s per-connection `socketId` counter (`nextSocketId`) started
+  at `1` on every content-script injection. A full page navigation (e.g.
+  Hunt → city → Hunt) re-runs `hook.js` from scratch, resetting that
+  counter back to `1`, while the background service worker's dedupe state
+  (`domain/encounterTracker.js`'s `seenKeys`, keyed on
+  `socketId|type|seq`, docs/PROTOCOL_AND_ANALYTICS.md §8) survives that
+  same reload as long as the service worker stays alive. Combined with the
+  protocol's own `seq` also restarting after a reconnection (§8 again),
+  the first post-reload `combat.started`/`loot.received`/
+  `capture.success` events could reuse the exact `socketId|type|seq` key
+  already seen earlier in the same local Hunt session — silently dropped
+  as duplicates (`duplicateEvents` diagnostic incremented, no UI to see
+  it). The session status still resumed to "Running" normally (an
+  unrelated signal like `hunt.analyzer_reset` doesn't collide), which is
+  what made the Captured list's silent freeze confusing — everything
+  *looked* resumed. Fixed by seeding `nextSocketId` from `Date.now()`
+  instead of `1`, making each page load's socketId range effectively
+  unique across reloads.
 
 ### Changed — Full EN-US translation of the on-screen UI
 - Every user-facing PT-BR string in `manifest.json`, `sidepanel.html`,
