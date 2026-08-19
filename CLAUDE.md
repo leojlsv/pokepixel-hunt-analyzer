@@ -2,15 +2,15 @@
 
 ## Project
 
-Standalone Microsoft Edge / Chromium Manifest V3 extension for passive, local PokePixel hunt analytics.
+Standalone Tampermonkey userscript for passive, local PokePixel hunt analytics.
 
-Current baseline: v1.0.0.
+Current architecture baseline: v1.6.x.
 
-The current extension works and must be evolved incrementally. Do not rewrite working code without a concrete migration reason.
+The userscript is production-oriented and must be evolved incrementally. Preserve validated behavior unless a change has a concrete reason and test path.
 
 ## Source of truth
 
-Before architectural or persistence changes, read:
+Before architectural, protocol, or persistence changes, read:
 
 - `docs/ARCHITECTURE.md`
 - `docs/PROTOCOL_AND_ANALYTICS.md`
@@ -20,14 +20,16 @@ Keep `CLAUDE.md` concise. Detailed product/protocol rules belong in `docs/`.
 
 ## Core constraints
 
-- Keep Manifest V3 and the Side Panel.
-- Keep the extension standalone in v1.
-- Use IndexedDB for persistent normalized history.
-- Do not introduce Native Messaging, SQLite, `%LOCALAPPDATA%` writes, cloud storage, or a local backend in v1.
+- Tampermonkey is the supported runtime. Do not reintroduce Manifest V3, Side Panel, service-worker, content-script, or extension-only adapters.
+- Build from `userscript/main.js` through `scripts/build-userscript.mjs`.
+- Use IndexedDB for persistent normalized Hunt history.
+- Do not introduce Native Messaging, SQLite, machine-local file writes, cloud storage, or a local backend unless explicitly requested.
 - Observe PokePixel WebSocket traffic passively.
 - Never send, replay, modify, or automate gameplay WebSocket messages.
 - Never persist tokens, cookies, Authorization headers, authenticated WebSocket URLs, or raw WebSocket frames.
-- Keep host permissions minimal.
+- Normalize protocol data in `domain/events.js`; do not duplicate protocol normalization in UI/runtime adapters.
+- Keep one authoritative application version: `package.json`, injected into the userscript build.
+- Avoid MutationObserver/polling when the producer already has the state needed to render directly.
 
 ## Identity
 
@@ -50,26 +52,32 @@ Keep `CLAUDE.md` concise. Detailed product/protocol rules belong in `docs/`.
 
 Never use `seconds++` or another incrementing UI timer as authoritative time.
 Use timestamps plus accumulated active milliseconds.
-Time while Edge/browser is closed must not count as active Hunt time.
+Time while the browser is closed must not count as active Hunt time.
 
-## Development workflow
+## Code quality
 
-For multi-file or architectural changes:
+- Prefer modules organized by responsibility over version-named patch files.
+- Remove dead code instead of hiding or leaving compatibility wrappers without callers.
+- Do not duplicate DB reads, protocol parsing, metrics calculation, or rendering pipelines.
+- Keep side effects at runtime boundaries; keep domain modules browser-API agnostic.
+- Use explicit names and small functions; comments should explain non-obvious constraints, not narrate changelog history.
+- Record release/history notes in `CHANGELOG.md`, never as changelog comments inside source files.
+- Add dependencies only when they solve a concrete project need.
 
-1. inspect current code and relevant docs;
-2. use Plan Mode;
-3. identify files and tests;
-4. present the plan;
-5. wait for approval before implementation;
-6. implement only the approved phase;
-7. run tests and report results.
+## Validation
 
-Avoid unrelated refactors.
-Do not add dependencies solely because a generic skill recommends them.
+Before considering a change complete:
+
+```bash
+npm run validate
+```
+
+This runs the Node test suite and builds the Tampermonkey userscript.
+For UI/runtime changes, also perform a manual smoke test on PokePixel: connection, Current, Compare, Hunt actions, filters, HUD, resize/drag/scroll, persistence, and multi-tab ACTIVE/STANDBY.
 
 ## Git
 
+- Use an isolated branch for architectural or multi-file refactors.
 - Keep commits small and coherent.
-- Preserve the working v0.3.0 baseline before migration.
-- Do not commit release ZIPs, user exports, temporary/debug data, secrets, or machine-local Claude settings.
-- Do not mark `v1.0.0` until the release criteria in `docs/DEVELOPMENT.md` pass.
+- Keep a validated baseline available until the replacement passes smoke testing.
+- Do not commit generated release bundles, exports, temporary/debug data, secrets, or machine-local settings unless explicitly required.
