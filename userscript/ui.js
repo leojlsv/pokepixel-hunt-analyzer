@@ -1,6 +1,7 @@
-import { computeGroupMetrics } from "../domain/groupMetrics.js";
-import { computeRarityBreakdown } from "../domain/rarityBreakdown.js";
 import { STYLES } from "./styles.js";
+import { createCompareView } from "./compare-view.js";
+import { createCurrentView } from "./current-view.js";
+import { RARITIES } from "./ui-utils.js";
 
 const APP_VERSION = __APP_VERSION__;
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
@@ -9,27 +10,9 @@ const COLLAPSE_KEY = "pokepixel_hunt_analyzer_collapsed_v1";
 const ALPHA_KEY = "pokepixel_hunt_analyzer_alpha_v1";
 const REF_CODE = "Q4BSZJD";
 const EDGE_GAP = 8;
-
+const MIN_PANEL_WIDTH_PX = 430;
+const MIN_PANEL_HEIGHT_PX = 280;
 const ALPHA_LEVELS = [1, 0.9, 0.8, 0.7, 0.6, 0.5];
-const RARITIES = [
-  ["weak", "Weak"],
-  ["common", "Common"],
-  ["uncommon", "Uncommon"],
-  ["rare", "Rare"],
-  ["epic", "Epic"],
-  ["legendary", "Legendary"],
-  ["mythical", "Mythical"]
-];
-const RARITY_KEYS = new Set(RARITIES.map(([key]) => key));
-const RARITY_ORDER = new Map(RARITIES.map(([key], index) => [key, index]));
-const DEFAULT_COMPARE_SORT = {
-  cycle: { column: 5, direction: "desc" },
-  rarity: { column: 1, direction: "desc" }
-};
-
-const numberFormatter = new Intl.NumberFormat("pt-BR", {
-  maximumFractionDigits: 0
-});
 
 function readJson(key, fallback) {
   try {
@@ -46,81 +29,6 @@ function writeJson(key, value) {
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), Math.max(min, max));
-}
-
-function formatNumber(value) {
-  return numberFormatter.format(Number(value) || 0);
-}
-
-function formatCompact(value) {
-  const number = Number(value) || 0;
-  if (Math.abs(number) >= 100_000) {
-    return `${formatNumber(Math.round(number / 1_000))}K`;
-  }
-  return formatNumber(number);
-}
-
-function formatRate(value) {
-  return value == null ? "—" : `${(value * 100).toFixed(2)}%`;
-}
-
-function formatDuration(milliseconds) {
-  const seconds = Math.max(0, Math.floor((Number(milliseconds) || 0) / 1_000));
-  const hours = Math.floor(seconds / 3_600);
-  const minutes = Math.floor((seconds % 3_600) / 60);
-  const remainingSeconds = seconds % 60;
-  const parts = hours > 0
-    ? [hours, minutes, remainingSeconds]
-    : [minutes, remainingSeconds];
-  return parts.map((part) => String(part).padStart(2, "0")).join(":");
-}
-
-function speciesLabel(encounter) {
-  const raw = encounter.speciesName || encounter.speciesId || "—";
-  return String(raw)
-    .split(/[\s_-]+/)
-    .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : ""))
-    .join(" ");
-}
-
-function rarityClass(value) {
-  const key = String(value || "").toLowerCase();
-  return RARITY_KEYS.has(key) ? `rarity-${key}` : "";
-}
-
-function genderInfo(value) {
-  const key = String(value || "").trim().toLowerCase();
-  if (["male", "m", "masculino", "♂"].includes(key)) {
-    return { label: "♂", className: "gender-male", title: "Male" };
-  }
-  if (["female", "f", "feminino", "♀"].includes(key)) {
-    return { label: "♀", className: "gender-female", title: "Female" };
-  }
-  return { label: "—", className: "", title: value || "Unknown" };
-}
-
-function ivValues(ivs) {
-  if (!ivs || typeof ivs !== "object") return null;
-  const values = [ivs.hp, ivs.atk, ivs.def, ivs.spa, ivs.spd, ivs.spe];
-  return values.some(Number.isFinite) ? values : null;
-}
-
-function ivDisplay(encounter) {
-  const values = ivValues(encounter.ivs);
-  if (!values) return "—";
-
-  const breakdown = values
-    .map((value) => (Number.isFinite(value) ? value : "—"))
-    .join("-");
-  const total = Number.isFinite(encounter.ivTotal)
-    ? encounter.ivTotal
-    : values.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
-
-  return `${total} (${breakdown})`;
-}
-
-function pokemonLabel(count) {
-  return `${count} ${count === 1 ? "Pokémon" : "Pokémons"}`;
 }
 
 function createRarityRowsMarkup() {
@@ -167,7 +75,7 @@ function encounterSectionMarkup(prefix, title) {
     </section>`;
 }
 
-function markup() {
+function createMarkup() {
   return `
     <button id="pha-toggle" class="launcher" type="button" aria-label="PokePixel Hunt Analyzer">
       <span class="hud-mark">PX</span>
@@ -263,116 +171,17 @@ function markup() {
   `;
 }
 
-function populateSelect(select, values, mapper = (value) => [value, value]) {
-  const previous = select.value || "*";
-  const fragment = document.createDocumentFragment();
-
-  const all = document.createElement("option");
-  all.value = "*";
-  all.textContent = "All (*)";
-  fragment.appendChild(all);
-
-  for (const item of values) {
-    const [value, label] = mapper(item);
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = label;
-    fragment.appendChild(option);
-  }
-
-  select.replaceChildren(fragment);
-  select.value = [...select.options].some((option) => option.value === previous)
-    ? previous
-    : "*";
-}
-
-function distinct(encounters, key) {
-  return [...new Set(encounters.map((encounter) => encounter[key]).filter(Boolean))].sort();
-}
-
-function distinctElements(encounters) {
-  return [...new Set(encounters.flatMap((encounter) =>
-    Array.isArray(encounter.elements) ? encounter.elements : []
-  ))].sort();
-}
-
-function parseFilterNumber(input) {
-  if (!input.value) return null;
-  const value = Number(input.value);
-  return Number.isFinite(value) ? value : null;
-}
-
-function encounterPassesFilters(encounter, filters) {
-  if (filters.rarity !== "*" && encounter.quality !== filters.rarity) return false;
-  if (filters.qualityMin != null && !(
-    Number.isFinite(encounter.qualityMultiplier) &&
-    encounter.qualityMultiplier > filters.qualityMin
-  )) return false;
-  if (filters.ivMin != null && !(
-    Number.isFinite(encounter.ivTotal) && encounter.ivTotal > filters.ivMin
-  )) return false;
-  return true;
-}
-
-function createEncounterRow(encounter) {
-  const row = document.createElement("tr");
-  const gender = genderInfo(encounter.gender);
-
-  const pokemonCell = document.createElement("td");
-  pokemonCell.className = rarityClass(encounter.quality);
-  pokemonCell.textContent = `${speciesLabel(encounter)}${encounter.isShiny ? " *" : ""}`;
-
-  const genderCell = document.createElement("td");
-  genderCell.className = `gender ${gender.className}`.trim();
-  genderCell.textContent = gender.label;
-  genderCell.title = gender.title;
-
-  const natureCell = document.createElement("td");
-  natureCell.textContent = encounter.nature || "—";
-
-  const qualityCell = document.createElement("td");
-  qualityCell.textContent = Number.isFinite(encounter.qualityMultiplier)
-    ? encounter.qualityMultiplier.toFixed(2)
-    : "—";
-
-  const ivCell = document.createElement("td");
-  ivCell.className = "iv-cell";
-  ivCell.textContent = ivDisplay(encounter);
-
-  row.append(pokemonCell, genderCell, natureCell, qualityCell, ivCell);
-  return row;
-}
-
-function compareValues(left, right) {
-  if (typeof left === "number" && typeof right === "number") return left - right;
-  return String(left).localeCompare(String(right), undefined, {
-    numeric: true,
-    sensitivity: "base"
-  });
-}
-
 export function createUi({ onSessionAction, onLoadCompare }) {
   let shadow;
   let panel;
   let launcher;
   let resizeHandle;
-  let currentEncounters = [];
-  let compareEncounters = [];
   let activeView = "current";
   let suppressLauncherClick = false;
+  let currentView;
+  let compareView;
 
-  const listFilters = {
-    captured: { rarity: "*", qualityMin: null, ivMin: null },
-    failed: { rarity: "*", qualityMin: null, ivMin: null }
-  };
-
-  const compareFilters = {
-    species: "*",
-    capsule: "*",
-    element: "*",
-    theme: "cycle"
-  };
-  let compareSort = { ...DEFAULT_COMPARE_SORT.cycle };
+  mount();
 
   function mount() {
     document.getElementById(ROOT_ID)?.remove();
@@ -384,12 +193,17 @@ export function createUi({ onSessionAction, onLoadCompare }) {
     const style = document.createElement("style");
     style.textContent = STYLES;
     const wrapper = document.createElement("div");
-    wrapper.innerHTML = markup();
+    wrapper.innerHTML = createMarkup();
     shadow.append(style, wrapper);
     document.documentElement.appendChild(host);
 
     panel = shadow.getElementById("pha-panel");
+    panel.style.minWidth = `${MIN_PANEL_WIDTH_PX}px`;
+    panel.style.minHeight = `${MIN_PANEL_HEIGHT_PX}px`;
     launcher = shadow.getElementById("pha-toggle");
+    currentView = createCurrentView(shadow);
+    compareView = createCompareView(shadow, onLoadCompare);
+
     bindUiEvents();
     restoreUiState();
     installPanelDrag();
@@ -417,45 +231,9 @@ export function createUi({ onSessionAction, onLoadCompare }) {
       onSessionAction(event.currentTarget.dataset.action || "pause");
     });
 
-    for (const prefix of ["captured", "failed"]) bindEncounterFilters(prefix);
-
     for (const button of shadow.querySelectorAll("[data-collapse]")) {
       button.addEventListener("click", () => toggleCollapse(button.dataset.collapse));
     }
-
-    shadow.getElementById("compare-theme").addEventListener("change", (event) => {
-      compareFilters.theme = event.target.value;
-      compareSort = { ...DEFAULT_COMPARE_SORT[compareFilters.theme] };
-      renderCompare();
-    });
-    shadow.getElementById("compare-species").addEventListener("change", (event) => {
-      compareFilters.species = event.target.value;
-      renderCompare();
-    });
-    shadow.getElementById("compare-capsule").addEventListener("change", (event) => {
-      compareFilters.capsule = event.target.value;
-      renderCompare();
-    });
-    shadow.getElementById("compare-element").addEventListener("change", (event) => {
-      compareFilters.element = event.target.value;
-      renderCompare();
-    });
-  }
-
-  function bindEncounterFilters(prefix) {
-    const filters = listFilters[prefix];
-    shadow.getElementById(`${prefix}-rarity`).addEventListener("change", (event) => {
-      filters.rarity = event.target.value;
-      renderEncounterList(prefix);
-    });
-    shadow.getElementById(`${prefix}-quality`).addEventListener("input", (event) => {
-      filters.qualityMin = parseFilterNumber(event.target);
-      renderEncounterList(prefix);
-    });
-    shadow.getElementById(`${prefix}-iv`).addEventListener("input", (event) => {
-      filters.ivMin = parseFilterNumber(event.target);
-      renderEncounterList(prefix);
-    });
   }
 
   function switchView(view) {
@@ -467,244 +245,15 @@ export function createUi({ onSessionAction, onLoadCompare }) {
     }
     saveUiState({ view: activeView });
 
-    if (activeView === "compare") void refreshCompare();
-  }
-
-  async function refreshCompare() {
-    try {
-      compareEncounters = await onLoadCompare();
-      populateCompareFilters();
-      renderCompare();
-    } catch (error) {
-      console.error("PokePixel Hunt Analyzer (Compare):", error);
-    }
-  }
-
-  function populateCompareFilters() {
-    const species = new Map();
-    for (const encounter of compareEncounters) {
-      if (encounter.speciesId && !species.has(encounter.speciesId)) {
-        species.set(encounter.speciesId, speciesLabel(encounter));
-      }
-    }
-
-    populateSelect(
-      shadow.getElementById("compare-species"),
-      [...species.entries()].sort((a, b) => a[1].localeCompare(b[1])),
-      ([id, label]) => [id, label]
-    );
-    populateSelect(shadow.getElementById("compare-capsule"), distinct(compareEncounters, "capsuleName"));
-    populateSelect(shadow.getElementById("compare-element"), distinctElements(compareEncounters));
-
-    compareFilters.species = shadow.getElementById("compare-species").value;
-    compareFilters.capsule = shadow.getElementById("compare-capsule").value;
-    compareFilters.element = shadow.getElementById("compare-element").value;
-  }
-
-  function filteredCompareEncounters() {
-    return compareEncounters.filter((encounter) =>
-      (compareFilters.species === "*" || encounter.speciesId === compareFilters.species) &&
-      (compareFilters.capsule === "*" || encounter.capsuleName === compareFilters.capsule) &&
-      (compareFilters.element === "*" || (
-        Array.isArray(encounter.elements) && encounter.elements.includes(compareFilters.element)
-      ))
-    );
-  }
-
-  function renderCompare() {
-    if (compareFilters.theme === "rarity") renderRarityCompare();
-    else renderCycleCompare();
-  }
-
-  function renderRarityCompare() {
-    const breakdown = computeRarityBreakdown(filteredCompareEncounters());
-    const rows = RARITIES.map(([key, label]) => {
-      const metric = breakdown.rarities[key];
-      return {
-        sort: [
-          RARITY_ORDER.get(key),
-          metric.seen,
-          metric.captured,
-          metric.failed,
-          metric.seen ? metric.captured / metric.seen : Number.NEGATIVE_INFINITY
-        ],
-        cells: [
-          label,
-          formatNumber(metric.seen),
-          formatNumber(metric.captured),
-          formatNumber(metric.failed),
-          formatRate(metric.seen ? metric.captured / metric.seen : null)
-        ],
-        rarity: key
-      };
-    });
-    renderCompareRows(["Rarity", "Seen", "Cap.", "Fail", "Rate"], rows);
-  }
-
-  function renderCycleCompare() {
-    const groups = new Map();
-    for (const encounter of filteredCompareEncounters()) {
-      if (!encounter.groupKey) continue;
-      if (!groups.has(encounter.groupKey)) {
-        groups.set(encounter.groupKey, { sample: encounter, encounters: [] });
-      }
-      groups.get(encounter.groupKey).encounters.push(encounter);
-    }
-
-    const rows = [...groups.values()].map(({ sample, encounters }) => {
-      const metric = computeGroupMetrics(encounters);
-      const name = speciesLabel(sample);
-      const level = Number.isFinite(sample.level) ? sample.level : Number.NEGATIVE_INFINITY;
-      return {
-        sort: [
-          name.toLocaleLowerCase(),
-          level,
-          metric.seen,
-          metric.captured,
-          metric.failed,
-          metric.trainerExpPerCycleHour ?? Number.NEGATIVE_INFINITY,
-          metric.dollarPerCycleHour ?? Number.NEGATIVE_INFINITY
-        ],
-        cells: [
-          name,
-          sample.level ?? "—",
-          formatNumber(metric.seen),
-          formatNumber(metric.captured),
-          formatNumber(metric.failed),
-          metric.trainerExpPerCycleHour == null ? "—" : formatNumber(metric.trainerExpPerCycleHour),
-          metric.dollarPerCycleHour == null ? "—" : formatNumber(metric.dollarPerCycleHour)
-        ]
-      };
-    });
-    renderCompareRows(["Pokémon", "Lvl", "Seen", "Cap.", "Fail", "EXP/Cycle h", "$/Cycle h"], rows);
-  }
-
-  function renderCompareRows(headers, rows) {
-    const direction = compareSort.direction === "asc" ? 1 : -1;
-    rows.sort((left, right) => {
-      const primary = compareValues(left.sort[compareSort.column], right.sort[compareSort.column]);
-      if (primary !== 0) return primary * direction;
-      return compareValues(left.sort[0], right.sort[0]);
-    });
-
-    const head = shadow.getElementById("compare-head");
-    head.replaceChildren();
-    headers.forEach((label, column) => {
-      const cell = document.createElement("th");
-      cell.textContent = label;
-      cell.classList.add("sortable");
-      if (compareSort.column === column) {
-        cell.classList.add(compareSort.direction === "asc" ? "sort-asc" : "sort-desc");
-      }
-      cell.addEventListener("click", () => {
-        compareSort = compareSort.column === column
-          ? { column, direction: compareSort.direction === "desc" ? "asc" : "desc" }
-          : { column, direction: "desc" };
-        renderCompare();
+    if (activeView === "compare") {
+      compareView.refresh().catch((error) => {
+        console.error("PokePixel Hunt Analyzer (Compare):", error);
       });
-      head.appendChild(cell);
-    });
-
-    const body = shadow.getElementById("compare-body");
-    const fragment = document.createDocumentFragment();
-    for (const rowData of rows) {
-      const row = document.createElement("tr");
-      rowData.cells.forEach((value, index) => {
-        const cell = document.createElement("td");
-        cell.textContent = value;
-        if (index === 0 && rowData.rarity) cell.className = `rarity-${rowData.rarity}`;
-        row.appendChild(cell);
-      });
-      fragment.appendChild(row);
     }
-    body.replaceChildren(fragment);
   }
 
-  function renderCurrent({ metrics, encounters }) {
-    currentEncounters = encounters;
-    shadow.getElementById("hunt-time").textContent = formatDuration(metrics.activeMs);
-    shadow.getElementById("trainer-exp-hour").textContent = metrics.trainerExpPerHour == null
-      ? "—" : formatCompact(metrics.trainerExpPerHour);
-    shadow.getElementById("trainer-exp-total").textContent = formatCompact(metrics.trainerExp);
-    shadow.getElementById("pokemon-exp-hour").textContent = metrics.pokemonExpPerHour == null
-      ? "—" : formatCompact(metrics.pokemonExpPerHour);
-    shadow.getElementById("pokemon-exp-total").textContent = formatCompact(metrics.pokemonExp);
-    shadow.getElementById("dollars-total").textContent = formatCompact(metrics.gold);
-    shadow.getElementById("dollars-hour").textContent = metrics.goldPerHour == null
-      ? "—" : formatCompact(metrics.goldPerHour);
-    shadow.getElementById("expenses-total").textContent = formatCompact(metrics.expenses);
-    shadow.getElementById("profit-total").textContent = formatCompact(metrics.gold - metrics.expenses);
-    shadow.getElementById("seen").textContent = formatNumber(metrics.seen);
-    shadow.getElementById("captured").textContent = formatNumber(metrics.captured);
-    shadow.getElementById("failed").textContent = formatNumber(metrics.failed);
-    shadow.getElementById("capture-rate").textContent = formatRate(metrics.seenToCaptureRate);
-
-    const status = metrics.status === "running"
-      ? "Running"
-      : metrics.status === "paused" ? "Paused" : "Waiting";
-    shadow.getElementById("hunt-status").textContent = status;
-
-    const pauseButton = shadow.getElementById("pause-resume");
-    pauseButton.disabled = !["running", "paused"].includes(metrics.status);
-    pauseButton.dataset.action = metrics.status === "running" ? "pause" : "resume";
-    pauseButton.textContent = metrics.status === "running" ? "Pause" : "Resume";
-    shadow.getElementById("end-hunt").disabled = metrics.status === "waiting";
-
-    let rarePlusFailed = 0;
-    for (const [key] of RARITIES) {
-      const rarity = metrics.rarities[key];
-      const row = shadow.querySelector(`[data-rarity="${key}"]`);
-      row.querySelector('[data-field="seen"]').textContent = rarity.shinySeen
-        ? `${formatNumber(rarity.seen)} (${formatNumber(rarity.shinySeen)})`
-        : formatNumber(rarity.seen);
-      row.querySelector('[data-field="captured"]').textContent = rarity.shinyCaptured
-        ? `${formatNumber(rarity.captured)} (${formatNumber(rarity.shinyCaptured)})`
-        : formatNumber(rarity.captured);
-      row.querySelector('[data-field="failed"]').textContent = rarity.shinyFailed
-        ? `${formatNumber(rarity.failed)} (${formatNumber(rarity.shinyFailed)})`
-        : formatNumber(rarity.failed);
-      row.querySelector('[data-field="rate"]').textContent = formatRate(
-        rarity.seen ? rarity.captured / rarity.seen : null
-      );
-
-      shadow.getElementById(`hud-${key}`).textContent = String(rarity.captured || 0);
-      if (["rare", "epic", "legendary", "mythical"].includes(key)) {
-        rarePlusFailed += rarity.failed || 0;
-      }
-    }
-
-    shadow.getElementById("rare-failed-count").textContent = `R+ fail ${rarePlusFailed}`;
-    shadow.getElementById("hud-xp").textContent = metrics.trainerExpPerHour == null
-      ? "—" : formatCompact(metrics.trainerExpPerHour);
-
-    renderEncounterList("captured");
-    renderEncounterList("failed");
-  }
-
-  function renderEncounterList(prefix) {
-    const captureResult = prefix === "captured" ? "success" : "failed";
-    const matching = currentEncounters.filter((encounter) => encounter.captureResult === captureResult);
-    const select = shadow.getElementById(`${prefix}-rarity`);
-    populateSelect(
-      select,
-      [...new Set(matching.map((encounter) => encounter.quality).filter(Boolean))].sort()
-    );
-
-    const filters = listFilters[prefix];
-    filters.rarity = select.value;
-
-    const body = shadow.getElementById(`${prefix}-body`);
-    const fragment = document.createDocumentFragment();
-    let visibleCount = 0;
-
-    for (const encounter of matching) {
-      if (!encounterPassesFilters(encounter, filters)) continue;
-      fragment.appendChild(createEncounterRow(encounter));
-      visibleCount += 1;
-    }
-
-    body.replaceChildren(fragment);
-    shadow.getElementById(`${prefix}-count`).textContent = pokemonLabel(visibleCount);
+  function renderCurrent(state) {
+    currentView.render(state);
   }
 
   function setActive(isActive) {
@@ -938,8 +487,8 @@ export function createUi({ onSessionAction, onLoadCompare }) {
         startTop: rect.top,
         startRight: rect.right,
         startHeight: rect.height,
-        minWidth: Number.parseFloat(computed.minWidth) || 360,
-        minHeight: Number.parseFloat(computed.minHeight) || 280
+        minWidth: Number.parseFloat(computed.minWidth) || MIN_PANEL_WIDTH_PX,
+        minHeight: Number.parseFloat(computed.minHeight) || MIN_PANEL_HEIGHT_PX
       };
       resizeHandle.setPointerCapture(event.pointerId);
       event.preventDefault();
@@ -1139,8 +688,6 @@ export function createUi({ onSessionAction, onLoadCompare }) {
       button.title = `Copy ref code ${REF_CODE}`;
     }, 1_200);
   }
-
-  mount();
 
   return {
     renderCurrent,
