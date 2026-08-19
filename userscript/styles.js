@@ -132,7 +132,7 @@ button { user-select: none; }
   bottom: 72px;
   z-index: 2147483646;
   width: min(620px, calc(100vw - 16px));
-  min-width: 360px;
+  min-width: 430px;
   min-height: 280px;
   max-width: calc(100vw - 16px);
   max-height: calc(100vh - 16px);
