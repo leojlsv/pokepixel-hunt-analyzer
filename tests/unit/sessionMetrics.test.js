@@ -26,6 +26,7 @@ test("no session yet -> empty/waiting metrics, no per-hour crash", () => {
   assert.equal(metrics.status, "waiting");
   assert.equal(metrics.activeMs, 0);
   assert.equal(metrics.trainerExpPerHour, null);
+  assert.equal(metrics.seenPerHour, null);
   assert.equal(metrics.seenToCaptureRate, null);
   assert.equal(metrics.attemptRate, null);
 });
@@ -65,6 +66,7 @@ test("seen is the exact identity captured + failed, regardless of state", () => 
   assert.equal(metrics.failed, 2);
   assert.equal(metrics.seen, metrics.captured + metrics.failed);
   assert.equal(metrics.seen, 3);
+  assert.equal(metrics.seenPerHour, 3);
 });
 
 test("EXP/gold sums and per-hour rates over active_ms", () => {
@@ -93,6 +95,7 @@ test("per-hour figures are null when elapsed active time is zero", () => {
   const metrics = computeSessionMetrics({ session, encounters, now: 0 });
 
   assert.equal(metrics.trainerExpPerHour, null);
+  assert.equal(metrics.seenPerHour, null);
 });
 
 test("rarity buckets, Rare+ failed, and unknown-quality flag", () => {
