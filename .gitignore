@@ -7,7 +7,7 @@ CLAUDE.local.md
 .env.*
 !.env.example
 
-# Node tooling if introduced
+# Node
 node_modules/
 coverage/
 

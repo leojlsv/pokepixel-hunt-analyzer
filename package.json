@@ -1,13 +1,20 @@
 {
   "name": "pokepixel-hunt-analyzer",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "private": true,
   "description": "Local domain/persistence modules and Tampermonkey build for the PokePixel Hunt Analyzer.",
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "test": "node --test",
     "build:userscript": "node scripts/build-userscript.mjs",
     "validate": "npm test && npm run build:userscript"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leojlsv/pokepixel-analyzer-sidepanel.git"
   },
   "devDependencies": {
     "esbuild": "^0.25.9",

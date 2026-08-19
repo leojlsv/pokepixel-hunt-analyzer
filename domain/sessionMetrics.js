@@ -1,15 +1,9 @@
 /**
- * "Current" view aggregation (docs/DEVELOPMENT.md §2, docs/PROTOCOL_AND_ANALYTICS.md §10-11).
+ * Pure aggregation for the Current view.
  *
- * Pure: takes an already-fetched session row + its encounters and derives
- * every number the Current view shows. No IndexedDB access here — callers
- * fetch the rows and this module only computes metrics.
- *
- * The rarity/seen/captured/failed bucketing (`Seen = Captured + Failed`,
- * exactly — see domain/rarityBreakdown.js's header) lives there —
- * Compare's "By Rarity" theme needs the exact same aggregation over a
- * different (filtered, cross-session) encounter set, so it's shared
- * rather than duplicated.
+ * Takes one session plus its already-fetched encounters and returns every
+ * derived metric needed by the UI. Persistence and rendering stay outside
+ * this module.
  */
 
 import { activeMs as sessionActiveMs } from "./sessionTiming.js";
@@ -74,20 +68,26 @@ export function computeSessionMetrics({ session, encounters = [], now = Date.now
     trainerExp += Number(encounter.trainerExp) || 0;
     pokemonExp += Number(encounter.pokemonExp) || 0;
     gold += Number(encounter.gold) || 0;
-    // A captured Pokémon the game auto-sold is realized income too, not
-    // just the wild monster's own loot.received drop.
-    if (encounter.autoSold) gold += Number(encounter.autoSellValue) || 0;
-    // Pokébolas: the capsule cost charged on any capture attempt, success
-    // or failed (null until an attempt happens).
+
+    if (encounter.autoSold) {
+      gold += Number(encounter.autoSellValue) || 0;
+    }
+
     capsulesCost += Number(encounter.supplyCost) || 0;
   }
 
-  const { seen, captured, failed, rarities, shiny, rarePlusFailed, hasUnknownQuality } =
-    computeRarityBreakdown(encounters);
+  const {
+    seen,
+    captured,
+    failed,
+    rarities,
+    shiny,
+    rarePlusFailed,
+    hasUnknownQuality
+  } = computeRarityBreakdown(encounters);
 
-  // Potions: a trainer-wide expense, not tied to any one encounter (§9 in
-  // docs/ARCHITECTURE.md) — accumulated directly on the session row
-  // instead of summed from encounters, unlike everything else here.
+  // Potion costs are session-level because potion events are not tied to a
+  // specific wild encounter.
   const potionsUsed = session.potionsUsed || 0;
   const potionsCost = session.potionsCost || 0;
   const expenses = capsulesCost + potionsCost;

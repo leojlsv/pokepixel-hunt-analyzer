@@ -4,13 +4,14 @@ Analytics de Hunt em tempo real para **PokePixel**, direto dentro do jogo.
 
 O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** que acompanha suas Hunts, calcula métricas de eficiência e mantém os dados localmente no navegador.
 
-**Versão atual:** `v1.6.1`  
+**Versão atual:** `v1.6.2`  
 **Status:** estável  
 **Execução:** 100% local  
 **Automação de gameplay:** nenhuma
+
 > Projeto não oficial da comunidade. Não possui vínculo com PokePixel, Nintendo, Game Freak ou The Pokémon Company.
 
-### **[⬇️ Baixar a versão mais recente](https://github.com/leojlsv/pokepixel-analyzer-sidepanel/releases/tag/v1.6.1)**
+### **[⬇️ Baixar a versão mais recente](https://github.com/leojlsv/pokepixel-analyzer-sidepanel/releases/latest)**
 
 ---
 
@@ -67,7 +68,6 @@ O Compare possui:
 `By Rarity`
 
 <img width="417" height="315" alt="image" src="https://github.com/user-attachments/assets/1bf82dfd-11d7-4d2c-be37-d526d2aba7c7" />
-
 
 ### Interface ajustável
 
@@ -139,9 +139,9 @@ pokepixel-hunt-analyzer.user.js
 
 na versão mais recente do projeto.
 
-### **[⬇️ Baixar a versão mais recente](https://github.com/leojlsv/pokepixel-analyzer-sidepanel/releases/tag/v1.6.1)**
+### **[⬇️ Baixar a versão mais recente](https://github.com/leojlsv/pokepixel-analyzer-sidepanel/releases/latest)**
 
-> Para distribuição pública, o arquivo acima deve ser disponibilizado nas Releases do GitHub. Desenvolvedores também podem gerar esse arquivo localmente seguindo a seção de desenvolvimento deste README.
+O `.user.js` fica disponível nos **Assets** da release. Desenvolvedores também podem gerar o arquivo localmente seguindo a seção de desenvolvimento deste README.
 
 ---
 
@@ -306,7 +306,7 @@ Consulte o [CHANGELOG.md](CHANGELOG.md) para acompanhar as mudanças.
 ## Requisitos
 
 - Git;
-- Node.js;
+- Node.js 24+;
 - npm;
 - navegador com Tampermonkey para o smoke test final.
 
@@ -345,19 +345,22 @@ O arquivo em `dist/` é o artefato que deve ser instalado no Tampermonkey.
 
 ```text
 userscript/
-├── main.js          # runtime, WebSocket, pipeline e lifecycle
-├── ui.js            # shell e interação do painel
-├── current-view.js  # Current, Captured, Failed e HUD
-├── compare-view.js  # Compare, filtros e ordenação
-├── ui-utils.js      # formatadores e helpers
-└── styles.js        # interface visual
+├── main.js                # inicialização e orquestração do runtime
+├── websocket-observer.js  # observação passiva e decoding do WebSocket
+├── tab-leadership.js      # coordenação ACTIVE / STANDBY entre abas
+├── ui.js                  # ciclo de vida e interação do painel
+├── ui-markup.js           # markup estático da interface
+├── current-view.js        # Current, Captured, Failed e HUD
+├── compare-view.js        # Compare, filtros e ordenação
+├── ui-utils.js            # formatadores e helpers
+└── styles.js              # interface visual
 
-domain/              # regras e métricas puras
-data/                # IndexedDB e repositories
-services/            # pipeline de eventos
-scripts/             # build do userscript
-tests/               # testes automatizados
-docs/                # documentação técnica
+domain/                    # regras e métricas puras
+data/                      # IndexedDB e repositories
+services/                  # coordenação/pipeline de eventos
+scripts/                   # build do userscript
+tests/                     # testes automatizados
+docs/                      # documentação técnica
 ```
 
 Fluxo simplificado:
@@ -365,9 +368,11 @@ Fluxo simplificado:
 ```text
 PokePixel WebSocket
         ↓
+userscript/websocket-observer.js
+        ↓
 userscript/main.js
         ↓
-services/eventPipeline
+services/eventPipeline.js
         ↓
 domain + IndexedDB
         ↓
@@ -378,7 +383,7 @@ Current / HUD / Compare
 
 # Contribuindo
 
-Contribuições são bem-vindas.
+Contribuições são bem-vindas. O fluxo completo está em [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Antes de abrir um Pull Request:
 
@@ -400,6 +405,7 @@ Para decisões internas e regras técnicas, consulte:
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - [PROTOCOL_AND_ANALYTICS.md](docs/PROTOCOL_AND_ANALYTICS.md)
 - [DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- [SECURITY.md](SECURITY.md)
 - [CHANGELOG.md](CHANGELOG.md)
 
 ---
