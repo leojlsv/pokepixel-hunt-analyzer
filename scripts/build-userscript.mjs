@@ -1,7 +1,13 @@
 import { build } from "esbuild";
 import { mkdir, readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
-const pkg = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+const packageUrl = new URL("../package.json", import.meta.url);
+const entryUrl = new URL("../userscript/main.js", import.meta.url);
+const distDirUrl = new URL("../dist/", import.meta.url);
+const outputUrl = new URL("../dist/pokepixel-hunt-analyzer.user.js", import.meta.url);
+
+const pkg = JSON.parse(await readFile(packageUrl, "utf8"));
 
 const metadata = `// ==UserScript==
 // @name         PokePixel Hunt Analyzer
@@ -15,11 +21,11 @@ const metadata = `// ==UserScript==
 // @grant        none
 // ==/UserScript==`;
 
-await mkdir(new URL("../dist/", import.meta.url), { recursive: true });
+await mkdir(fileURLToPath(distDirUrl), { recursive: true });
 
 await build({
-  entryPoints: [new URL("../userscript/main.js", import.meta.url).pathname],
-  outfile: new URL("../dist/pokepixel-hunt-analyzer.user.js", import.meta.url).pathname,
+  entryPoints: [fileURLToPath(entryUrl)],
+  outfile: fileURLToPath(outputUrl),
   bundle: true,
   format: "iife",
   platform: "browser",
