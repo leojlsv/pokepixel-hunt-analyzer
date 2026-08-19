@@ -1,6 +1,6 @@
 {
   "name": "pokepixel-hunt-analyzer",
-  "version": "1.5.6",
+  "version": "1.5.7",
   "private": true,
   "description": "Local domain/persistence modules and Tampermonkey build for the PokePixel Hunt Analyzer.",
   "type": "module",
