@@ -1,7 +1,7 @@
 import "./current-polish-v153.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
-const UI_VERSION = "1.5.4";
+const UI_VERSION = "1.5.5";
 const EDGE_GAP = 8;
 
 function waitForShadow() {
@@ -31,7 +31,6 @@ function installStyles(shadow) {
   const style = document.createElement("style");
   style.id = "pha-interaction-v154-style";
   style.textContent = `
-    /* Scrollbar palette for every scrollable area inside the Analyzer. */
     * {
       scrollbar-width: thin;
       scrollbar-color: #8e7943 #20211e;
@@ -145,8 +144,6 @@ function installWheelScrolling(panel) {
     if (axis === "x") target.scrollLeft += delta;
     else target.scrollTop += delta;
 
-    // The game can consume wheel at page level. Once the pointer is inside
-    // the Analyzer, scrolling is owned locally and must not bubble outward.
     event.preventDefault();
     event.stopPropagation();
   }, { capture: true, passive: false });
@@ -328,5 +325,5 @@ async function init() {
 }
 
 init().catch((error) =>
-  console.error("PokePixel Hunt Analyzer (interaction v1.5.4):", error)
+  console.error("PokePixel Hunt Analyzer (interaction v1.5.5):", error)
 );
