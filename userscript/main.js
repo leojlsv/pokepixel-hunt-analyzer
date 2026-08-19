@@ -1,14 +1,12 @@
-import { openDatabase, STORE_NAMES } from "../data/db.js";
-import { createRepository } from "../data/repository.js";
+import { openDatabase } from "../data/db.js";
 import { createSessionsRepository } from "../data/sessionsRepository.js";
 import { createEncountersRepository } from "../data/encountersRepository.js";
 import { createEventPipeline } from "../services/eventPipeline.js";
 import { computeSessionMetrics } from "../domain/sessionMetrics.js";
 import { computeGroupMetrics } from "../domain/groupMetrics.js";
 import { computeRarityBreakdown } from "../domain/rarityBreakdown.js";
-import { buildJsonBackup } from "../domain/export.js";
 
-const APP_VERSION = "1.1.0-migration";
+const APP_VERSION = "1.4.3";
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const TAB_LOCK_KEY = "pokepixel_hunt_analyzer_active_tab";
 const TAB_LOCK_TTL_MS = 6000;
@@ -105,7 +103,6 @@ function uiHtml() {
       <nav class="tabs">
         <button data-view="current" class="tab active" type="button">Current</button>
         <button data-view="compare" class="tab" type="button">Compare</button>
-        <button id="pha-export" class="tab export" type="button">Export</button>
       </nav>
       <section id="view-current">
         <div class="actions">
@@ -145,7 +142,7 @@ function uiHtml() {
 }
 
 const CSS = `
-:host{all:initial;font-family:Inter,Segoe UI,Arial,sans-serif;color:#e8edf3;font-size:12px}.launcher{position:fixed;right:16px;bottom:16px;z-index:2147483647;width:46px;height:46px;border-radius:13px;border:1px solid #566273;background:#1b222c;color:#fff;font-weight:800;cursor:pointer;box-shadow:0 8px 24px #0008}.panel{position:fixed;z-index:2147483646;right:16px;bottom:72px;width:min(520px,calc(100vw - 32px));max-height:calc(100vh - 96px);overflow:auto;background:#111820;border:1px solid #374452;border-radius:12px;box-shadow:0 14px 40px #000b}.topbar{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:11px 12px;background:#171f29;border-bottom:1px solid #303b47}.topbar div{display:flex;flex-direction:column}.topbar small{color:#8d99a8}.icon{background:transparent;border:0;color:#cfd7e3;font-size:20px;cursor:pointer}.state{font-size:9px;font-weight:800;padding:3px 6px;border-radius:8px}.state.active{background:#173b2c;color:#70dfaa}.state.standby{background:#4b3520;color:#ffc477}.tabs,.actions{display:flex;gap:6px;padding:9px 10px}.tab,.actions button{border:1px solid #344250;background:#1b2530;color:#dbe3ec;padding:6px 10px;border-radius:7px;cursor:pointer}.tab.active{background:#2d4054}.tab.export{margin-left:auto}.statusrow{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;margin:0 10px 8px;padding:9px 10px;background:#17202a;border-radius:8px}.cards,.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:0 10px 9px}.cards article,.summary article{background:#17202a;border:1px solid #263341;border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:3px;min-width:0}.cards span,.summary span,label{color:#94a2b2}.cards strong,.summary strong{font-size:16px}.cards small{color:#8391a0}h3{font-size:12px;margin:10px}.table{overflow:auto;margin:0 10px 10px;border:1px solid #273443;border-radius:8px}table{width:100%;border-collapse:collapse;white-space:nowrap}th,td{padding:6px 8px;text-align:left;border-bottom:1px solid #24313d}th{color:#8998a8;font-size:10px;background:#151e27}.filters{display:flex;gap:7px;flex-wrap:wrap;padding:0 10px 9px}.filters label{display:flex;flex-direction:column;gap:3px;min-width:90px;flex:1}.filters select,.filters input{min-width:0;background:#111820;border:1px solid #344250;border-radius:6px;color:#e8edf3;padding:5px}.rarity-weak{color:#87909a}.rarity-common{color:#d5d9de}.rarity-uncommon{color:#66d58b}.rarity-rare{color:#61a7ff}.rarity-epic{color:#bf80ff}.rarity-legendary{color:#ffb24a}.rarity-mythical{color:#ff6a8a}@media(max-width:700px){.cards,.summary{grid-template-columns:repeat(2,1fr)}}`;
+:host{all:initial;font-family:Inter,Segoe UI,Arial,sans-serif;color:#e8edf3;font-size:12px}.launcher{position:fixed;right:16px;bottom:16px;z-index:2147483647;width:46px;height:46px;border-radius:13px;border:1px solid #566273;background:#1b222c;color:#fff;font-weight:800;cursor:pointer;box-shadow:0 8px 24px #0008}.panel{position:fixed;z-index:2147483646;right:16px;bottom:72px;width:min(520px,calc(100vw - 32px));max-height:calc(100vh - 96px);overflow:auto;background:#111820;border:1px solid #374452;border-radius:12px;box-shadow:0 14px 40px #000b}.topbar{position:sticky;top:0;z-index:2;display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;padding:11px 12px;background:#171f29;border-bottom:1px solid #303b47}.topbar div{display:flex;flex-direction:column}.topbar small{color:#8d99a8}.icon{background:transparent;border:0;color:#cfd7e3;font-size:20px;cursor:pointer}.state{font-size:9px;font-weight:800;padding:3px 6px;border-radius:8px}.state.active{background:#173b2c;color:#70dfaa}.state.standby{background:#4b3520;color:#ffc477}.tabs,.actions{display:flex;gap:6px;padding:9px 10px}.tab,.actions button{border:1px solid #344250;background:#1b2530;color:#dbe3ec;padding:6px 10px;border-radius:7px;cursor:pointer}.tab.active{background:#2d4054}.statusrow{display:grid;grid-template-columns:1fr auto auto;gap:12px;align-items:center;margin:0 10px 8px;padding:9px 10px;background:#17202a;border-radius:8px}.cards,.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:0 10px 9px}.cards article,.summary article{background:#17202a;border:1px solid #263341;border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:3px;min-width:0}.cards span,.summary span,label{color:#94a2b2}.cards strong,.summary strong{font-size:16px}.cards small{color:#8391a0}h3{font-size:12px;margin:10px}.table{overflow:auto;margin:0 10px 10px;border:1px solid #273443;border-radius:8px}table{width:100%;border-collapse:collapse;white-space:nowrap}th,td{padding:6px 8px;text-align:left;border-bottom:1px solid #24313d}th{color:#8998a8;font-size:10px;background:#151e27}.filters{display:flex;gap:7px;flex-wrap:wrap;padding:0 10px 9px}.filters label{display:flex;flex-direction:column;gap:3px;min-width:90px;flex:1}.filters select,.filters input{min-width:0;background:#111820;border:1px solid #344250;border-radius:6px;color:#e8edf3;padding:5px}.rarity-weak{color:#87909a}.rarity-common{color:#d5d9de}.rarity-uncommon{color:#66d58b}.rarity-rare{color:#61a7ff}.rarity-epic{color:#bf80ff}.rarity-legendary{color:#ffb24a}.rarity-mythical{color:#ff6a8a}@media(max-width:700px){.cards,.summary{grid-template-columns:repeat(2,1fr)}}`;
 
 function mountUi() {
   if (document.getElementById(ROOT_ID)) return;
@@ -159,7 +156,6 @@ function mountUi() {
   shadow.getElementById("pha-toggle").onclick = () => { shadow.getElementById("pha-panel").hidden = false; };
   shadow.getElementById("pha-close").onclick = () => { shadow.getElementById("pha-panel").hidden = true; };
   shadow.querySelectorAll("[data-view]").forEach(button => button.onclick = () => switchView(button.dataset.view));
-  shadow.getElementById("pha-export").onclick = () => exportBackup().catch(console.error);
   shadow.getElementById("new-hunt").onclick = () => sessionAction("new");
   shadow.getElementById("end-hunt").onclick = () => sessionAction("end");
   shadow.getElementById("pause-resume").onclick = e => sessionAction(e.currentTarget.dataset.action || "pause");
@@ -303,15 +299,6 @@ function renderCompare() {
   const groups = new Map();
   for (const e of rows) { if (!e.groupKey) continue; if (!groups.has(e.groupKey)) groups.set(e.groupKey,{ sample:e, encounters:[] }); groups.get(e.groupKey).encounters.push(e); }
   for (const {sample, encounters} of groups.values()) { const m = computeGroupMetrics(encounters); const values=[speciesLabel(sample),sample.level??"—",n(m.seen),n(m.captured),n(m.failed),m.trainerExpPerCycleHour==null?"—":n(m.trainerExpPerCycleHour),m.dollarPerCycleHour==null?"—":n(m.dollarPerCycleHour)]; const tr=document.createElement("tr"); for(const v of values){const td=document.createElement("td");td.textContent=v;tr.appendChild(td);} body.appendChild(tr); }
-}
-
-async function exportBackup() {
-  const sessions = await createRepository(db, STORE_NAMES.SESSIONS).getAll();
-  const configs = await createRepository(db, STORE_NAMES.CONFIGS).getAll();
-  const encounters = await createEncountersRepository(db).getAll();
-  const backup = buildJsonBackup({ appVersion: APP_VERSION, sessions, configs, encounters });
-  const blob = new Blob([JSON.stringify(backup,null,2)], { type:"application/json" });
-  const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href=url; a.download=`pokepixel-hunt-analyzer-backup-${Date.now()}.json`; a.click(); URL.revokeObjectURL(url);
 }
 
 const EVENT_TYPES = new Set(["combat.started","loot.received","capture.failed","capture.success","hunt.stopped","hunt.analyzer_reset"]);
