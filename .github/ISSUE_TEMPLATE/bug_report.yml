@@ -1,0 +1,59 @@
+name: Bug report
+description: Report a reproducible problem in the Analyzer
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include tokens, cookies, authenticated WebSocket URLs or raw private captures.
+
+  - type: input
+    id: analyzer-version
+    attributes:
+      label: Analyzer version
+      placeholder: "1.6.1"
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: "Microsoft Edge 151"
+    validations:
+      required: true
+
+  - type: input
+    id: tampermonkey
+    attributes:
+      label: Tampermonkey version
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Describe the smallest sequence that reproduces the problem.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots or sanitized console errors only. Remove sensitive data first.

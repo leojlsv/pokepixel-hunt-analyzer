@@ -1,232 +1,224 @@
 # Development
 
-## 1. Security
+## 1. Requirements
 
-The extension is passive.
+- Node.js 24+
+- npm
+- Tampermonkey for live smoke testing
 
-Never persist:
+Install dependencies:
+
+```bash
+npm install
+```
+
+Validate the project:
+
+```bash
+npm run validate
+```
+
+`validate` runs the complete Node test suite and builds the production userscript.
+
+## 2. Source layout
+
+```text
+userscript/   browser runtime and UI
+domain/       business rules and pure calculations
+data/         IndexedDB and repositories
+services/     application/event coordination
+tests/        unit, integration and sanitized fixtures
+scripts/      build/development utilities
+docs/         architecture and protocol decisions
+```
+
+See `docs/ARCHITECTURE.md` for detailed responsibilities.
+
+## 3. Development workflow
+
+Start from an up-to-date `main`:
+
+```bash
+git switch main
+git pull
+git switch -c feat/my-change
+```
+
+Recommended branch prefixes:
+
+```text
+feat/
+fix/
+refactor/
+docs/
+```
+
+Keep changes focused. A refactor should not quietly change formulas or product behavior.
+
+Before opening a PR:
+
+```bash
+npm run validate
+```
+
+For runtime/UI changes, also perform the manual smoke test in section 8.
+
+## 4. Code rules
+
+### Boundaries
+
+- Runtime/browser integration belongs in `userscript/`.
+- Protocol normalization belongs in `domain/events.js`.
+- Metrics/formulas belong in domain modules, not the UI.
+- IndexedDB access belongs in `data/` repositories.
+- Cross-module application coordination belongs in `services/`.
+
+Avoid bypassing these boundaries for convenience.
+
+### Side effects
+
+Keep side effects at runtime and persistence boundaries. Prefer pure functions for calculations, normalization and grouping.
+
+### Duplication
+
+Do not duplicate:
+
+- protocol parsing;
+- metric formulas;
+- IndexedDB reads for data already loaded by the caller;
+- render pipelines;
+- application version constants.
+
+`package.json` is the authoritative application version.
+
+### File organization
+
+Prefer modules named by responsibility.
+
+Do not create runtime files such as:
+
+```text
+fix-v162.js
+ui-v17.js
+patch-latest.js
+```
+
+Modify or extract the responsible module instead.
+
+### Comments
+
+Comments should explain constraints or non-obvious decisions.
+
+Do not use source comments as a changelog. Release/history notes belong in `CHANGELOG.md`.
+
+## 5. Protocol changes
+
+Before consuming a new field/event:
+
+1. confirm it from real protocol evidence;
+2. document semantics in `docs/PROTOCOL_AND_ANALYTICS.md`;
+3. normalize it in `domain/events.js`;
+4. update tracker/persistence only if the product needs it;
+5. add regression coverage;
+6. verify that sensitive/raw data is not persisted.
+
+Do not infer fields that have not been observed.
+
+## 6. IndexedDB changes
+
+Current database:
+
+```text
+pokepixel_hunt_analyzer
+```
+
+Schema migrations live in `data/migrations.js`.
+
+Rules:
+
+- never edit a migration that has shipped;
+- add a new numbered migration for store/index changes;
+- keep migrations forward-only;
+- test upgrades from older schema versions;
+- ordinary new object properties do not require a migration unless an index/store changes.
+
+## 7. Automated tests
+
+The test suite uses Node's built-in test runner and `fake-indexeddb`.
+
+Coverage areas include:
+
+- config canonicalization/hash;
+- encounter correlation/dedupe;
+- Hunt lifecycle/timing;
+- rarity/metrics calculations;
+- IndexedDB migrations/repositories;
+- event-pipeline integration;
+- sanitized fixture regression;
+- runtime helpers that can be tested without a browser.
+
+Add tests for new behavior or bug fixes whenever the behavior is deterministic outside the live game.
+
+## 8. Manual smoke test
+
+Required after UI/runtime/WebSocket changes:
+
+1. PokePixel connects normally with the userscript enabled.
+2. HUD appears and opens the analyzer.
+3. Current updates during a Hunt.
+4. New Hunt works.
+5. Pause / Resume works.
+6. End Hunt works.
+7. Seen / Captured / Failed / Capture are correct.
+8. By Rarity updates.
+9. Captured/Failed filters work.
+10. HUD minimized values update.
+11. Drag, resize, wheel scroll and alpha work.
+12. Compare loads, filters and sorts.
+13. F5 preserves IndexedDB data and UI state.
+14. With two game tabs, only one is ACTIVE and the other is STANDBY.
+
+A clean automated suite does not replace this smoke test for browser behavior.
+
+## 9. Build and release
+
+Build only:
+
+```bash
+npm run build:userscript
+```
+
+Output:
+
+```text
+dist/pokepixel-hunt-analyzer.user.js
+```
+
+Release process:
+
+1. validate automated tests/build;
+2. complete live smoke test;
+3. update `package.json` using SemVer;
+4. update `CHANGELOG.md`;
+5. rebuild the userscript;
+6. commit/tag the validated version;
+7. attach the generated `.user.js` to the GitHub Release.
+
+Generated `dist/` output should not be committed to the repository unless the project explicitly changes its release strategy.
+
+## 10. Security
+
+Never persist or commit:
 
 ```text
 tokens
-Authorization headers
 cookies
+Authorization headers
+credentials
 authenticated WebSocket URLs
-raw WebSocket frames
+raw WebSocket captures
+private exports
+local debug logs
 ```
 
-Keep manifest permissions narrow. Analytics failures must fail closed: the game must keep working.
-
-## 2. Side Panel target
-
-Views: `Current`, `History`, `Compare` (tabs; no separate `Config` view
-— removed in Phase 3, config detail does not surface as raw
-technical/UUID data anywhere in the UI, see docs/ARCHITECTURE.md §9).
-
-Current should show Hunt status/time, Trainer and Pokémon EXP totals/h, Dollar totals/h, Lucro Total (Dólar - Gastos, no time component, docs/ARCHITECTURE.md §12), Seen/Captured/Failed, rates, rarity (with shiny counts folded in as an annotation, no separate Shiny section, docs/ARCHITECTURE.md §12), and a filterable list of captured Pokémon (Nature/Quality/individual IVs, shiny marked with an asterisk + row highlight, docs/ARCHITECTURE.md §11).
-
-Actions: `New Hunt`, `Pause/Resume`, `End Hunt`.
-
-The legacy `Reset` action and its `chrome.storage.session` counter are
-retired once `Current` reads only from the v1 data; the toolbar badge
-then derives from the v1 session/encounters, not from the legacy
-counter.
-
-History is paginated session history and detail (docs/ARCHITECTURE.md §9).
-Compare aggregates either by `species + level + config` ("By Cycle") or
-by rarity tier, identical to Current's own By Rarity table ("By Rarity"),
-selectable via a "Theme" toggle (docs/ARCHITECTURE.md §9).
-Capture config prefers protocol-derived `auto_capture`; EXP rate remains manual/unknown until protocol support is proven.
-
-## 3. Export
-
-JSON only — no CSV (simplified during Fase 4 planning; earlier drafts of
-this document sketched CSV column sets, since removed). The backup
-contains `formatVersion`, `appVersion`, `sessions`, `configs`,
-`encounters` — a direct passthrough of already-fetched rows
-(`domain/export.js`). No raw/auth data.
-
-## 4. Preview
-
-Keep the current browser-only preview independent of Chrome extension APIs. Reuse production CSS and deterministic mock data. Do not move it until a UI phase explicitly requires it.
-
-## 5. Minimum tests
-
-Domain/persistence:
-- canonical config serialization;
-- same semantic config → same hash;
-- EXP-rate change → new `config_id`;
-- `auto_capture` change → new `config_id`;
-- deterministic `group_key`;
-- IndexedDB create/read/update/migration;
-- running/paused/restart time behavior;
-- per-hour formulas and capture rates;
-- Seen = Captured + Failed exact identity;
-- Dólar/h includes auto-sell value only when auto-sold;
-- Gastos/h (Pokébolas supplyCost + session-level potion cost).
-
-Parser/tracker:
-- start → loot;
-- start → loot → failed;
-- start → loot → success;
-- auto-sold success;
-- no capture event;
-- wild-id reuse;
-- orphan;
-- duplicate event;
-- reconnect / seq reset;
-- config change between encounters;
-- nested success quality;
-- captured creature level does not overwrite target level;
-- loot.received's auto-potion-used variant never creates an encounter.
-
-Fixture regression validates the event and Rare+ baselines in `docs/PROTOCOL_AND_ANALYTICS.md`.
-
-## 6. Implementation phases
-
-### Phase 1 — Foundation
-- domain config/hash/group key;
-- IndexedDB + migrations;
-- repositories;
-- unit/integration tests.
-
-No UI or WebSocket behavior change.
-
-### Phase 2 — Event pipeline
-- normalized event contracts;
-- local `socketId`;
-- session service;
-- encounter tracker;
-- reuse/orphan/dedupe handling;
-- fixture regression.
-
-### Phase 3 — Current + Config
-- migrate current Side Panel to new source of truth;
-- automatic Hunt lifecycle and manual overrides (docs/ARCHITECTURE.md §7);
-- protocol `auto_capture` snapshot;
-- manual EXP rate;
-- preview update;
-- retire the legacy Reset action/counter; toolbar badge moves to v1
-  session/encounter data.
-
-### Phase 4 — History + Compare + Export
-- history and filters;
-- grouped comparison;
-- JSON export;
-- deletion controls.
-
-### Phase 5 — Hardening + Release
-- migration robustness — done, docs/ARCHITECTURE.md §7;
-- restart recovery — already covered since Phase 3, docs/ARCHITECTURE.md §7;
-- diagnostics — done, docs/ARCHITECTURE.md §13;
-- performance — audited, docs/ARCHITECTURE.md §14 (no production
-  change needed at realistic scale);
-- documentation — done, README.md rewritten for v1, doc consistency
-  pass;
-- final release checklist — done, all 15 criteria in §8 verified,
-  `v1.0.0` released.
-
-## 7. Git
-
-Use SemVer. Preserve the working baseline before migration:
-
-```text
-commit baseline
-tag v0.3.0
-```
-
-Prefer small commits. Do not commit release ZIPs, user exports, temporary logs/debug captures, secrets or machine-local Claude settings. Do not ignore intentional test fixtures.
-
-## 8. v1.0.0 acceptance
-
-- IndexedDB history survives Edge restart;
-- browser-closed time is not counted;
-- migration path is tested;
-- encounter IDs are local UUIDs;
-- wild ID is never DB PK;
-- config hash and group key are deterministic;
-- protocol `auto_capture` is captured when present;
-- config changes affect only later encounters;
-- wild-id reuse does not merge unrelated encounters;
-- session and cycle metrics are clearly separated;
-- Current, History and Compare work;
-- JSON export and deletion work;
-- fixture regression passes;
-- no token/raw frame is persisted;
-- preview works.
-
-## 9. Diagnostics
-
-Safe counters only:
-
-```text
-events_received
-events_ignored
-parse_errors
-db_errors
-orphan_events
-duplicate_events
-active_encounters
-db_version
-app_version
-```
-
-Implemented (Fase 5, step 1 — docs/ARCHITECTURE.md §13):
-`data/diagnosticsRepository.js` persists the 6 cumulative counters in
-`meta`; `services/eventPipeline.js`'s `getDiagnosticsSnapshot()` adds
-the 3 point-in-time ones (`activeEncounters`/`dbVersion`/`appVersion`)
-computed live. No UI reads them yet — nothing in the Side Panel
-surfaces this data on purpose, for now.
-
-## 10. Post-v1.0.0 roadmap
-
-Not scheduled, not started — captured here so the analysis isn't lost.
-
-### Firefox compatibility
-
-Low-to-moderate effort. `domain/`, `data/`, `services/` and all of
-`sidepanel/` are plain JS/DOM/IndexedDB — none of it is Chrome-specific
-and none of it should need to change. The work is narrowly scoped to
-two files:
-
-- `manifest.json`: add `sidebar_action.default_panel` (pointing at the
-  same `sidepanel/sidepanel.html`) alongside the existing `side_panel`
-  key — each browser reads the one it understands. Add
-  `background.scripts` alongside `background.service_worker` (same
-  cross-browser pattern). Add `browser_specific_settings.gecko.id`
-  (Firefox requires a stable extension id) and a
-  `strict_min_version: "128"` guard — Firefox only added
-  `content_scripts[].world: "MAIN"` support in version 128 (Jul 2024),
-  and `hook.js`'s WebSocket interception hard-depends on it.
-- `background.js`: `chrome.sidePanel` has no Firefox equivalent
-  (`sidebarAction` is a different, incompatible API/lifecycle) — needs
-  a small feature-detect branch (`chrome.sidePanel` present → current
-  code path; else → `browser.action.onClicked` +
-  `browser.sidebarAction.toggle()`). Isolated, doesn't touch the event
-  pipeline or session logic.
-
-Needs real manual testing in Firefox (`about:debugging` → load
-temporary add-on) — no automated harness covers `manifest.json`/
-`background.js` today, same limitation that already exists for Chrome/
-Edge. Publishing to addons.mozilla.org (vs. just loading unpacked) adds
-Mozilla's separate signing/review process, outside of code effort.
-
-Zen Browser would follow for free once this lands — it's a Firefox
-fork (Gecko engine), same `sidebarAction` surface.
-
-### Brave
-
-Currently blocked on Brave's own side, not ours: `chrome.sidePanel`
-has open, unresolved bugs in Brave (panel opens then disappears after
-~1s; their sidebar has no UI yet to activate side panel extensions) —
-tracked upstream at
-[brave/brave-browser#32132](https://github.com/brave/brave-browser/issues/32132)
-and
-[#31334](https://github.com/brave/brave-browser/issues/31334), tagged
-low priority (P3) on their roadmap. Nothing to build here — revisit if
-Brave fixes it.
-
-### Opera / Vivaldi
-
-Chromium-based, likely already work — never actually tested. Low
-effort if/when it's worth confirming (just needs someone to load the
-unpacked extension and check).
+The userscript is intentionally passive. Any feature that sends or modifies gameplay traffic is outside the current architecture and requires an explicit product decision.
