@@ -1,7 +1,6 @@
 import "./hud-captures.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
-const UI_VERSION = "1.5.3";
 
 function waitForShadow() {
   return new Promise((resolve) => {
@@ -165,25 +164,6 @@ function installIvFormatting(shadow) {
   apply();
 }
 
-function installVersionAuthority(shadow) {
-  const node = shadow.querySelector(".topbar small");
-  if (!node) return;
-
-  const expected = `Userscript ${UI_VERSION}`;
-  const apply = () => {
-    if (node.textContent !== expected) node.textContent = expected;
-  };
-
-  const observer = new MutationObserver(apply);
-  observer.observe(node, {
-    subtree: true,
-    childList: true,
-    characterData: true
-  });
-
-  apply();
-}
-
 async function init() {
   const shadow = await waitForShadow();
   installStyles(shadow);
@@ -195,8 +175,6 @@ async function init() {
     clearInterval(waitForTables);
     installIvFormatting(shadow);
   }, 50);
-
-  installVersionAuthority(shadow);
 }
 
 init().catch((error) =>
