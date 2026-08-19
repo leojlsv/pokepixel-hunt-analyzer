@@ -1,4 +1,4 @@
-import "./current-ui.js";
+import "./v13.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const UI_VERSION = "1.3.1";
