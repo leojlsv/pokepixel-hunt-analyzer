@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/leojlsv/pokepixel-analyzer-sidepanel.git"
+    "url": "git+https://github.com/leojlsv/pokepixel-hunt-analyzer.git"
   },
   "license": "MIT",
   "devDependencies": {
