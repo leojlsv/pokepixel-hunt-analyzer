@@ -11,7 +11,7 @@ O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** qu
 
 > Projeto não oficial da comunidade. Não possui vínculo com PokePixel, Nintendo, Game Freak ou The Pokémon Company.
 
-### **[⬇️ Baixar a versão mais recente](https://github.com/leojlsv/pokepixel-analyzer-sidepanel/releases/latest)**
+### **[⬇️ Baixar a versão mais recente](https://github.com/leojlsv/pokepixel-hunt-analyzer/releases/latest)**
 
 ---
 
@@ -139,7 +139,7 @@ pokepixel-hunt-analyzer.user.js
 
 na versão mais recente do projeto.
 
-### **[⬇️ Baixar a versão mais recente](https://github.com/leojlsv/pokepixel-analyzer-sidepanel/releases/latest)**
+### **[⬇️ Baixar a versão mais recente](https://github.com/leojlsv/pokepixel-hunt-analyzer/releases/latest)**
 
 O `.user.js` fica disponível nos **Assets** da release. Desenvolvedores também podem gerar o arquivo localmente seguindo a seção de desenvolvimento deste README.
 
@@ -313,8 +313,8 @@ Consulte o [CHANGELOG.md](CHANGELOG.md) para acompanhar as mudanças.
 ## Clonar
 
 ```bash
-git clone https://github.com/leojlsv/pokepixel-analyzer-sidepanel.git
-cd pokepixel-analyzer-sidepanel
+git clone https://github.com/leojlsv/pokepixel-hunt-analyzer.git
+cd pokepixel-hunt-analyzer
 npm ci
 ```
 
