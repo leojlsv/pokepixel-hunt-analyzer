@@ -141,7 +141,7 @@ export function createCurrentView(shadow) {
           state.sort = { key, direction: "desc" };
         }
         updateSortIndicators(prefix);
-        rebuildEncounterList(prefix);
+        rebuildEncounterList(prefix, { resetScroll: false });
       });
     }
 
@@ -205,7 +205,12 @@ export function createCurrentView(shadow) {
     shadow.getElementById("dollars-hour").textContent = metrics.goldPerHour == null
       ? "—" : formatCompact(metrics.goldPerHour);
     shadow.getElementById("expenses-total").textContent = formatCompact(metrics.expenses);
-    shadow.getElementById("profit-total").textContent = formatCompact(metrics.gold - metrics.expenses);
+
+    const profit = metrics.gold - metrics.expenses;
+    const profitTotal = shadow.getElementById("profit-total");
+    profitTotal.textContent = formatCompact(profit);
+    profitTotal.style.color = profit < 0 ? "#ef8b82" : profit > 0 ? "#70dfaa" : "";
+
     shadow.getElementById("seen").textContent = formatNumber(metrics.seen);
     shadow.getElementById("captured").textContent = formatNumber(metrics.captured);
     shadow.getElementById("failed").textContent = formatNumber(metrics.failed);
@@ -323,6 +328,8 @@ export function createCurrentView(shadow) {
     const state = lists[prefix];
     const body = shadow.getElementById(`${prefix}-body`);
     const tableWrap = body.closest(".table-wrap");
+    const previousScrollTop = tableWrap?.scrollTop || 0;
+    const previousRenderedCount = state.renderedCount;
     state.renderToken += 1;
 
     state.visible = sortEncounters(
@@ -335,10 +342,17 @@ export function createCurrentView(shadow) {
     body.replaceChildren();
     if (resetScroll && tableWrap) tableWrap.scrollTop = 0;
     updateCount(prefix);
-    appendEncounterBatch(prefix);
+
+    const targetCount = resetScroll
+      ? LIST_RENDER_BATCH
+      : Math.max(LIST_RENDER_BATCH, previousRenderedCount);
+    appendEncounterBatch(prefix, {
+      targetCount,
+      restoreScrollTop: resetScroll ? null : previousScrollTop
+    });
   }
 
-  function appendEncounterBatch(prefix) {
+  function appendEncounterBatch(prefix, { targetCount = null, restoreScrollTop = null } = {}) {
     const state = lists[prefix];
     if (state.rendering || state.renderedCount >= state.visible.length) return;
 
@@ -348,6 +362,7 @@ export function createCurrentView(shadow) {
       if (token !== state.renderToken) return;
 
       const body = shadow.getElementById(`${prefix}-body`);
+      const tableWrap = body.closest(".table-wrap");
       const fragment = document.createDocumentFragment();
       const start = state.renderedCount;
       const end = Math.min(start + LIST_RENDER_BATCH, state.visible.length);
@@ -370,6 +385,21 @@ export function createCurrentView(shadow) {
       body.appendChild(fragment);
       state.renderedCount = end;
       state.rendering = false;
+
+      const requestedTarget = Number.isFinite(targetCount)
+        ? Math.min(targetCount, state.visible.length)
+        : null;
+      if (requestedTarget != null && state.renderedCount < requestedTarget) {
+        appendEncounterBatch(prefix, { targetCount, restoreScrollTop });
+        return;
+      }
+
+      if (restoreScrollTop != null && tableWrap) {
+        tableWrap.scrollTop = Math.min(
+          restoreScrollTop,
+          Math.max(0, tableWrap.scrollHeight - tableWrap.clientHeight)
+        );
+      }
     });
   }
 
@@ -502,7 +532,7 @@ export function createCurrentView(shadow) {
       content.appendChild(item);
     };
 
-    addDetail("Timestamp", formatCaptureTimestamp(encounter.captureAtMs));
+    addDetail("Captured at", formatCaptureTimestamp(encounter.captureAtMs));
     addDetail("Capsule", encounter.capsuleName || "—");
     if (prefix === "captured") {
       addDetail("Chance", formatRate(encounter.captureChance));
