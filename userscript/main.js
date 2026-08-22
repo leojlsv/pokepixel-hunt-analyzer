@@ -29,6 +29,7 @@ let cachedSessionId = null;
 let cachedEncounters = [];
 let encounterDataRevision = 0;
 let cachedEncounterRevision = -1;
+let encounterSnapshotVersion = 0;
 let lastEncounterSyncAt = 0;
 let resolveReady;
 const ready = new Promise((resolve) => {
@@ -112,6 +113,7 @@ async function performCurrentLoad() {
       : [];
     cachedSessionId = sessionId;
     cachedEncounterRevision = revisionAtStart;
+    encounterSnapshotVersion += 1;
     lastEncounterSyncAt = now;
   }
 
@@ -121,7 +123,12 @@ async function performCurrentLoad() {
     now
   });
 
-  ui.renderCurrent({ sessionId, metrics, encounters: cachedEncounters });
+  ui.renderCurrent({
+    sessionId,
+    encounterSnapshotVersion,
+    metrics,
+    encounters: cachedEncounters
+  });
 }
 
 function loadCurrent() {
