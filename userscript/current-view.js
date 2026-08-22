@@ -101,6 +101,7 @@ function encounterChanged(previous, next) {
 
 export function createCurrentView(shadow) {
   let currentSessionId;
+  let lastEncounterSnapshotVersion = -1;
   const lists = {
     captured: createListState("captured"),
     failed: createListState("failed")
@@ -146,12 +147,25 @@ export function createCurrentView(shadow) {
     updateSortIndicators(prefix);
   }
 
-  function render({ metrics, encounters = [], sessionId = null }) {
+  function render({
+    metrics,
+    encounters = [],
+    sessionId = null,
+    encounterSnapshotVersion = 0
+  }) {
     const sessionChanged = currentSessionId !== sessionId;
+    const encounterSnapshotChanged =
+      sessionChanged || lastEncounterSnapshotVersion !== encounterSnapshotVersion;
     currentSessionId = sessionId;
+    lastEncounterSnapshotVersion = encounterSnapshotVersion;
 
     renderMetrics(metrics);
     renderRarities(metrics);
+
+    // The 1s Current cadence still updates time/per-hour metrics, but avoid
+    // scanning thousands of encounters unless IndexedDB produced a new
+    // snapshot. This keeps long Hunts cheap while preserving live timers.
+    if (!encounterSnapshotChanged) return;
 
     const grouped = { captured: [], failed: [] };
     for (const encounter of encounters) {
