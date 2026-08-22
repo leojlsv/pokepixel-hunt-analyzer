@@ -2,7 +2,10 @@ import { openDatabase } from "../data/db.js";
 import { createSessionsRepository } from "../data/sessionsRepository.js";
 import { createEncountersRepository } from "../data/encountersRepository.js";
 import { createEventPipeline } from "../services/eventPipeline.js";
-import { computeSessionMetrics } from "../domain/sessionMetrics.js";
+import {
+  computeSessionMetrics,
+  refreshSessionMetrics
+} from "../domain/sessionMetrics.js";
 import { EVENT_TYPES } from "../domain/events.js";
 import { createTabLeadership } from "./tab-leadership.js";
 import { installWebSocketObserver } from "./websocket-observer.js";
@@ -11,20 +14,65 @@ import { createUi } from "./ui.js";
 const APP_VERSION = __APP_VERSION__;
 const TAB_LOCK_REFRESH_MS = 2_000;
 const CURRENT_REFRESH_MS = 1_000;
+const STANDBY_RECONCILE_MS = 10_000;
 const OBSERVED_EVENT_TYPES = new Set(EVENT_TYPES);
+const METRIC_DATA_EVENTS = new Set([
+  "loot.received",
+  "capture.failed",
+  "capture.success"
+]);
+const TERMINAL_LIST_EVENTS = new Set([
+  "capture.failed",
+  "capture.success"
+]);
 
 let pipeline;
 let sessionsRepository;
 let encountersRepository;
 let ui;
 let updateQueue = Promise.resolve();
+let currentLoadPromise = null;
+let cachedSessionId = null;
+let cachedEncounters = [];
+let cachedAggregateMetrics = null;
+let encounterDataRevision = 0;
+let cachedEncounterRevision = -1;
+let encounterListRevision = 0;
+let cachedEncounterListRevision = -1;
+let encounterListSnapshotVersion = 0;
+let lastEncounterSyncAt = 0;
 let resolveReady;
 const ready = new Promise((resolve) => {
   resolveReady = resolve;
 });
 
+function markMetricDataDirty() {
+  encounterDataRevision += 1;
+}
+
+function markEncounterListDirty() {
+  encounterDataRevision += 1;
+  encounterListRevision += 1;
+}
+
+function invalidateEncounterCache() {
+  cachedSessionId = null;
+  cachedEncounters = [];
+  cachedAggregateMetrics = null;
+  cachedEncounterRevision = -1;
+  cachedEncounterListRevision = -1;
+  lastEncounterSyncAt = 0;
+  markEncounterListDirty();
+}
+
 const leadership = createTabLeadership({
-  onChange: (isActive) => ui?.setActive(isActive)
+  onChange: (isActive) => {
+    ui?.setActive(isActive);
+    // A tab can become ACTIVE after another tab wrote encounters that this
+    // runtime never processed. Force one full reconciliation on leadership
+    // change, including Captured/Failed.
+    markEncounterListDirty();
+  }
 });
 
 function finiteOrNull(value) {
@@ -47,29 +95,84 @@ function enqueueProtocolEvent(payload, socketId) {
         data: payload.data
       });
 
-      if (ui?.getActiveView() === "current") {
-        await loadCurrent();
+      if (TERMINAL_LIST_EVENTS.has(payload.type)) {
+        markEncounterListDirty();
+      } else if (METRIC_DATA_EVENTS.has(payload.type)) {
+        markMetricDataDirty();
       }
+
+      // Current is intentionally NOT reloaded here. A busy Hunt can emit
+      // multiple protocol events per encounter; re-reading the whole current
+      // session and rebuilding the UI after every event caused work to grow
+      // with Hunt length. The 1s Current refresh below is the single render
+      // cadence now.
     })
     .catch((error) => {
       console.error("PokePixel Hunt Analyzer (event pipeline):", error);
     });
 }
 
-async function loadCurrent() {
+async function performCurrentLoad() {
   if (!sessionsRepository || !encountersRepository || !ui) return;
 
+  const now = Date.now();
   const session = await sessionsRepository.getCurrentReadOnly();
-  const encounters = session
-    ? await encountersRepository.getBySessionId(session.sessionId)
-    : [];
-  const metrics = computeSessionMetrics({
-    session,
-    encounters,
-    now: Date.now()
-  });
+  const sessionId = session?.sessionId ?? null;
+  const sessionChanged = cachedSessionId !== sessionId;
+  const revisionAtStart = encounterDataRevision;
+  const listRevisionAtStart = encounterListRevision;
+  const standbyNeedsReconcile = !leadership.isActive() &&
+    now - lastEncounterSyncAt >= STANDBY_RECONCILE_MS;
 
-  ui.renderCurrent({ metrics, encounters });
+  const shouldReloadEncounters =
+    sessionChanged ||
+    cachedEncounterRevision !== revisionAtStart ||
+    standbyNeedsReconcile;
+
+  if (shouldReloadEncounters) {
+    cachedEncounters = session
+      ? await encountersRepository.getBySessionId(sessionId)
+      : [];
+
+    const listSnapshotChanged =
+      sessionChanged ||
+      cachedEncounterListRevision !== listRevisionAtStart ||
+      standbyNeedsReconcile;
+
+    cachedSessionId = sessionId;
+    cachedEncounterRevision = revisionAtStart;
+    cachedEncounterListRevision = listRevisionAtStart;
+    if (listSnapshotChanged) encounterListSnapshotVersion += 1;
+    lastEncounterSyncAt = now;
+
+    // The expensive O(n) encounter aggregation is tied to the IndexedDB
+    // snapshot, not the 1s UI timer. The timer below only refreshes elapsed
+    // time/status and per-hour rates from this cached aggregate.
+    cachedAggregateMetrics = computeSessionMetrics({
+      session,
+      encounters: cachedEncounters,
+      now
+    });
+  }
+
+  const metrics = refreshSessionMetrics(cachedAggregateMetrics, session, now);
+
+  ui.renderCurrent({
+    sessionId,
+    encounterSnapshotVersion: encounterListSnapshotVersion,
+    metrics,
+    encounters: cachedEncounters
+  });
+}
+
+function loadCurrent() {
+  if (currentLoadPromise) return currentLoadPromise;
+
+  currentLoadPromise = performCurrentLoad()
+    .finally(() => {
+      currentLoadPromise = null;
+    });
+  return currentLoadPromise;
 }
 
 async function handleSessionAction(action) {
@@ -81,6 +184,7 @@ async function handleSessionAction(action) {
       switch (action) {
         case "new":
           await sessionsRepository.forceNewSession();
+          invalidateEncounterCache();
           break;
         case "pause":
           await sessionsRepository.pauseManual();
@@ -94,6 +198,11 @@ async function handleSessionAction(action) {
         default:
           return;
       }
+
+      // If the periodic refresh is already reading, let it finish and then
+      // render the post-action state instead of starting an overlapping IDB
+      // transaction over a large session.
+      if (currentLoadPromise) await currentLoadPromise;
       await loadCurrent();
     })
     .catch((error) => {

@@ -3,6 +3,35 @@
 All notable project changes should be recorded here.
 The project follows Semantic Versioning.
 
+## [1.7.0] - 2026-08-22
+
+### Performance — Long Hunt stability
+- Removed the full Current reload after every WebSocket event; Current now renders on a single 1-second cadence.
+- Cached the current session encounter snapshot and only re-read IndexedDB when relevant encounter data changes.
+- Split expensive encounter aggregation from dynamic timer/per-hour refreshes so thousands of encounters are not rescanned every second.
+- Prevented overlapping Current loads on large sessions and retained periodic reconciliation for STANDBY tabs.
+- Preserved complete `socketId|type|seq` dedupe semantics while moving production dedupe to one append-only registry, avoiding repeated copies of the growing Set.
+- Captured/Failed now keep only a progressively loaded prefix in the DOM while filters and sorting still operate on the complete dataset.
+
+### Added — Encounter details and filters
+- Captured/Failed rows can now be expanded and collapsed by clicking the Pokémon row.
+- Detail rows display `Captured at` (`YYYY-MM-DD HH:mm:ss`) and the Capsule used.
+- Captured details additionally display the capture Chance as a percentage.
+- Added Shiny filter with `All / Yes / No` options.
+- Added sortable Pokémon (capture/fail timestamp), Qlt and IV columns.
+- Sorting preserves the current table scroll position instead of jumping back to the top.
+- Rarity, Shiny, Quality and IV filters are kept side-by-side in one row.
+
+### Changed — HUD and metrics
+- Compact HUD now has a 220px minimum width and grows dynamically as values increase.
+- Profit is displayed in green when positive and red when negative.
+
+### Validation
+- 197 automated tests passing with zero failures.
+- Full 4000+ event fixture replay preserved the expected 4,128 persisted encounter rows.
+- Production userscript v1.7.0 build validated by CI.
+- Initial live PokePixel smoke test approved; final visual smoke test pending for the last UI refinements.
+
 ## [1.6.4] - 2026-08-19
 
 ### Changed — Launcher badge toggle

@@ -4,7 +4,7 @@ Analytics de Hunt em tempo real para **PokePixel**, direto dentro do jogo.
 
 O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** que acompanha suas Hunts, calcula métricas de eficiência e mantém os dados localmente no navegador.
 
-**Versão atual:** `v1.6.4`  
+**Versão atual:** `v1.7.0`  
 **Status:** estável  
 **Execução:** 100% local  
 **Automação de gameplay:** nenhuma
@@ -27,6 +27,8 @@ Quando minimizado, o Analyzer continua mostrando rapidamente:
 - capturas por raridade;
 - cores correspondentes às raridades do Analyzer.
 
+O HUD possui largura mínima para manter os contadores legíveis e cresce dinamicamente conforme os valores aumentam.
+
 <img width="155" height="47" alt="Captura de tela 2026-08-19 154111" src="https://github.com/user-attachments/assets/ec47b02b-1099-4ce0-b884-877cd84d5c35" />
 
 ### Current
@@ -37,14 +39,17 @@ A tela principal acompanha a Hunt atual em tempo real:
 - `XP/h You` e XP total;
 - `XP/h Poké` e XP total;
 - Dollar total e `$/h`;
-- Profit e Expenses;
+- Profit e Expenses, com Profit verde quando positivo e vermelho quando negativo;
 - Seen, Captured, Failed e Capture Rate;
 - distribuição completa por raridade;
 - Pokémon capturados;
 - tentativas de captura que falharam;
-- filtros por Rarity, Quality e IV.
+- filtros por Rarity, Shiny, Quality e IV;
+- ordenação por timestamp através de Pokémon, por Quality (`Qlt`) e por IV.
 
-As listas de Captured e Failed exibem Pokémon, gênero, Nature, Quality e IVs disponíveis no evento observado.
+As listas de Captured e Failed exibem Pokémon, gênero, Nature, Quality e IVs disponíveis no evento observado. Clique em uma linha para expandir os detalhes com `Captured at` e Capsule; em Captured também é exibida a Chance de captura.
+
+O Current utiliza cache de snapshots, agregados reutilizáveis e carregamento progressivo das listas para evitar reprocessamento e DOM excessivo durante Hunts longas.
 
 <img width="411" height="869" alt="Captura de tela 2026-08-19 154225" src="https://github.com/user-attachments/assets/36295356-d8fa-464e-884a-22e0aed6b6de" />
 

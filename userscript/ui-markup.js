@@ -23,7 +23,13 @@ function createHudRarityMarkup() {
   }).join("");
 }
 
+function sortableHeader(prefix, key, label, title = "") {
+  const titleAttribute = title ? ` title="${title}"` : "";
+  return `<th data-encounter-sort="${prefix}" data-sort-key="${key}"${titleAttribute} style="cursor:pointer;user-select:none">${label} <span data-sort-indicator="${key}" aria-hidden="true"></span></th>`;
+}
+
 function createEncounterSectionMarkup(prefix, title) {
+  const filterStyle = "min-width:0";
   return `
     <section id="${prefix}-section" class="section encounter-section">
       <div class="section-head">
@@ -33,14 +39,21 @@ function createEncounterSectionMarkup(prefix, title) {
           <button class="collapse-button" data-collapse="${prefix}" type="button" title="Collapse">▾</button>
         </div>
       </div>
-      <div class="filters">
-        <label>Rarity<select id="${prefix}-rarity"></select></label>
-        <label>Quality &gt;<input id="${prefix}-quality" type="number" step="0.01"></label>
-        <label>IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>
+      <div class="filters" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:end">
+        <label style="${filterStyle}">Rarity<select id="${prefix}-rarity"></select></label>
+        <label style="${filterStyle}">Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+        <label style="${filterStyle}">Quality &gt;<input id="${prefix}-quality" type="number" step="0.01"></label>
+        <label style="${filterStyle}">IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Pokémon</th><th title="Gender">G</th><th>Nat</th><th>Qlt</th><th title="IV Total (HP-ATK-DEF-SATK-SDEF-SPE)">IV</th></tr></thead>
+          <thead><tr>
+            ${sortableHeader(prefix, "capturedAt", "Pokémon", "Order by capture/fail timestamp")}
+            <th title="Gender">G</th>
+            <th>Nat</th>
+            ${sortableHeader(prefix, "quality", "Qlt", "Order by Quality")}
+            ${sortableHeader(prefix, "iv", "IV", "Order by IV Total")}
+          </tr></thead>
           <tbody id="${prefix}-body"></tbody>
         </table>
       </div>
@@ -49,11 +62,11 @@ function createEncounterSectionMarkup(prefix, title) {
 
 export function createUiMarkup() {
   return `
-    <button id="pha-toggle" class="launcher" type="button" aria-label="PokePixel Hunt Analyzer">
+    <button id="pha-toggle" class="launcher" type="button" aria-label="PokePixel Hunt Analyzer" style="min-width:220px;width:max-content;max-width:calc(100vw - 32px)">
       <span class="hud-mark">PX</span>
-      <span class="hud-content">
+      <span class="hud-content" style="min-width:160px;width:max-content">
         <span class="hud-xp"><span>0</span><strong>(—/h)</strong></span>
-        <span class="hud-rarities" aria-label="Captured by rarity">${createHudRarityMarkup()}</span>
+        <span class="hud-rarities" aria-label="Captured by rarity" style="gap:4px;justify-content:flex-start">${createHudRarityMarkup()}</span>
       </span>
     </button>
 

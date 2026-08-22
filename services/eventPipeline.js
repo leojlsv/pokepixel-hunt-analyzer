@@ -23,11 +23,22 @@ import { SCHEMA_VERSION } from "../data/migrations.js";
 
 const KNOWN_EVENT_TYPES = new Set(EVENT_TYPES);
 
+function protocolDedupeKey(message) {
+  return `${message.socketId}|${message.type}|${message.seq}`;
+}
+
 export function createEventPipeline(db, { now = Date.now, appVersion = null } = {}) {
   const sessionsRepo = createSessionsRepository(db, { now });
   const encountersRepo = createEncountersRepository(db);
   const configsRepo = createConfigsRepository(db, { now });
   const diagnosticsRepo = createDiagnosticsRepository(db);
+
+  // Keep the complete runtime dedupe history here as one append-only Set.
+  // The domain reducer remains independently dedupe-safe for unit callers,
+  // but the production pipeline clears its per-state copy after each event.
+  // This preserves exact socketId|type|seq semantics without cloning an
+  // ever-growing Set once or twice for every protocol event.
+  const seenEventKeys = new Set();
 
   // Diagnostics are best-effort and must never break analytics processing.
   function bumpDiagnostics(patch) {
@@ -186,6 +197,13 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
       return { ok: false, reason: "ignored" };
     }
 
+    const dedupeKey = protocolDedupeKey(message);
+    if (seenEventKeys.has(dedupeKey)) {
+      await bumpDiagnostics({ duplicateEvents: 1 });
+      return { ok: true, duplicate: true };
+    }
+    seenEventKeys.add(dedupeKey);
+
     const envelope = {
       type: message.type,
       seq: message.seq,
@@ -194,25 +212,25 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
       data: normalized
     };
 
+    // Production dedupe is handled by the append-only registry above. Keep
+    // the reducer's own Set empty between events so its immutable state
+    // cloning remains O(active encounters), not O(total events in the Hunt).
+    trackerState = { ...trackerState, seenKeys: new Set() };
+
     const swept = sweepStale(trackerState, now());
     trackerState = swept.state;
     await applyEffects(swept.effects);
 
     const result = applyEvent(trackerState, envelope);
-    trackerState = result.state;
+    trackerState = { ...result.state, seenKeys: new Set() };
     await applyEffects(result.effects);
 
-    // A normalized event with no effects is an exact tracker dedupe.
-    if (result.effects.length === 0) {
-      await bumpDiagnostics({ duplicateEvents: 1 });
-    } else {
-      const orphansCreated = result.effects.filter(
-        (effect) => effect.type === "encounter.create" && effect.row.state === "orphan"
-      ).length;
+    const orphansCreated = result.effects.filter(
+      (effect) => effect.type === "encounter.create" && effect.row.state === "orphan"
+    ).length;
 
-      if (orphansCreated > 0) {
-        await bumpDiagnostics({ orphanEvents: orphansCreated });
-      }
+    if (orphansCreated > 0) {
+      await bumpDiagnostics({ orphanEvents: orphansCreated });
     }
 
     return { ok: true };

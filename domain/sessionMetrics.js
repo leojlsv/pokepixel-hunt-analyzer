@@ -26,6 +26,14 @@ function rate(numerator, denominator) {
   return numerator / denominator;
 }
 
+function sessionStatus(session) {
+  return session.status === "running"
+    ? "running"
+    : session.status === "paused"
+      ? "paused"
+      : "waiting";
+}
+
 function emptyMetrics() {
   return {
     status: "waiting",
@@ -54,10 +62,37 @@ function emptyMetrics() {
   };
 }
 
-export function computeSessionMetrics({ session, encounters = [], now = Date.now() }) {
+/**
+ * Refreshes only fields that can change with the session clock/status while
+ * encounter aggregates stay unchanged. This lets the 1s Current timer reuse
+ * a cached aggregate instead of scanning thousands of encounter rows again.
+ */
+export function refreshSessionMetrics(metrics, session, now = Date.now()) {
   if (!session) return emptyMetrics();
 
+  const base = metrics || emptyMetrics();
   const elapsedMs = sessionActiveMs(session, now);
+  const potionsUsed = session.potionsUsed || 0;
+  const potionsCost = session.potionsCost || 0;
+  const expenses = (base.capsulesCost || 0) + potionsCost;
+
+  return {
+    ...base,
+    status: sessionStatus(session),
+    activeMs: elapsedMs,
+    trainerExpPerHour: perHour(base.trainerExp || 0, elapsedMs),
+    pokemonExpPerHour: perHour(base.pokemonExp || 0, elapsedMs),
+    goldPerHour: perHour(base.gold || 0, elapsedMs),
+    seenPerHour: perHour(base.seen || 0, elapsedMs),
+    potionsUsed,
+    potionsCost,
+    expenses,
+    expensesPerHour: perHour(expenses, elapsedMs)
+  };
+}
+
+export function computeSessionMetrics({ session, encounters = [], now = Date.now() }) {
+  if (!session) return emptyMetrics();
 
   let trainerExp = 0;
   let pokemonExp = 0;
@@ -86,30 +121,12 @@ export function computeSessionMetrics({ session, encounters = [], now = Date.now
     hasUnknownQuality
   } = computeRarityBreakdown(encounters);
 
-  // Potion costs are session-level because potion events are not tied to a
-  // specific wild encounter.
-  const potionsUsed = session.potionsUsed || 0;
-  const potionsCost = session.potionsCost || 0;
-  const expenses = capsulesCost + potionsCost;
-
-  const status =
-    session.status === "running"
-      ? "running"
-      : session.status === "paused"
-        ? "paused"
-        : "waiting";
-
-  return {
-    status,
-    activeMs: elapsedMs,
+  const aggregate = {
+    ...emptyMetrics(),
     trainerExp,
-    trainerExpPerHour: perHour(trainerExp, elapsedMs),
     pokemonExp,
-    pokemonExpPerHour: perHour(pokemonExp, elapsedMs),
     gold,
-    goldPerHour: perHour(gold, elapsedMs),
     seen,
-    seenPerHour: perHour(seen, elapsedMs),
     captured,
     failed,
     seenToCaptureRate: rate(captured, seen),
@@ -118,10 +135,8 @@ export function computeSessionMetrics({ session, encounters = [], now = Date.now
     rarities,
     shiny,
     hasUnknownQuality,
-    capsulesCost,
-    potionsUsed,
-    potionsCost,
-    expenses,
-    expensesPerHour: perHour(expenses, elapsedMs)
+    capsulesCost
   };
+
+  return refreshSessionMetrics(aggregate, session, now);
 }
