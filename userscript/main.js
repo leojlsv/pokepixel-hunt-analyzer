@@ -16,8 +16,12 @@ const TAB_LOCK_REFRESH_MS = 2_000;
 const CURRENT_REFRESH_MS = 1_000;
 const STANDBY_RECONCILE_MS = 10_000;
 const OBSERVED_EVENT_TYPES = new Set(EVENT_TYPES);
-const ENCOUNTER_DATA_EVENTS = new Set([
+const METRIC_DATA_EVENTS = new Set([
   "loot.received",
+  "capture.failed",
+  "capture.success"
+]);
+const TERMINAL_LIST_EVENTS = new Set([
   "capture.failed",
   "capture.success"
 ]);
@@ -33,15 +37,22 @@ let cachedEncounters = [];
 let cachedAggregateMetrics = null;
 let encounterDataRevision = 0;
 let cachedEncounterRevision = -1;
-let encounterSnapshotVersion = 0;
+let encounterListRevision = 0;
+let cachedEncounterListRevision = -1;
+let encounterListSnapshotVersion = 0;
 let lastEncounterSyncAt = 0;
 let resolveReady;
 const ready = new Promise((resolve) => {
   resolveReady = resolve;
 });
 
-function markEncounterDataDirty() {
+function markMetricDataDirty() {
   encounterDataRevision += 1;
+}
+
+function markEncounterListDirty() {
+  encounterDataRevision += 1;
+  encounterListRevision += 1;
 }
 
 function invalidateEncounterCache() {
@@ -49,16 +60,18 @@ function invalidateEncounterCache() {
   cachedEncounters = [];
   cachedAggregateMetrics = null;
   cachedEncounterRevision = -1;
+  cachedEncounterListRevision = -1;
   lastEncounterSyncAt = 0;
-  markEncounterDataDirty();
+  markEncounterListDirty();
 }
 
 const leadership = createTabLeadership({
   onChange: (isActive) => {
     ui?.setActive(isActive);
     // A tab can become ACTIVE after another tab wrote encounters that this
-    // runtime never processed. Force one reconciliation on leadership change.
-    markEncounterDataDirty();
+    // runtime never processed. Force one full reconciliation on leadership
+    // change, including Captured/Failed.
+    markEncounterListDirty();
   }
 });
 
@@ -82,8 +95,10 @@ function enqueueProtocolEvent(payload, socketId) {
         data: payload.data
       });
 
-      if (ENCOUNTER_DATA_EVENTS.has(payload.type)) {
-        markEncounterDataDirty();
+      if (TERMINAL_LIST_EVENTS.has(payload.type)) {
+        markEncounterListDirty();
+      } else if (METRIC_DATA_EVENTS.has(payload.type)) {
+        markMetricDataDirty();
       }
 
       // Current is intentionally NOT reloaded here. A busy Hunt can emit
@@ -103,12 +118,14 @@ async function performCurrentLoad() {
   const now = Date.now();
   const session = await sessionsRepository.getCurrentReadOnly();
   const sessionId = session?.sessionId ?? null;
+  const sessionChanged = cachedSessionId !== sessionId;
   const revisionAtStart = encounterDataRevision;
+  const listRevisionAtStart = encounterListRevision;
   const standbyNeedsReconcile = !leadership.isActive() &&
     now - lastEncounterSyncAt >= STANDBY_RECONCILE_MS;
 
   const shouldReloadEncounters =
-    cachedSessionId !== sessionId ||
+    sessionChanged ||
     cachedEncounterRevision !== revisionAtStart ||
     standbyNeedsReconcile;
 
@@ -116,9 +133,16 @@ async function performCurrentLoad() {
     cachedEncounters = session
       ? await encountersRepository.getBySessionId(sessionId)
       : [];
+
+    const listSnapshotChanged =
+      sessionChanged ||
+      cachedEncounterListRevision !== listRevisionAtStart ||
+      standbyNeedsReconcile;
+
     cachedSessionId = sessionId;
     cachedEncounterRevision = revisionAtStart;
-    encounterSnapshotVersion += 1;
+    cachedEncounterListRevision = listRevisionAtStart;
+    if (listSnapshotChanged) encounterListSnapshotVersion += 1;
     lastEncounterSyncAt = now;
 
     // The expensive O(n) encounter aggregation is tied to the IndexedDB
@@ -135,7 +159,7 @@ async function performCurrentLoad() {
 
   ui.renderCurrent({
     sessionId,
-    encounterSnapshotVersion,
+    encounterSnapshotVersion: encounterListSnapshotVersion,
     metrics,
     encounters: cachedEncounters
   });
