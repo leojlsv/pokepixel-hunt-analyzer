@@ -22,6 +22,20 @@ import { createDiagnosticsRepository } from "../data/diagnosticsRepository.js";
 import { SCHEMA_VERSION } from "../data/migrations.js";
 
 const KNOWN_EVENT_TYPES = new Set(EVENT_TYPES);
+const DEDUPE_MAX_KEYS = 2_048;
+const DEDUPE_RETAIN_KEYS = 1_024;
+
+function trimDedupeWindow(state) {
+  if (state.seenKeys.size <= DEDUPE_MAX_KEYS) return state;
+
+  // `seenKeys` is only a transient replay guard. Keeping every key for an
+  // hours-long Hunt made each immutable tracker update progressively more
+  // expensive because the reducer clones this Set. Set preserves insertion
+  // order, so keep the most recent window while leaving active encounter
+  // correlation untouched.
+  const recent = [...state.seenKeys].slice(-DEDUPE_RETAIN_KEYS);
+  return { ...state, seenKeys: new Set(recent) };
+}
 
 export function createEventPipeline(db, { now = Date.now, appVersion = null } = {}) {
   const sessionsRepo = createSessionsRepository(db, { now });
@@ -193,6 +207,8 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
       socketId: message.socketId,
       data: normalized
     };
+
+    trackerState = trimDedupeWindow(trackerState);
 
     const swept = sweepStale(trackerState, now());
     trackerState = swept.state;
