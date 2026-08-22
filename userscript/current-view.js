@@ -532,7 +532,10 @@ export function createCurrentView(shadow) {
       content.appendChild(item);
     };
 
-    addDetail("Captured at", formatCaptureTimestamp(encounter.captureAtMs));
+    addDetail(
+      prefix === "captured" ? "Captured at" : "Fled at",
+      formatCaptureTimestamp(encounter.captureAtMs)
+    );
     addDetail("Capsule", encounter.capsuleName || "—");
     if (prefix === "captured") {
       addDetail("Chance", formatRate(encounter.captureChance));
