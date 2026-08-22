@@ -18,7 +18,8 @@ import {
 } from "./encounter-list-model.js";
 
 const RARE_PLUS_KEYS = new Set(["rare", "epic", "legendary", "mythical"]);
-const RENDER_CHUNK_SIZE = 200;
+const LIST_RENDER_BATCH = 100;
+const LIST_LOAD_THRESHOLD_PX = 48;
 
 function genderInfo(value) {
   const key = String(value || "").trim().toLowerCase();
@@ -72,7 +73,6 @@ function scheduleFrame(callback) {
 function createListState(prefix) {
   return {
     prefix,
-    captureResult: prefix === "captured" ? "success" : "failed",
     filters: { rarity: "*", qualityMin: null, ivMin: null, shiny: "*" },
     sort: { ...DEFAULT_ENCOUNTER_SORT },
     byId: new Map(),
@@ -81,7 +81,8 @@ function createListState(prefix) {
     expandedIds: new Set(),
     raritySignature: "",
     renderToken: 0,
-    rendering: false
+    rendering: false,
+    renderedCount: 0
   };
 }
 
@@ -143,6 +144,13 @@ export function createCurrentView(shadow) {
         rebuildEncounterList(prefix);
       });
     }
+
+    const tableWrap = shadow.getElementById(`${prefix}-body`).closest(".table-wrap");
+    tableWrap?.addEventListener("scroll", () => {
+      if (state.rendering || state.renderedCount >= state.visible.length) return;
+      const remaining = tableWrap.scrollHeight - tableWrap.scrollTop - tableWrap.clientHeight;
+      if (remaining <= LIST_LOAD_THRESHOLD_PX) appendEncounterBatch(prefix);
+    }, { passive: true });
 
     updateSortIndicators(prefix);
   }
@@ -268,11 +276,14 @@ export function createCurrentView(shadow) {
     }
 
     state.byId = nextById;
+    for (const expandedId of [...state.expandedIds]) {
+      if (!state.byId.has(expandedId)) state.expandedIds.delete(expandedId);
+    }
     syncRarityOptions(prefix);
 
     if (reset || removed || state.rendering) {
       if (reset) state.expandedIds.clear();
-      rebuildEncounterList(prefix);
+      rebuildEncounterList(prefix, { resetScroll: reset || removed });
       return;
     }
 
@@ -308,27 +319,40 @@ export function createCurrentView(shadow) {
     }
   }
 
-  function rebuildEncounterList(prefix) {
+  function rebuildEncounterList(prefix, { resetScroll = true } = {}) {
     const state = lists[prefix];
     const body = shadow.getElementById(`${prefix}-body`);
-    const token = ++state.renderToken;
+    const tableWrap = body.closest(".table-wrap");
+    state.renderToken += 1;
 
     state.visible = sortEncounters(
       [...state.byId.values()].filter((encounter) => passesEncounterFilters(encounter, state.filters)),
       state.sort
     );
     state.rows.clear();
-    state.rendering = state.visible.length > 0;
+    state.rendering = false;
+    state.renderedCount = 0;
     body.replaceChildren();
+    if (resetScroll && tableWrap) tableWrap.scrollTop = 0;
     updateCount(prefix);
+    appendEncounterBatch(prefix);
+  }
 
-    let index = 0;
-    const appendChunk = () => {
+  function appendEncounterBatch(prefix) {
+    const state = lists[prefix];
+    if (state.rendering || state.renderedCount >= state.visible.length) return;
+
+    const token = state.renderToken;
+    state.rendering = true;
+    scheduleFrame(() => {
       if (token !== state.renderToken) return;
 
+      const body = shadow.getElementById(`${prefix}-body`);
       const fragment = document.createDocumentFragment();
-      const end = Math.min(index + RENDER_CHUNK_SIZE, state.visible.length);
-      for (; index < end; index += 1) {
+      const start = state.renderedCount;
+      const end = Math.min(start + LIST_RENDER_BATCH, state.visible.length);
+
+      for (let index = start; index < end; index += 1) {
         const encounter = state.visible[index];
         const main = createEncounterRow(prefix, encounter);
         const rowState = { main, detail: null };
@@ -344,28 +368,28 @@ export function createCurrentView(shadow) {
       }
 
       body.appendChild(fragment);
-
-      if (index < state.visible.length) {
-        scheduleFrame(appendChunk);
-      } else {
-        state.rendering = false;
-      }
-    };
-
-    appendChunk();
+      state.renderedCount = end;
+      state.rendering = false;
+    });
   }
 
   function upsertVisibleEncounter(prefix, encounter) {
     const state = lists[prefix];
     const existingIndex = state.visible.findIndex((item) => item.encounterId === encounter.encounterId);
-    if (existingIndex >= 0) state.visible.splice(existingIndex, 1);
 
-    const existingRows = state.rows.get(encounter.encounterId);
-    existingRows?.main.remove();
-    existingRows?.detail?.remove();
-    state.rows.delete(encounter.encounterId);
+    // Terminal encounter rows normally never change after being added. If a
+    // persisted terminal row does change, rebuilding the lazy prefix is safer
+    // than trying to reconcile a possible filter/sort move in-place.
+    if (existingIndex >= 0) {
+      rebuildEncounterList(prefix, { resetScroll: false });
+      return;
+    }
 
     if (!passesEncounterFilters(encounter, state.filters)) return;
+
+    const previousVisibleCount = state.visible.length;
+    const previousRenderedCount = state.renderedCount;
+    const hadRenderedAll = previousRenderedCount >= previousVisibleCount;
 
     let low = 0;
     let high = state.visible.length;
@@ -376,14 +400,25 @@ export function createCurrentView(shadow) {
     }
 
     state.visible.splice(low, 0, encounter);
+    const desiredRenderedCount = hadRenderedAll
+      ? Math.min(previousRenderedCount + 1, state.visible.length)
+      : previousRenderedCount;
 
+    if (low >= desiredRenderedCount) {
+      state.renderedCount = desiredRenderedCount;
+      return;
+    }
+
+    const body = shadow.getElementById(`${prefix}-body`);
     const main = createEncounterRow(prefix, encounter);
     const rowState = { main, detail: null };
     state.rows.set(encounter.encounterId, rowState);
 
-    const next = state.visible[low + 1];
-    const nextRow = next ? state.rows.get(next.encounterId)?.main : null;
-    const body = shadow.getElementById(`${prefix}-body`);
+    let nextRow = null;
+    for (let index = low + 1; index < desiredRenderedCount; index += 1) {
+      nextRow = state.rows.get(state.visible[index].encounterId)?.main || null;
+      if (nextRow) break;
+    }
     if (nextRow) body.insertBefore(main, nextRow);
     else body.appendChild(main);
 
@@ -393,6 +428,16 @@ export function createCurrentView(shadow) {
       main.setAttribute("aria-expanded", "true");
       main.after(detail);
     }
+
+    const overflowEncounter = state.visible[desiredRenderedCount];
+    if (overflowEncounter) {
+      const overflowRows = state.rows.get(overflowEncounter.encounterId);
+      overflowRows?.detail?.remove();
+      overflowRows?.main.remove();
+      state.rows.delete(overflowEncounter.encounterId);
+    }
+
+    state.renderedCount = desiredRenderedCount;
   }
 
   function createEncounterRow(prefix, encounter) {
