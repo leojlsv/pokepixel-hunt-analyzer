@@ -2,7 +2,10 @@ import { openDatabase } from "../data/db.js";
 import { createSessionsRepository } from "../data/sessionsRepository.js";
 import { createEncountersRepository } from "../data/encountersRepository.js";
 import { createEventPipeline } from "../services/eventPipeline.js";
-import { computeSessionMetrics } from "../domain/sessionMetrics.js";
+import {
+  computeSessionMetrics,
+  refreshSessionMetrics
+} from "../domain/sessionMetrics.js";
 import { EVENT_TYPES } from "../domain/events.js";
 import { createTabLeadership } from "./tab-leadership.js";
 import { installWebSocketObserver } from "./websocket-observer.js";
@@ -27,6 +30,7 @@ let updateQueue = Promise.resolve();
 let currentLoadPromise = null;
 let cachedSessionId = null;
 let cachedEncounters = [];
+let cachedAggregateMetrics = null;
 let encounterDataRevision = 0;
 let cachedEncounterRevision = -1;
 let encounterSnapshotVersion = 0;
@@ -43,6 +47,7 @@ function markEncounterDataDirty() {
 function invalidateEncounterCache() {
   cachedSessionId = null;
   cachedEncounters = [];
+  cachedAggregateMetrics = null;
   cachedEncounterRevision = -1;
   lastEncounterSyncAt = 0;
   markEncounterDataDirty();
@@ -115,13 +120,18 @@ async function performCurrentLoad() {
     cachedEncounterRevision = revisionAtStart;
     encounterSnapshotVersion += 1;
     lastEncounterSyncAt = now;
+
+    // The expensive O(n) encounter aggregation is tied to the IndexedDB
+    // snapshot, not the 1s UI timer. The timer below only refreshes elapsed
+    // time/status and per-hour rates from this cached aggregate.
+    cachedAggregateMetrics = computeSessionMetrics({
+      session,
+      encounters: cachedEncounters,
+      now
+    });
   }
 
-  const metrics = computeSessionMetrics({
-    session,
-    encounters: cachedEncounters,
-    now
-  });
+  const metrics = refreshSessionMetrics(cachedAggregateMetrics, session, now);
 
   ui.renderCurrent({
     sessionId,
