@@ -29,6 +29,7 @@ function sortableHeader(prefix, key, label, title = "") {
 }
 
 function createEncounterSectionMarkup(prefix, title) {
+  const filterStyle = "min-width:0";
   return `
     <section id="${prefix}-section" class="section encounter-section">
       <div class="section-head">
@@ -38,11 +39,11 @@ function createEncounterSectionMarkup(prefix, title) {
           <button class="collapse-button" data-collapse="${prefix}" type="button" title="Collapse">▾</button>
         </div>
       </div>
-      <div class="filters">
-        <label>Rarity<select id="${prefix}-rarity"></select></label>
-        <label>Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
-        <label>Quality &gt;<input id="${prefix}-quality" type="number" step="0.01"></label>
-        <label>IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>
+      <div class="filters" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:end">
+        <label style="${filterStyle}">Rarity<select id="${prefix}-rarity"></select></label>
+        <label style="${filterStyle}">Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+        <label style="${filterStyle}">Quality &gt;<input id="${prefix}-quality" type="number" step="0.01"></label>
+        <label style="${filterStyle}">IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>
       </div>
       <div class="table-wrap">
         <table>
