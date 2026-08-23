@@ -41,8 +41,10 @@ export function notableEncounters(encounters = [], rarity) {
       encounter?.quality === rarity &&
       ["success", "failed"].includes(encounter.captureResult)
     )
-    .sort((left, right) =>
-      finite(right.captureAtMs) - finite(left.captureAtMs) ||
-      String(left.encounterId || "").localeCompare(String(right.encounterId || ""))
-    );
+    .sort((left, right) => {
+      const rightAt = finite(right.captureAtMs);
+      const leftAt = finite(left.captureAtMs);
+      if (rightAt !== leftAt) return rightAt - leftAt;
+      return String(left.encounterId || "").localeCompare(String(right.encounterId || ""));
+    });
 }
