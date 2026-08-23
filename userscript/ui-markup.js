@@ -14,6 +14,13 @@ function createRarityRowsMarkup() {
     </tr>`).join("");
 }
 
+function createRarityOptionsMarkup() {
+  return [
+    '<option value="*">All (*)</option>',
+    ...RARITIES.map(([key, label]) => `<option value="${key}">${label}</option>`)
+  ].join("");
+}
+
 function createHudRarityMarkup() {
   return RARITIES.map(([key, label], index) => {
     const separator = index < RARITIES.length - 1
@@ -60,6 +67,89 @@ function createEncounterSectionMarkup(prefix, title) {
     </section>`;
 }
 
+function createHistoryMarkup() {
+  return `
+    <section id="view-history" class="view history-view" hidden>
+      <nav class="history-subtabs" aria-label="History views">
+        <button class="tab active" data-history-view="hunts" type="button">Hunts</button>
+        <button class="tab" data-history-view="pokemon" type="button">Pokémon</button>
+        <button class="tab" data-history-view="attempts" type="button">Attempts</button>
+      </nav>
+
+      <div class="history-filter-block">
+        <div class="history-filter-grid">
+          <label>Period
+            <select id="history-period">
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="7d" selected>7 Days</option>
+              <option value="30d">30 Days</option>
+              <option value="all">All</option>
+            </select>
+          </label>
+          <label>Pokémon<select id="history-species"><option value="*">All (*)</option></select></label>
+          <label>Rarity<select id="history-rarity">${createRarityOptionsMarkup()}</select></label>
+          <label>Result
+            <select id="history-result">
+              <option value="*">All (*)</option>
+              <option value="success">Captured</option>
+              <option value="failed">Failed</option>
+            </select>
+          </label>
+        </div>
+        <button id="history-more-filters" class="history-more-button" type="button" aria-expanded="false">More Filters ▾</button>
+        <div id="history-advanced-filters" class="history-filter-grid history-filter-grid-advanced" hidden>
+          <label>Capsule<select id="history-capsule"><option value="*">All (*)</option></select></label>
+          <label>Element<select id="history-element"><option value="*">All (*)</option></select></label>
+          <label>Shiny
+            <select id="history-shiny">
+              <option value="*">All (*)</option>
+              <option value="yes">Yes</option>
+              <option value="no">No</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="history-toolbar">
+        <span id="history-count" class="section-badge">0 Hunts</span>
+      </div>
+
+      <section data-history-panel="hunts">
+        <div class="table-wrap history-table-wrap">
+          <table class="history-hunts-table">
+            <thead><tr>
+              <th>Date</th><th>Dur.</th><th>Seen</th><th>Cap.</th><th>Sh.F</th><th>Leg.F</th><th>Myt.F</th>
+            </tr></thead>
+            <tbody id="history-hunts-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section data-history-panel="pokemon" hidden>
+        <div class="table-wrap history-table-wrap">
+          <table class="history-pokemon-table">
+            <thead><tr>
+              <th>Pokémon</th><th>Lvl</th><th>Seen</th><th>Cap.</th><th>Rate</th><th>XP/Cyc</th><th>$/Cyc</th>
+            </tr></thead>
+            <tbody id="history-pokemon-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section data-history-panel="attempts" hidden>
+        <div id="history-attempts-wrap" class="table-wrap history-table-wrap">
+          <table class="history-attempts-table">
+            <thead><tr>
+              <th>At</th><th>Pokémon</th><th>Rar.</th><th>Result</th><th>Qlt</th><th>IV</th>
+            </tr></thead>
+            <tbody id="history-attempts-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>`;
+}
+
 export function createUiMarkup() {
   return `
     <button id="pha-toggle" class="launcher" type="button" aria-label="PokePixel Hunt Analyzer" style="min-width:220px;width:max-content;max-width:calc(100vw - 32px)">
@@ -87,7 +177,7 @@ export function createUiMarkup() {
 
       <nav class="tabs">
         <button data-view="current" class="tab active" type="button">Current</button>
-        <button data-view="compare" class="tab" type="button">Compare</button>
+        <button data-view="history" class="tab" type="button">History</button>
         <strong id="hunt-time" class="hunt-time">00:00</strong>
       </nav>
 
@@ -138,20 +228,7 @@ export function createUiMarkup() {
         ${createEncounterSectionMarkup("failed", "Failed")}
       </section>
 
-      <section id="view-compare" class="view compare-view" hidden>
-        <div class="filters">
-          <label>Theme<select id="compare-theme"><option value="cycle">By Cycle</option><option value="rarity">By Rarity</option></select></label>
-          <label>Pokémon<select id="compare-species"></select></label>
-          <label>Capsule<select id="compare-capsule"></select></label>
-          <label>Element<select id="compare-element"></select></label>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr id="compare-head"></tr></thead>
-            <tbody id="compare-body"></tbody>
-          </table>
-        </div>
-      </section>
+      ${createHistoryMarkup()}
     </aside>
   `;
 }
