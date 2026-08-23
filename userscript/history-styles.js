@@ -310,6 +310,9 @@ export const HISTORY_STYLES = String.raw`
 
 .history-pokemon-rarity-table th:nth-child(1),
 .history-pokemon-rarity-table td:nth-child(1) { width: 58px; text-align: left; }
+.history-pokemon-rarity-table th:nth-child(2),
+.history-pokemon-rarity-table td:nth-child(2) { width: 82px; }
+.history-pokemon-rarity-table tbody tr { font-weight: 650; }
 .history-pokemon-rarity-table th:nth-child(n+2),
 .history-pokemon-rarity-table td:nth-child(n+2) { text-align: right; }
 
