@@ -316,6 +316,14 @@ export const HISTORY_STYLES = String.raw`
 .history-pokemon-rarity-table th:nth-child(n+2),
 .history-pokemon-rarity-table td:nth-child(n+2) { text-align: right; }
 
+.history-pokemon-rarity-table tbody tr.rarity-weak td:first-child { color: #b8bec5; }
+.history-pokemon-rarity-table tbody tr.rarity-common td:first-child { color: #48d77a; }
+.history-pokemon-rarity-table tbody tr.rarity-uncommon td:first-child { color: #45d7e8; }
+.history-pokemon-rarity-table tbody tr.rarity-rare td:first-child { color: #c58cff; }
+.history-pokemon-rarity-table tbody tr.rarity-epic td:first-child { color: #f0c64f; }
+.history-pokemon-rarity-table tbody tr.rarity-legendary td:first-child { color: #ff9d2e; }
+.history-pokemon-rarity-table tbody tr.rarity-mythical td:first-child { color: #ff6384; }
+
 .history-attempts-table th:nth-child(1),
 .history-attempts-table td:nth-child(1) { width: 62px; }
 .history-attempts-table th:nth-child(2),
