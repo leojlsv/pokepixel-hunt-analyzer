@@ -16,6 +16,7 @@ import {
   passesEncounterFilters,
   sortEncounters
 } from "./encounter-list-model.js";
+import { latestSpeciesEncounter } from "./hunt-view-model.js";
 
 const RARE_PLUS_KEYS = new Set(["rare", "epic", "legendary", "mythical"]);
 const LIST_RENDER_BATCH = 100;
@@ -174,6 +175,11 @@ export function createCurrentView(shadow) {
     // scanning thousands of encounters unless IndexedDB produced a new
     // snapshot. This keeps long Hunts cheap while preserving live timers.
     if (!encounterSnapshotChanged) return;
+
+    const latestTarget = latestSpeciesEncounter(encounters);
+    shadow.querySelector(".status-row > span").textContent = latestTarget
+      ? speciesLabel(latestTarget)
+      : "Hunt";
 
     const grouped = { captured: [], failed: [] };
     for (const encounter of encounters) {
