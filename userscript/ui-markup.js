@@ -120,7 +120,7 @@ function createHistoryMarkup() {
         <div class="table-wrap history-table-wrap">
           <table class="history-hunts-table">
             <thead><tr>
-              <th>Date</th><th>Dur.</th><th>Seen</th><th>Cap.</th><th>Sh.F</th><th>Leg.F</th><th>Myt.F</th>
+              <th>Date</th><th>Dur.</th><th>Seen</th><th>Cap.</th><th>Sh</th><th>Leg</th><th>Myt</th>
             </tr></thead>
             <tbody id="history-hunts-body"></tbody>
           </table>
