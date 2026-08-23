@@ -8,7 +8,6 @@ import {
 import {
   RARITIES,
   formatCompact,
-  formatDuration,
   formatNumber,
   formatRate,
   populateSelect,
@@ -63,6 +62,14 @@ function formatHistoryDate(timestamp) {
     minute: "2-digit",
     hour12: false
   }).format(new Date(timestamp));
+}
+
+function formatHistoryDuration(milliseconds) {
+  const safeMs = Number.isFinite(milliseconds) ? Math.max(0, milliseconds) : 0;
+  const totalMinutes = Math.floor(safeMs / 60_000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
 function formatClock(timestamp) {
@@ -315,12 +322,12 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
 
       const values = [
         formatHistoryDate(bundle.session.startedAtMs),
-        formatDuration(bundle.metrics.activeMs),
+        formatHistoryDuration(bundle.metrics.activeMs),
         formatNumber(breakdown.seen),
         formatNumber(breakdown.captured),
-        formatNumber(breakdown.shiny.failed),
-        formatNumber(breakdown.rarities.legendary.failed),
-        formatNumber(breakdown.rarities.mythical.failed)
+        formatNumber(breakdown.shiny.captured),
+        formatNumber(breakdown.rarities.legendary.captured),
+        formatNumber(breakdown.rarities.mythical.captured)
       ];
       values.forEach((value, index) => {
         const cell = document.createElement("td");
@@ -586,6 +593,7 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     for (const [key] of RARITIES) {
       const metric = item.breakdown.rarities[key];
       const row = document.createElement("tr");
+      row.className = rarityClass(key);
       const values = [
         RARITY_SHORT.get(key),
         formatNumber(metric.seen),
@@ -593,10 +601,9 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
         formatNumber(metric.failed),
         formatRate(metric.seen ? metric.captured / metric.seen : null)
       ];
-      values.forEach((value, index) => {
+      values.forEach((value) => {
         const td = document.createElement("td");
         td.textContent = value;
-        if (index === 0) td.className = rarityClass(key);
         row.appendChild(td);
       });
       body.appendChild(row);
