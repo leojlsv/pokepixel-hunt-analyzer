@@ -1,3 +1,4 @@
+import { HISTORY_STYLES } from "./history-styles.js";
 import { RARITIES } from "./ui-utils.js";
 
 const APP_VERSION = __APP_VERSION__;
@@ -152,6 +153,7 @@ function createHistoryMarkup() {
 
 export function createUiMarkup() {
   return `
+    <style>${HISTORY_STYLES}</style>
     <button id="pha-toggle" class="launcher" type="button" aria-label="PokePixel Hunt Analyzer" style="min-width:220px;width:max-content;max-width:calc(100vw - 32px)">
       <span class="hud-mark">PX</span>
       <span class="hud-content" style="min-width:160px;width:max-content">
