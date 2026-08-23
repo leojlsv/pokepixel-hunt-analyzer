@@ -114,12 +114,14 @@ export const HISTORY_STYLES = String.raw`
 .history-hunts-table td:nth-child(n+3) { text-align: right; }
 
 .history-hunt-row,
-.history-attempt-row {
+.history-attempt-row,
+.history-pokemon-row {
   cursor: pointer;
 }
 
 .history-hunt-row[aria-expanded="true"] td,
-.history-attempt-row[aria-expanded="true"] td {
+.history-attempt-row[aria-expanded="true"] td,
+.history-pokemon-row[aria-expanded="true"] td {
   background: #30312c;
 }
 
@@ -168,23 +170,132 @@ export const HISTORY_STYLES = String.raw`
 .history-detail-grid .value-positive { color: #70dfaa; }
 .history-detail-grid .value-negative { color: #ef8b82; }
 
-.history-rarity-strip {
+.history-fled-line {
   margin-top: 7px;
   padding-top: 6px;
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 3px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
   border-top: 1px solid #3a3a34;
+  font-size: 9px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.history-rarity-strip span {
-  overflow: hidden;
-  font-size: 8.5px;
+.history-fled-line b {
+  flex: 0 0 auto;
+  color: #9e9270;
+  font-size: 8px;
   font-weight: 700;
-  text-align: center;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.history-fled-line span {
+  flex: 0 0 auto;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.history-fled-line i {
+  flex: 0 0 auto;
+  color: #77746a;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.history-notables {
+  margin-top: 7px;
+}
+
+.history-notable-controls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.history-notable-controls > b {
+  margin-right: 1px;
+  color: #9e9270;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.history-notable-button {
+  height: 21px;
+  min-width: 50px;
+  padding: 0 7px;
+  border: 1px solid #4f4e47;
+  border-radius: 3px;
+  background: #2b2c27;
+  font-size: 9px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.history-notable-button:hover:not(:disabled),
+.history-notable-button.active {
+  border-color: #8e7943;
+  background: #37352c;
+}
+
+.history-notable-button:disabled {
+  opacity: .38;
+  cursor: default;
+}
+
+.history-notable-list {
+  max-height: 154px;
+  margin-top: 6px;
+  overflow: auto;
+  border: 1px solid #3d3d37;
+  border-radius: 3px;
+  background: #20211e;
+}
+
+.history-notable-list table,
+.history-pokemon-rarity-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.history-notable-list th,
+.history-notable-list td,
+.history-pokemon-rarity-table th,
+.history-pokemon-rarity-table td {
+  height: 25px;
+  padding: 4px 6px;
+  overflow: hidden;
+  border-bottom: 1px solid #383934;
+  font-size: 9px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.history-notable-list th,
+.history-pokemon-rarity-table th {
+  background: #2a2b27;
+  color: #c5b98f;
+}
+
+.history-notable-list th:nth-child(1),
+.history-notable-list td:nth-child(1) { width: 62px; }
+.history-notable-list th:nth-child(2),
+.history-notable-list td:nth-child(2) { width: 118px; }
+.history-notable-list th:nth-child(3),
+.history-notable-list td:nth-child(3) { width: 52px; }
+.history-notable-list th:nth-child(4),
+.history-notable-list td:nth-child(4),
+.history-notable-list th:nth-child(5),
+.history-notable-list td:nth-child(5) { text-align: right; }
+
+.history-result-captured { color: #70dfaa; }
+.history-result-fled { color: #ef8b82; }
 
 .history-pokemon-table th:nth-child(1),
 .history-pokemon-table td:nth-child(1) { width: 104px; }
@@ -192,6 +303,15 @@ export const HISTORY_STYLES = String.raw`
 .history-pokemon-table td:nth-child(2) { width: 34px; text-align: center; }
 .history-pokemon-table th:nth-child(n+3),
 .history-pokemon-table td:nth-child(n+3) { text-align: right; }
+
+.history-pokemon-detail-row > td {
+  padding: 6px 7px;
+}
+
+.history-pokemon-rarity-table th:nth-child(1),
+.history-pokemon-rarity-table td:nth-child(1) { width: 58px; text-align: left; }
+.history-pokemon-rarity-table th:nth-child(n+2),
+.history-pokemon-rarity-table td:nth-child(n+2) { text-align: right; }
 
 .history-attempts-table th:nth-child(1),
 .history-attempts-table td:nth-child(1) { width: 62px; }
@@ -220,5 +340,8 @@ export const HISTORY_STYLES = String.raw`
   .history-hunts-table td:nth-child(1) { width: 82px; }
   .history-hunts-table th:nth-child(2),
   .history-hunts-table td:nth-child(2) { width: 46px; }
+
+  .history-notable-list th:nth-child(2),
+  .history-notable-list td:nth-child(2) { width: 96px; }
 }
 `;
