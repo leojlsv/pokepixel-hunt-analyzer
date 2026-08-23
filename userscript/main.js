@@ -68,9 +68,6 @@ function invalidateEncounterCache() {
 const leadership = createTabLeadership({
   onChange: (isActive) => {
     ui?.setActive(isActive);
-    // A tab can become ACTIVE after another tab wrote encounters that this
-    // runtime never processed. Force one full reconciliation on leadership
-    // change, including Captured/Failed.
     markEncounterListDirty();
   }
 });
@@ -100,12 +97,6 @@ function enqueueProtocolEvent(payload, socketId) {
       } else if (METRIC_DATA_EVENTS.has(payload.type)) {
         markMetricDataDirty();
       }
-
-      // Current is intentionally NOT reloaded here. A busy Hunt can emit
-      // multiple protocol events per encounter; re-reading the whole current
-      // session and rebuilding the UI after every event caused work to grow
-      // with Hunt length. The 1s Current refresh below is the single render
-      // cadence now.
     })
     .catch((error) => {
       console.error("PokePixel Hunt Analyzer (event pipeline):", error);
@@ -145,9 +136,6 @@ async function performCurrentLoad() {
     if (listSnapshotChanged) encounterListSnapshotVersion += 1;
     lastEncounterSyncAt = now;
 
-    // The expensive O(n) encounter aggregation is tied to the IndexedDB
-    // snapshot, not the 1s UI timer. The timer below only refreshes elapsed
-    // time/status and per-hour rates from this cached aggregate.
     cachedAggregateMetrics = computeSessionMetrics({
       session,
       encounters: cachedEncounters,
@@ -199,9 +187,6 @@ async function handleSessionAction(action) {
           return;
       }
 
-      // If the periodic refresh is already reading, let it finish and then
-      // render the post-action state instead of starting an overlapping IDB
-      // transaction over a large session.
       if (currentLoadPromise) await currentLoadPromise;
       await loadCurrent();
     })
@@ -216,7 +201,9 @@ function mountUiWhenReady() {
   const mount = () => {
     ui = createUi({
       onSessionAction: (action) => void handleSessionAction(action),
-      onLoadCompare: () => encountersRepository.getAll()
+      onLoadHistorySessions: (options) => sessionsRepository.getPage(options),
+      onLoadHistorySessionEncounters: (sessionId) =>
+        encountersRepository.getBySessionId(sessionId)
     });
     ui.setActive(leadership.isActive());
   };
