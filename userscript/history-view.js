@@ -2,6 +2,10 @@ import { computeGroupMetrics } from "../domain/groupMetrics.js";
 import { computeRarityBreakdown } from "../domain/rarityBreakdown.js";
 import { computeSessionMetrics } from "../domain/sessionMetrics.js";
 import {
+  NOTABLE_RARITIES,
+  notableEncounters
+} from "./hunt-view-model.js";
+import {
   RARITIES,
   formatCompact,
   formatDuration,
@@ -113,6 +117,8 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
   let loading = false;
   const expandedHunts = new Set();
   const expandedAttempts = new Set();
+  const expandedPokemon = new Set();
+  const notableSelectionBySession = new Map();
   const filters = {
     period: "7d",
     species: "*",
@@ -199,6 +205,8 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
       bundles = loaded;
       expandedHunts.clear();
       expandedAttempts.clear();
+      expandedPokemon.clear();
+      notableSelectionBySession.clear();
       attemptRenderCount = ATTEMPT_BATCH_SIZE;
       populateFilters();
       render();
@@ -381,18 +389,102 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     });
 
     const breakdown = computeRarityBreakdown(bundle.encounters);
-    const rarityStrip = document.createElement("div");
-    rarityStrip.className = "history-rarity-strip";
-    for (const [key] of RARITIES) {
-      const item = document.createElement("span");
-      item.className = rarityClass(key);
-      item.textContent = `${RARITY_SHORT.get(key)} ${formatNumber(breakdown.rarities[key].failed)}F`;
-      rarityStrip.appendChild(item);
-    }
+    const fledLine = document.createElement("div");
+    fledLine.className = "history-fled-line";
+    const fledLabel = document.createElement("b");
+    fledLabel.textContent = "Fled:";
+    fledLine.appendChild(fledLabel);
+    RARITIES.forEach(([key, label], index) => {
+      if (index > 0) {
+        const separator = document.createElement("i");
+        separator.textContent = "·";
+        fledLine.appendChild(separator);
+      }
+      const value = document.createElement("span");
+      value.className = rarityClass(key);
+      value.textContent = formatNumber(breakdown.rarities[key].failed);
+      value.title = `${label} fled`;
+      fledLine.appendChild(value);
+    });
 
-    cell.append(grid, rarityStrip);
+    const notables = createNotables(bundle);
+    cell.append(grid, fledLine, notables);
     row.appendChild(cell);
     return row;
+  }
+
+  function createNotables(bundle) {
+    const container = document.createElement("div");
+    container.className = "history-notables";
+    const controls = document.createElement("div");
+    controls.className = "history-notable-controls";
+    const label = document.createElement("b");
+    label.textContent = "Notables:";
+    controls.appendChild(label);
+
+    const sessionId = bundle.session.sessionId;
+    const selected = notableSelectionBySession.get(sessionId) || null;
+    for (const rarity of NOTABLE_RARITIES) {
+      const encounters = notableEncounters(bundle.encounters, rarity);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `history-notable-button ${rarityClass(rarity)}`;
+      button.textContent = `${RARITY_SHORT.get(rarity)} ${formatNumber(encounters.length)}`;
+      button.disabled = encounters.length === 0;
+      button.classList.toggle("active", selected === rarity);
+      button.setAttribute("aria-pressed", String(selected === rarity));
+      button.addEventListener("click", () => {
+        if (selected === rarity) notableSelectionBySession.delete(sessionId);
+        else notableSelectionBySession.set(sessionId, rarity);
+        renderHunts();
+      });
+      controls.appendChild(button);
+    }
+
+    container.appendChild(controls);
+    if (selected) container.appendChild(createNotableList(bundle, selected));
+    return container;
+  }
+
+  function createNotableList(bundle, rarity) {
+    const wrap = document.createElement("div");
+    wrap.className = "history-notable-list";
+    const table = document.createElement("table");
+    const head = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    ["At", "Pokémon", "Result", "Qlt", "IV"].forEach((label) => {
+      const cell = document.createElement("th");
+      cell.textContent = label;
+      headRow.appendChild(cell);
+    });
+    head.appendChild(headRow);
+
+    const body = document.createElement("tbody");
+    for (const encounter of notableEncounters(bundle.encounters, rarity)) {
+      const row = document.createElement("tr");
+      if (encounter.isShiny) row.classList.add("encounter-row-shiny");
+      const values = [
+        formatAttemptTime(encounter.captureAtMs),
+        `${speciesLabel(encounter)}${encounter.isShiny ? " *" : ""}`,
+        encounter.captureResult === "success" ? "Cap." : "Fled",
+        Number.isFinite(encounter.qualityMultiplier) ? encounter.qualityMultiplier.toFixed(2) : "—",
+        ivTotal(encounter) ?? "—"
+      ];
+      values.forEach((value, index) => {
+        const cell = document.createElement("td");
+        cell.textContent = value;
+        if (index === 1) cell.classList.add(rarityClass(rarity));
+        if (index === 2) {
+          cell.classList.add(encounter.captureResult === "success" ? "history-result-captured" : "history-result-fled");
+        }
+        row.appendChild(cell);
+      });
+      body.appendChild(row);
+    }
+
+    table.append(head, body);
+    wrap.appendChild(table);
+    return wrap;
   }
 
   function renderPokemon() {
@@ -402,7 +494,9 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
         if (!matchesEncounter(encounter) || !encounter.speciesId) continue;
         const level = Number.isFinite(encounter.level) ? encounter.level : "?";
         const key = `${encounter.speciesId}|${level}`;
-        if (!groups.has(key)) groups.set(key, { sample: encounter, encounters: [], sessions: new Set() });
+        if (!groups.has(key)) {
+          groups.set(key, { key, sample: encounter, encounters: [], sessions: new Set() });
+        }
         const group = groups.get(key);
         group.encounters.push(encounter);
         group.sessions.add(bundle.session.sessionId);
@@ -413,9 +507,12 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
       const metrics = computeGroupMetrics(group.encounters);
       const breakdown = computeRarityBreakdown(group.encounters);
       return {
+        key: group.key,
         name: speciesLabel(group.sample),
         level: group.sample.level ?? "—",
         hunts: group.sessions.size,
+        encounters: group.encounters,
+        breakdown,
         seen: metrics.seen,
         captured: metrics.captured,
         rate: metrics.seen ? metrics.captured / metrics.seen : null,
@@ -433,6 +530,9 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     const fragment = document.createDocumentFragment();
     for (const item of rows) {
       const row = document.createElement("tr");
+      row.className = "history-pokemon-row";
+      row.tabIndex = 0;
+      row.setAttribute("aria-expanded", String(expandedPokemon.has(item.key)));
       [
         item.name,
         item.level,
@@ -446,10 +546,66 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
         cell.textContent = value;
         row.appendChild(cell);
       });
-      row.title = `${item.hunts} Hunts · ${formatNumber(item.failed)} Failed · ${formatNumber(item.shinyFailed)} Sh.F · ${formatNumber(item.legendaryFailed)} Leg.F · ${formatNumber(item.mythicalFailed)} Myt.F`;
+      row.title = `${item.hunts} Hunts · ${formatNumber(item.failed)} Failed · ${formatNumber(item.shinyFailed)} Sh.F · ${formatNumber(item.legendaryFailed)} Leg.F · ${formatNumber(item.mythicalFailed)} Myt.F · click for rarity breakdown`;
+
+      const toggle = () => {
+        if (expandedPokemon.has(item.key)) expandedPokemon.delete(item.key);
+        else expandedPokemon.add(item.key);
+        renderPokemon();
+      };
+      row.addEventListener("click", toggle);
+      row.addEventListener("keydown", (event) => {
+        if (!["Enter", " "].includes(event.key)) return;
+        event.preventDefault();
+        toggle();
+      });
       fragment.appendChild(row);
+      if (expandedPokemon.has(item.key)) fragment.appendChild(createPokemonRarityRow(item));
     }
     body.replaceChildren(fragment);
+  }
+
+  function createPokemonRarityRow(item) {
+    const detailRow = document.createElement("tr");
+    detailRow.className = "history-detail-row history-pokemon-detail-row";
+    const cell = document.createElement("td");
+    cell.colSpan = 7;
+    const table = document.createElement("table");
+    table.className = "history-pokemon-rarity-table";
+
+    const head = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    ["Rar.", "Seen", "Cap.", "Fail", "Rate"].forEach((label) => {
+      const th = document.createElement("th");
+      th.textContent = label;
+      headRow.appendChild(th);
+    });
+    head.appendChild(headRow);
+
+    const body = document.createElement("tbody");
+    for (const [key] of RARITIES) {
+      const metric = item.breakdown.rarities[key];
+      const row = document.createElement("tr");
+      const values = [
+        RARITY_SHORT.get(key),
+        formatNumber(metric.seen),
+        formatNumber(metric.captured),
+        formatNumber(metric.failed),
+        formatRate(metric.seen ? metric.captured / metric.seen : null)
+      ];
+      values.forEach((value, index) => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        if (index === 0) td.className = rarityClass(key);
+        row.appendChild(td);
+      });
+      body.appendChild(row);
+    }
+
+    table.append(head, body);
+    cell.appendChild(table);
+    detailRow.appendChild(cell);
+    return detailRow;
   }
 
   function renderAttempts() {
