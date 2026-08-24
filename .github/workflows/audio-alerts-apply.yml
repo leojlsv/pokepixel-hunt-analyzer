@@ -1,0 +1,159 @@
+name: Apply audio alerts integration
+
+on:
+  push:
+    branches:
+      - feat/audio-alerts
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'chore: apply audio alerts'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/audio-alerts
+          fetch-depth: 0
+
+      - name: Integrate audio alerts
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected 1 match, found {count}")
+              return text.replace(old, new, 1)
+
+          # services/eventPipeline.js
+          path = Path("services/eventPipeline.js")
+          text = path.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              '''function protocolDedupeKey(message) {\n  return `${message.socketId}|${message.type}|${message.seq}`;\n}\n\nexport function createEventPipeline''',
+              '''function protocolDedupeKey(message) {\n  return `${message.socketId}|${message.type}|${message.seq}`;\n}\n\nfunction terminalAlertFor(envelope, state) {\n  if (!["capture.success", "capture.failed"].includes(envelope.type)) return null;\n\n  const wildMonsterId = envelope.data.wild_monster_id;\n  const encounterId = wildMonsterId\n    ? state.activeByWildMonsterId.get(wildMonsterId)\n    : undefined;\n  const existing = encounterId ? state.inProgress.get(encounterId) : undefined;\n  const fallback = envelope.type === "capture.failed"\n    ? envelope.data\n    : envelope.data.creature;\n\n  return {\n    result: envelope.type === "capture.success" ? "captured" : "fled",\n    rarity: existing?.quality ?? fallback?.quality ?? null,\n    isShiny: (existing?.isShiny ?? fallback?.is_shiny) === true\n  };\n}\n\nexport function createEventPipeline''',
+              "add terminal alert descriptor"
+          )
+          text = replace_once(
+              text,
+              '''    const result = applyEvent(trackerState, envelope);\n    trackerState = { ...result.state, seenKeys: new Set() };''',
+              '''    const terminalAlert = terminalAlertFor(envelope, trackerState);\n    const result = applyEvent(trackerState, envelope);\n    trackerState = { ...result.state, seenKeys: new Set() };''',
+              "capture terminal alert before reducer finalizes encounter"
+          )
+          text = replace_once(
+              text,
+              '''    return { ok: true };\n  }''',
+              '''    return { ok: true, terminalAlert };\n  }''',
+              "return terminal alert"
+          )
+          path.write_text(text, encoding="utf-8")
+
+          # userscript/main.js
+          path = Path("userscript/main.js")
+          text = path.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              '''import { createUi } from "./ui.js";''',
+              '''import { createUi } from "./ui.js";\nimport { createAudioAlerts } from "./audio-alerts.js";''',
+              "import audio alerts"
+          )
+          text = replace_once(
+              text,
+              '''let encountersRepository;\nlet ui;''',
+              '''let encountersRepository;\nlet audioAlerts;\nlet ui;''',
+              "declare audio alerts"
+          )
+          text = replace_once(
+              text,
+              '''      await pipeline.handle({\n        type: payload.type,\n        seq: finiteOrNull(payload.seq),\n        ts: finiteOrNull(payload.ts),\n        socketId,\n        data: payload.data\n      });\n\n      if (TERMINAL_LIST_EVENTS.has(payload.type)) {''',
+              '''      const eventResult = await pipeline.handle({\n        type: payload.type,\n        seq: finiteOrNull(payload.seq),\n        ts: finiteOrNull(payload.ts),\n        socketId,\n        data: payload.data\n      });\n\n      if (eventResult?.terminalAlert) {\n        void audioAlerts?.handleTerminalAlert(eventResult.terminalAlert);\n      }\n\n      if (TERMINAL_LIST_EVENTS.has(payload.type)) {''',
+              "play accepted terminal alerts"
+          )
+          text = replace_once(
+              text,
+              '''      onLoadHistorySessionEncounters: (sessionId) =>\n        encountersRepository.getBySessionId(sessionId)\n    });''',
+              '''      onLoadHistorySessionEncounters: (sessionId) =>\n        encountersRepository.getBySessionId(sessionId),\n      audioAlerts\n    });''',
+              "pass audio runtime to UI"
+          )
+          text = replace_once(
+              text,
+              '''  pipeline = createEventPipeline(database, { appVersion: APP_VERSION });\n  await pipeline.recoverOnStartup();''',
+              '''  pipeline = createEventPipeline(database, { appVersion: APP_VERSION });\n  audioAlerts = createAudioAlerts();\n  await pipeline.recoverOnStartup();''',
+              "initialize audio runtime"
+          )
+          path.write_text(text, encoding="utf-8")
+
+          # userscript/ui.js
+          path = Path("userscript/ui.js")
+          text = path.read_text(encoding="utf-8")
+          text = replace_once(
+              text,
+              '''  onSessionAction,\n  onLoadHistorySessions,\n  onLoadHistorySessionEncounters\n}) {''',
+              '''  onSessionAction,\n  onLoadHistorySessions,\n  onLoadHistorySessionEncounters,\n  audioAlerts\n}) {''',
+              "accept audio runtime"
+          )
+          text = replace_once(
+              text,
+              '''    historyView = createHistoryView(shadow, {\n      loadSessions: onLoadHistorySessions,\n      loadSessionEncounters: onLoadHistorySessionEncounters\n    });\n\n    bindUiEvents();''',
+              '''    historyView = createHistoryView(shadow, {\n      loadSessions: onLoadHistorySessions,\n      loadSessionEncounters: onLoadHistorySessionEncounters\n    });\n    audioAlerts?.bindControls(shadow);\n\n    bindUiEvents();''',
+              "bind audio controls"
+          )
+          text = replace_once(
+              text,
+              '''    for (const key of ["hunt", "rarity", "captured", "failed"]) {''',
+              '''    for (const key of ["hunt", "alerts", "rarity", "captured", "failed"]) {''',
+              "persist alert section collapse"
+          )
+          path.write_text(text, encoding="utf-8")
+
+          # userscript/ui-markup.js
+          path = Path("userscript/ui-markup.js")
+          text = path.read_text(encoding="utf-8")
+          marker = '''function createHistoryMarkup() {'''
+          alert_markup = '''function createAudioAlertsMarkup() {\n  const rows = [\n    ["epic", "Epic", "epic"],\n    ["legendary", "Legendary", "legendary"],\n    ["mythical", "Mythical", "mythic"],\n    ["shiny", "Shiny", "shiny"]\n  ].map(([rarity, label, key]) => `\n    <span class="alert-name ${rarity === "shiny" ? "alert-shiny" : `rarity-${rarity}`}">${label}</span>\n    <label title="${label} captured"><input type="checkbox" data-audio-alert="${key}_captured" aria-label="${label} captured sound alert"></label>\n    <label title="${label} fled"><input type="checkbox" data-audio-alert="${key}_fled" aria-label="${label} fled sound alert"></label>`).join("");\n\n  return `\n    <section id="alerts-section" class="section alert-section">\n      <div class="section-head">\n        <h3>Sound Alerts</h3>\n        <div class="section-meta">\n          <span id="alerts-enabled-count" class="section-badge">0/8</span>\n          <button class="collapse-button" data-collapse="alerts" type="button" title="Collapse">▾</button>\n        </div>\n      </div>\n      <div class="alert-grid" title="If an encounter is both Shiny and Epic/Legendary/Mythical, the enabled Shiny sound takes priority.">\n        <span></span><b>Captured</b><b>Fled</b>\n        ${rows}\n      </div>\n    </section>`;\n}\n\n'''
+          text = replace_once(text, marker, alert_markup + marker, "add audio alert markup function")
+          text = replace_once(
+              text,
+              '''        </div>\n\n        <section id="rarity-section" class="section rarity-section">''',
+              '''        </div>\n\n        ${createAudioAlertsMarkup()}\n\n        <section id="rarity-section" class="section rarity-section">''',
+              "insert audio alerts into Current"
+          )
+          path.write_text(text, encoding="utf-8")
+
+          # userscript/styles.js
+          path = Path("userscript/styles.js")
+          text = path.read_text(encoding="utf-8")
+          styles = '''\n.alert-grid {\n  padding: 7px 10px 8px;\n  display: grid;\n  grid-template-columns: minmax(90px, 1fr) 72px 72px;\n  gap: 6px 8px;\n  align-items: center;\n  background: var(--bg-elevated);\n}\n\n.alert-grid > b {\n  color: #9e9270;\n  font-size: 8px;\n  font-weight: 700;\n  letter-spacing: .03em;\n  text-align: center;\n  text-transform: uppercase;\n}\n\n.alert-name {\n  overflow: hidden;\n  font-size: 10px;\n  font-weight: 700;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}\n\n.alert-shiny { color: var(--gold); }\n\n.alert-grid label {\n  min-width: 0;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n}\n\n.alert-grid input[type="checkbox"] {\n  width: 14px;\n  height: 14px;\n  margin: 0;\n  accent-color: var(--gold);\n  cursor: pointer;\n}\n\n'''
+          text = replace_once(
+              text,
+              '''.section.collapsed > :not(.section-head) { display: none !important; }''',
+              styles + '''.section.collapsed > :not(.section-head) { display: none !important; }''',
+              "add audio alert styles"
+          )
+          path.write_text(text, encoding="utf-8")
+
+          # tests/integration/eventPipeline.test.js
+          path = Path("tests/integration/eventPipeline.test.js")
+          text = path.read_text(encoding="utf-8")
+          test_block = '''\n\ntest("terminal alert uses combat.started rarity/Shiny snapshot and is emitted only once", async () => {\n  const { pipeline } = await setup();\n  const started = combatStarted({\n    wildId: "wild_alert",\n    quality: "legendary",\n    seq: 9001,\n    ts: 1000\n  });\n  started.data.enemy.is_shiny = true;\n  await pipeline.handle(started);\n\n  const failed = captureFailed({ wildId: "wild_alert", seq: 9002, ts: 1200 });\n  failed.data.quality = "weak";\n  failed.data.is_shiny = false;\n\n  const first = await pipeline.handle(failed);\n  assert.deepEqual(first.terminalAlert, {\n    result: "fled",\n    rarity: "legendary",\n    isShiny: true\n  });\n\n  const duplicate = await pipeline.handle(failed);\n  assert.equal(duplicate.duplicate, true);\n  assert.equal(duplicate.terminalAlert, undefined);\n});\n'''
+          text += test_block
+          path.write_text(text, encoding="utf-8")
+
+      - name: Validate
+        run: |
+          npm ci --no-audit --no-fund
+          npm run validate
+
+      - name: Commit integration and remove temporary files
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/audio-alerts-apply.yml .github/audio-alerts-trigger
+          git add services/eventPipeline.js userscript/main.js userscript/ui.js userscript/ui-markup.js userscript/styles.js tests/integration/eventPipeline.test.js
+          git commit -m "feat: add configurable sound alerts"
+          git push origin HEAD:feat/audio-alerts
