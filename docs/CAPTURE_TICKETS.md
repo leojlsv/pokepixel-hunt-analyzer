@@ -68,6 +68,16 @@ https://img.pokemondb.net/sprites/black-white/shiny/{pokemon}.png
 
 Tampermonkey fetches the sprite with `GM_xmlhttpRequest` and `@connect img.pokemondb.net`, avoiding page-origin CORS and tainted-canvas export failures.
 
+Remote request protection:
+
+- decoded sprites are cached in memory by exact sprite URL for the lifetime of the page;
+- simultaneous requests for the same URL share one in-flight Promise, preventing duplicate GETs;
+- only cache misses may reach PokémonDB;
+- starts of new remote requests are globally spaced by at least 2 seconds;
+- cached `Generate` and `Copy` operations have no artificial cooldown and produce no additional PokémonDB request.
+
+This rate limit is a client-side courtesy guard against accidental request bursts, not an anti-abuse security boundary; the userscript is open source and can be modified by a determined user.
+
 The 96×96 source is drawn at 192×192 with image smoothing disabled.
 
 ## Layer order
