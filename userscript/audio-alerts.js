@@ -12,7 +12,11 @@ import mythicFled from "./audio-assets/mythic-fled.js";
 import shinyCaptured from "./audio-assets/shiny-captured.js";
 import shinyFled from "./audio-assets/shiny-fled.js";
 
+const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STORAGE_KEY = "pokepixel_hunt_analyzer_audio_alerts_v1";
+const UI_STORAGE_KEY = "pokepixel_hunt_analyzer_audio_alerts_ui_v1";
+const STYLE_ID = "pha-audio-alert-styles";
+const SECTION_ID = "alerts-section";
 
 const AUDIO_URLS = Object.freeze({
   epic_captured: epicCaptured,
@@ -24,6 +28,58 @@ const AUDIO_URLS = Object.freeze({
   shiny_captured: shinyCaptured,
   shiny_fled: shinyFled
 });
+
+const ALERT_ROWS = Object.freeze([
+  { label: "Epic", className: "rarity-epic", key: "epic" },
+  { label: "Legendary", className: "rarity-legendary", key: "legendary" },
+  { label: "Mythical", className: "rarity-mythical", key: "mythic" },
+  { label: "Shiny", className: "alert-shiny", key: "shiny" }
+]);
+
+const ALERT_STYLES = `
+  .alert-grid {
+    padding: 7px 10px 8px;
+    display: grid;
+    grid-template-columns: minmax(90px, 1fr) 72px 72px;
+    gap: 6px 8px;
+    align-items: center;
+    background: var(--bg-elevated);
+  }
+
+  .alert-grid > b {
+    color: #9e9270;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  .alert-name {
+    overflow: hidden;
+    font-size: 10px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .alert-shiny { color: var(--gold); }
+
+  .alert-grid label {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .alert-grid input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    accent-color: var(--gold);
+    cursor: pointer;
+  }
+`;
 
 function readSettings() {
   const defaults = defaultAudioAlertSettings();
@@ -39,6 +95,10 @@ function readSettings() {
   return defaults;
 }
 
+function readCollapsed() {
+  return localStorage.getItem(UI_STORAGE_KEY) === "collapsed";
+}
+
 function dataUriToArrayBuffer(uri) {
   const comma = uri.indexOf(",");
   if (comma < 0) throw new Error("Invalid embedded audio data URI");
@@ -48,6 +108,17 @@ function dataUriToArrayBuffer(uri) {
     bytes[index] = binary.charCodeAt(index);
   }
   return bytes.buffer;
+}
+
+function alertRowsMarkup() {
+  return ALERT_ROWS.map(({ label, className, key }) => `
+    <span class="alert-name ${className}">${label}</span>
+    <label title="${label} captured">
+      <input type="checkbox" data-audio-alert="${key}_captured" aria-label="${label} captured sound alert">
+    </label>
+    <label title="${label} fled">
+      <input type="checkbox" data-audio-alert="${key}_fled" aria-label="${label} fled sound alert">
+    </label>`).join("");
 }
 
 export function createAudioAlerts() {
@@ -130,6 +201,14 @@ export function createAudioAlerts() {
     if (badge) badge.textContent = `${count}/8`;
   }
 
+  function setCollapsed(section, button, collapsed) {
+    section.classList.toggle("collapsed", collapsed);
+    button.textContent = collapsed ? "▸" : "▾";
+    button.title = collapsed ? "Expand" : "Collapse";
+    button.setAttribute("aria-expanded", String(!collapsed));
+    localStorage.setItem(UI_STORAGE_KEY, collapsed ? "collapsed" : "expanded");
+  }
+
   function bindControls(shadow) {
     boundShadow = shadow;
 
@@ -148,6 +227,45 @@ export function createAudioAlerts() {
 
     updateEnabledCount();
     installGestureUnlock();
+  }
+
+  function mountControls() {
+    const shadow = document.getElementById(ROOT_ID)?.shadowRoot;
+    const raritySection = shadow?.getElementById("rarity-section");
+    if (!shadow || !raritySection) return false;
+    if (shadow.getElementById(SECTION_ID)) return true;
+
+    if (!shadow.getElementById(STYLE_ID)) {
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = ALERT_STYLES;
+      shadow.appendChild(style);
+    }
+
+    const section = document.createElement("section");
+    section.id = SECTION_ID;
+    section.className = "section alert-section";
+    section.innerHTML = `
+      <div class="section-head">
+        <h3>Sound Alerts</h3>
+        <div class="section-meta">
+          <span id="alerts-enabled-count" class="section-badge">0/8</span>
+          <button id="alerts-collapse" class="collapse-button" type="button" title="Collapse">▾</button>
+        </div>
+      </div>
+      <div class="alert-grid" title="Shiny sound has priority over rarity when both matching alerts are enabled.">
+        <span></span><b>Captured</b><b>Fled</b>
+        ${alertRowsMarkup()}
+      </div>`;
+
+    raritySection.before(section);
+    const collapseButton = shadow.getElementById("alerts-collapse");
+    collapseButton.addEventListener("click", () => {
+      setCollapsed(section, collapseButton, !section.classList.contains("collapsed"));
+    });
+    setCollapsed(section, collapseButton, readCollapsed());
+    bindControls(shadow);
+    return true;
   }
 
   async function handleTerminalAlert(alert) {
@@ -181,7 +299,7 @@ export function createAudioAlerts() {
   }
 
   return {
-    bindControls,
+    mountControls,
     handleTerminalAlert
   };
 }
