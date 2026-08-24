@@ -37,7 +37,7 @@ test("creates all stores and the current encounters indexes", async () => {
     const encounters = tx.objectStore(STORE_NAMES.ENCOUNTERS);
 
     assert.deepEqual(Array.from(encounters.indexNames).sort(), [
-      "captureResultCaptureAtMs",
+      "captureTicketAtMs",
       "groupKey",
       "quality",
       "sessionId",
@@ -89,7 +89,7 @@ test("rejects when no IndexedDB implementation is available", async () => {
   );
 });
 
-test("upgrading v1 -> current adds indexes without touching existing data", async () => {
+test("upgrading v1 -> current adds indexes and backfills only complete ticket rows", async () => {
   const indexedDBFactory = freshIndexedDBFactory();
 
   // Open at v1 only — simulates a real user's browser that installed the
@@ -97,10 +97,28 @@ test("upgrading v1 -> current adds indexes without touching existing data", asyn
   const v1 = await openDatabase({ indexedDBFactory, version: 1 });
 
   const seedSession = { sessionId: "s1", status: "ended", startedAtMs: 1000 };
-  const seedEncounter = {
-    encounterId: "e1",
+  const eligibleEncounter = {
+    encounterId: "eligible",
     captureResult: "success",
     captureAtMs: 2000,
+    speciesName: "Mewtwo",
+    capturedByName: "Rhyxus",
+    quality: "legendary",
+    qualityMultiplier: 1.72,
+    ivTotal: 189,
+    isShiny: false,
+    state: "success"
+  };
+  const legacyIncomplete = {
+    encounterId: "legacy",
+    captureResult: "success",
+    captureAtMs: 3000,
+    speciesName: "Mew",
+    capturedByName: null,
+    quality: "mythical",
+    qualityMultiplier: 1.6,
+    ivTotal: 180,
+    isShiny: false,
     state: "success"
   };
 
@@ -110,7 +128,8 @@ test("upgrading v1 -> current adds indexes without touching existing data", asyn
       "readwrite"
     );
     transaction.objectStore(STORE_NAMES.SESSIONS).put(seedSession);
-    transaction.objectStore(STORE_NAMES.ENCOUNTERS).put(seedEncounter);
+    transaction.objectStore(STORE_NAMES.ENCOUNTERS).put(eligibleEncounter);
+    transaction.objectStore(STORE_NAMES.ENCOUNTERS).put(legacyIncomplete);
     transaction.oncomplete = resolve;
     transaction.onerror = () => reject(transaction.error);
   });
@@ -122,7 +141,7 @@ test("upgrading v1 -> current adds indexes without touching existing data", asyn
   );
   assert.equal(
     v1.transaction(STORE_NAMES.ENCOUNTERS).objectStore(STORE_NAMES.ENCOUNTERS)
-      .indexNames.contains("captureResultCaptureAtMs"),
+      .indexNames.contains("captureTicketAtMs"),
     false
   );
 
@@ -148,14 +167,31 @@ test("upgrading v1 -> current adds indexes without touching existing data", asyn
     const encountersStore = current
       .transaction(STORE_NAMES.ENCOUNTERS, "readonly")
       .objectStore(STORE_NAMES.ENCOUNTERS);
-    assert.equal(encountersStore.indexNames.contains("captureResultCaptureAtMs"), true);
+    assert.equal(encountersStore.indexNames.contains("captureTicketAtMs"), true);
 
-    const preservedEncounter = await new Promise((resolve, reject) => {
-      const request = encountersStore.get("e1");
+    const preservedEligible = await new Promise((resolve, reject) => {
+      const request = encountersStore.get("eligible");
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
-    assert.deepEqual(preservedEncounter, seedEncounter);
+    assert.deepEqual(preservedEligible, {
+      ...eligibleEncounter,
+      captureTicketAtMs: eligibleEncounter.captureAtMs
+    });
+
+    const preservedLegacy = await new Promise((resolve, reject) => {
+      const request = encountersStore.get("legacy");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    assert.deepEqual(preservedLegacy, legacyIncomplete);
+
+    const indexedRows = await new Promise((resolve, reject) => {
+      const request = encountersStore.index("captureTicketAtMs").getAll();
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    assert.deepEqual(indexedRows.map((row) => row.encounterId), ["eligible"]);
   } finally {
     current.close();
   }
