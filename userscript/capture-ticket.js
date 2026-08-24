@@ -19,16 +19,16 @@ export const TICKET_LAYOUT = Object.freeze({
   pokemonName: {
     x: 151.5,
     y: 103.5,
-    fontPt: 4.5,
+    fontPt: 18.6,
     maxWidth: 200,
     textAlign: "center",
-    strokeWidth: 1,
+    strokeWidth: 3,
     overflow: "fit"
   },
   qualityLine: {
     x: 151.5,
     y: 405.5,
-    fontPt: 1.92,
+    fontPt: 6.6,
     maxWidth: 180,
     textAlign: "center",
     overflow: "clip"
@@ -36,7 +36,7 @@ export const TICKET_LAYOUT = Object.freeze({
   capturedBy: {
     x: 151.5,
     y: 429.5,
-    fontPt: 2,
+    fontPt: 7,
     maxWidth: 180,
     textAlign: "center",
     overflow: "clip"
@@ -44,7 +44,7 @@ export const TICKET_LAYOUT = Object.freeze({
   timestamp: {
     x: 151.5,
     y: 453.5,
-    fontPt: 1.92,
+    fontPt: 6.6,
     maxWidth: 180,
     textAlign: "center",
     overflow: "clip"
@@ -55,7 +55,7 @@ const THEMES = Object.freeze({
   legend: {
     nameFill: "#ffffff",
     nameStroke: "#fe9b5e",
-    dataFill: "#c39f65",
+    dataFill: "#5f3e23",
     backpaper: legendBackpaper,
     frame: legendFrame,
     frameSha256: "bc97487687979a502333460bb774075820856106f224e8e20c67fd6c09d52d39"
@@ -63,7 +63,7 @@ const THEMES = Object.freeze({
   mythic: {
     nameFill: "#ffffff",
     nameStroke: "#ff9090",
-    dataFill: "#c39f65",
+    dataFill: "#5f3e23",
     backpaper: mythicBackpaper,
     frame: mythicFrame,
     frameSha256: "b91f352cdb81173493073d9d3baa5e2d0ac50d1885d4947aa836ee2ccae15db0"
@@ -71,7 +71,7 @@ const THEMES = Object.freeze({
   shiny: {
     nameFill: "#ffffff",
     nameStroke: "#7157a8",
-    dataFill: "#646d78",
+    dataFill: "#412470",
     backpaper: shinyBackpaper,
     frame: shinyFrame,
     frameSha256: "045755f30f7e5b19e40a9b40cd08cac22e1b617bb57ad922929176d6d39a5d31"
@@ -88,21 +88,77 @@ function ptToPx(points) {
   return points * 96 / 72;
 }
 
+let fontReadyPromise = null;
+
 async function ensureFont() {
-  let link = document.getElementById(FONT_LINK_ID);
-  if (!link) {
-    link = document.createElement("link");
-    link.id = FONT_LINK_ID;
-    link.rel = "stylesheet";
-    link.href = GOOGLE_FONT_URL;
-    (document.head || document.documentElement).appendChild(link);
+  if (!document.fonts) return;
+
+  if (document.fonts.check('6px "Silkscreen"')) {
+    return;
   }
 
-  if (!document.fonts) return;
-  await Promise.race([
-    document.fonts.load('6px "Silkscreen"'),
-    new Promise((_, reject) => setTimeout(() => reject(new Error("Silkscreen font load timed out")), 6000))
-  ]);
+  if (!fontReadyPromise) {
+    fontReadyPromise = new Promise((resolve, reject) => {
+      let settled = false;
+      let link = document.getElementById(FONT_LINK_ID);
+
+      const finishResolve = () => {
+        if (settled) return;
+        settled = true;
+        resolve();
+      };
+
+      const finishReject = (error) => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+
+      const loadFace = async () => {
+        try {
+          await Promise.race([
+            document.fonts.load('6px "Silkscreen"'),
+            new Promise((_, rejectLoad) =>
+              setTimeout(() => rejectLoad(new Error("Silkscreen font load timed out")), 6000)
+            )
+          ]);
+
+          await Promise.race([
+            document.fonts.ready,
+            new Promise((_, rejectReady) =>
+              setTimeout(() => rejectReady(new Error("Silkscreen fonts.ready timed out")), 6000)
+            )
+          ]);
+
+          if (!document.fonts.check('6px "Silkscreen"')) {
+            throw new Error("Silkscreen font unavailable after load");
+          }
+
+          finishResolve();
+        } catch (error) {
+          finishReject(error);
+        }
+      };
+
+      if (!link) {
+        link = document.createElement("link");
+        link.id = FONT_LINK_ID;
+        link.rel = "stylesheet";
+        link.href = GOOGLE_FONT_URL;
+        link.addEventListener("load", () => {
+          void loadFace();
+        }, { once: true });
+        link.addEventListener("error", () => {
+          finishReject(new Error("Silkscreen stylesheet failed to load"));
+        }, { once: true });
+        (document.head || document.documentElement).appendChild(link);
+      } else {
+        void loadFace();
+      }
+    });
+  }
+
+  return fontReadyPromise;
 }
 
 function loadImage(url) {
