@@ -80,12 +80,17 @@ const GOOGLE_FONT_URL = "https://fonts.googleapis.com/css2?family=Silkscreen:wgh
 const FONT_LINK_ID = "pha-capture-ticket-silkscreen";
 const PREVIEW_HOST_ID = "pha-capture-ticket-preview";
 const FRAME_FINGERPRINT = "rhyxus.pp-prize-ticket.v1";
+const REMOTE_IMAGE_MIN_INTERVAL_MS = 2_000;
 
 function ptToPx(points) {
   return points * 96 / 72;
 }
 
 let fontReadyPromise = null;
+const remoteImageCache = new Map();
+const remoteImageInFlight = new Map();
+let remoteImageRequestGate = Promise.resolve();
+let lastRemoteImageRequestStartedAt = 0;
 
 async function ensureFont() {
   if (!document.fonts) return;
@@ -168,7 +173,25 @@ function loadImage(url) {
   });
 }
 
-function loadRemoteImage(url) {
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function acquireRemoteImageRequestSlot() {
+  const slot = remoteImageRequestGate
+    .catch(() => undefined)
+    .then(async () => {
+      const elapsed = Date.now() - lastRemoteImageRequestStartedAt;
+      const delayMs = Math.max(0, REMOTE_IMAGE_MIN_INTERVAL_MS - elapsed);
+      if (delayMs > 0) await wait(delayMs);
+      lastRemoteImageRequestStartedAt = Date.now();
+    });
+
+  remoteImageRequestGate = slot;
+  return slot;
+}
+
+function fetchRemoteImage(url) {
   return new Promise((resolve, reject) => {
     if (typeof GM_xmlhttpRequest !== "function") {
       reject(new Error("Tampermonkey remote image permission is unavailable"));
@@ -200,6 +223,30 @@ function loadRemoteImage(url) {
       ontimeout: () => reject(new Error(`Remote image request timed out: ${url}`))
     });
   });
+}
+
+function loadRemoteImage(url) {
+  const cached = remoteImageCache.get(url);
+  if (cached) return Promise.resolve(cached);
+
+  const existingRequest = remoteImageInFlight.get(url);
+  if (existingRequest) return existingRequest;
+
+  const request = acquireRemoteImageRequestSlot()
+    .then(() => {
+      const cachedAfterWait = remoteImageCache.get(url);
+      return cachedAfterWait || fetchRemoteImage(url);
+    })
+    .then((image) => {
+      remoteImageCache.set(url, image);
+      return image;
+    })
+    .finally(() => {
+      remoteImageInFlight.delete(url);
+    });
+
+  remoteImageInFlight.set(url, request);
+  return request;
 }
 
 function setFont(ctx, px) {
