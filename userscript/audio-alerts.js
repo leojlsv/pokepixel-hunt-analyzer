@@ -83,7 +83,7 @@ const ALERT_STYLES = `
     min-width: 0;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 5px;
   }
 
