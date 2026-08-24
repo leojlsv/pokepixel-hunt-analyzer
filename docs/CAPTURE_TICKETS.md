@@ -1,6 +1,6 @@
 # Capture Tickets
 
-Specification for manually generated Capture Tickets and the Misc > Catch Gallery surface.
+Specification for manually generated Capture Tickets and the `Misc > Catch Gallery` surface.
 
 ## Eligibility
 
@@ -51,13 +51,11 @@ Controls:
 - `Generate` opens the Capture Ticket preview/download flow
 - `Copy` generates the same PNG and writes it to the browser image clipboard so it can be pasted into compatible targets such as Discord
 
-The image clipboard path uses `navigator.clipboard.write()` with a PNG `ClipboardItem`. Browser/OS clipboard support and the final Discord paste behavior are verified by manual smoke test because they cannot be proven in Node CI.
+The image clipboard path uses `navigator.clipboard.write()` with a PNG `ClipboardItem`.
 
 When no eligible captures exist, only the table column headers remain; no blank rows or empty-state card are rendered.
 
 The gallery performs a whole-store encounter read only when Misc is explicitly opened or when a successful capture marks the visible gallery dirty. It is not part of the one-second Current refresh loop. Filtering, sorting and pagination run in memory over the loaded eligible set.
-
-The filter/sort/page model is covered by unit tests; the current CI passed 226/226 tests with the existing 4,128-encounter replay fixture and userscript build.
 
 ## Sprite
 
@@ -113,18 +111,19 @@ This is attribution/fingerprinting, not DRM; PNG metadata can be removed by imag
 
 The Legend, Mythic and Shiny validation exports were confirmed to contain these PNG `tEXt` chunks with valid CRCs.
 
-## Temporary Catch Gallery harness
+## Validation
 
-`userscript/catch-gallery-dev-harness.js` currently injects eight synthetic eligible captures so pagination, filtering, sorting, collapse, Generate and Copy can be smoke-tested without waiting for live rare captures.
+Manual smoke tests approved:
 
-The harness is explicitly temporary. Delete the harness file and its imports after this smoke-test cycle, before production consolidation.
-
-Current manual test matrix:
-
-- collapse / expand
-- page 1 / page 2 with 5-row cap
-- Pokémon text filter
+- Silkscreen on first generation after reload
+- Legend / Mythic / Shiny visuals
+- PNG metadata/fingerprint
+- Catch Gallery collapse / expand
+- five-row pagination
+- Pokémon filter
 - rarity filters
 - Captured / Quality / IV sorting in both directions
-- Generate preview
-- Copy image then paste into Discord
+- Generate preview/download
+- Copy image and paste into Discord
+
+The temporary Catch Gallery harness used for this validation has been removed. Production behavior now uses only persisted real captures.
