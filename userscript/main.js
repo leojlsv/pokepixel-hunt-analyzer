@@ -9,7 +9,10 @@ import {
 } from "../domain/sessionMetrics.js";
 import { EVENT_TYPES } from "../domain/events.js";
 import { createTabLeadership } from "./tab-leadership.js";
-import { installWebSocketObserver } from "./websocket-observer.js";
+import {
+  installWebSocketObserver,
+  resolvePageWindow
+} from "./websocket-observer.js";
 import { createUi } from "./ui.js";
 import { createAudioAlerts } from "./audio-alerts.js";
 import { createCatchGallery } from "./catch-gallery.js";
@@ -231,8 +234,6 @@ async function handleHistorySessionDelete(sessionId) {
       encountersRepository
     });
 
-    // Removed captures must disappear from Catch Gallery the next time it
-    // renders. Deleting the current Hunt also invalidates Current's cache.
     catchGallery?.markDirty();
     if (deletingCurrent) {
       invalidateEncounterCache();
@@ -287,7 +288,16 @@ function scheduleRefreshes() {
 }
 
 async function initialize() {
-  installWebSocketObserver({ onPayload: enqueueProtocolEvent });
+  const pageWindow = resolvePageWindow({
+    unsafeWindowObject:
+      typeof unsafeWindow !== "undefined" ? unsafeWindow : null,
+    windowObject: window
+  });
+
+  installWebSocketObserver({
+    onPayload: enqueueProtocolEvent,
+    windowObject: pageWindow
+  });
   leadership.refresh();
 
   const database = await openDatabase();
