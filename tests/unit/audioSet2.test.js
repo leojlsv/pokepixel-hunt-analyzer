@@ -18,7 +18,7 @@ const EXPECTED_KEYS = [
   "shiny_fled"
 ];
 
-test("sound set 2 sprite bytes match the approved batch", () => {
+test("alternate audio batch sprite bytes match the approved upload", () => {
   const prefix = "data:audio/ogg;base64,";
   assert.ok(SET2_SPRITE_URI.startsWith(prefix));
 
@@ -30,7 +30,7 @@ test("sound set 2 sprite bytes match the approved batch", () => {
   );
 });
 
-test("sound set 2 exposes all eight ordered alert segments", () => {
+test("alternate audio batch exposes all eight ordered alert segments", () => {
   assert.deepEqual(Object.keys(SET2_SEGMENTS), EXPECTED_KEYS);
 
   let previousEnd = 0;
