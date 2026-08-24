@@ -116,3 +116,13 @@ The Legend, Mythic and Shiny validation exports were confirmed to contain these 
 `userscript/catch-gallery-dev-harness.js` currently injects eight synthetic eligible captures so pagination, filtering, sorting, collapse, Generate and Copy can be smoke-tested without waiting for live rare captures.
 
 The harness is explicitly temporary. Delete the harness file and its imports after this smoke-test cycle, before production consolidation.
+
+Current manual test matrix:
+
+- collapse / expand
+- page 1 / page 2 with 5-row cap
+- Pokémon text filter
+- rarity filters
+- Captured / Quality / IV sorting in both directions
+- Generate preview
+- Copy image then paste into Discord
