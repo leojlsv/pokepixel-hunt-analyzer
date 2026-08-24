@@ -10,6 +10,7 @@ import { EVENT_TYPES } from "../domain/events.js";
 import { createTabLeadership } from "./tab-leadership.js";
 import { installWebSocketObserver } from "./websocket-observer.js";
 import { createUi } from "./ui.js";
+import { createAudioAlerts } from "./audio-alerts.js";
 
 const APP_VERSION = __APP_VERSION__;
 const TAB_LOCK_REFRESH_MS = 2_000;
@@ -29,6 +30,7 @@ const TERMINAL_LIST_EVENTS = new Set([
 let pipeline;
 let sessionsRepository;
 let encountersRepository;
+let audioAlerts;
 let ui;
 let updateQueue = Promise.resolve();
 let currentLoadPromise = null;
@@ -84,13 +86,17 @@ function enqueueProtocolEvent(payload, socketId) {
   updateQueue = updateQueue
     .then(async () => {
       await ready;
-      await pipeline.handle({
+      const eventResult = await pipeline.handle({
         type: payload.type,
         seq: finiteOrNull(payload.seq),
         ts: finiteOrNull(payload.ts),
         socketId,
         data: payload.data
       });
+
+      if (eventResult?.terminalAlert) {
+        void audioAlerts?.handleTerminalAlert(eventResult.terminalAlert);
+      }
 
       if (TERMINAL_LIST_EVENTS.has(payload.type)) {
         markEncounterListDirty();
@@ -205,6 +211,7 @@ function mountUiWhenReady() {
       onLoadHistorySessionEncounters: (sessionId) =>
         encountersRepository.getBySessionId(sessionId)
     });
+    audioAlerts?.mountControls();
     ui.setActive(leadership.isActive());
   };
 
@@ -239,6 +246,7 @@ async function initialize() {
   sessionsRepository = createSessionsRepository(database);
   encountersRepository = createEncountersRepository(database);
   pipeline = createEventPipeline(database, { appVersion: APP_VERSION });
+  audioAlerts = createAudioAlerts();
   await pipeline.recoverOnStartup();
 
   mountUiWhenReady();
