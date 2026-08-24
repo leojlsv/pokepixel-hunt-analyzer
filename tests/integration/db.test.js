@@ -89,7 +89,7 @@ test("rejects when no IndexedDB implementation is available", async () => {
   );
 });
 
-test("upgrading v1 -> current adds indexes and backfills only complete ticket rows", async () => {
+test("upgrading v1 -> current adds indexes without rewriting historical encounters", async () => {
   const indexedDBFactory = freshIndexedDBFactory();
 
   // Open at v1 only — simulates a real user's browser that installed the
@@ -97,8 +97,8 @@ test("upgrading v1 -> current adds indexes and backfills only complete ticket ro
   const v1 = await openDatabase({ indexedDBFactory, version: 1 });
 
   const seedSession = { sessionId: "s1", status: "ended", startedAtMs: 1000 };
-  const eligibleEncounter = {
-    encounterId: "eligible",
+  const historicalEncounter = {
+    encounterId: "historical",
     captureResult: "success",
     captureAtMs: 2000,
     speciesName: "Mewtwo",
@@ -109,18 +109,6 @@ test("upgrading v1 -> current adds indexes and backfills only complete ticket ro
     isShiny: false,
     state: "success"
   };
-  const legacyIncomplete = {
-    encounterId: "legacy",
-    captureResult: "success",
-    captureAtMs: 3000,
-    speciesName: "Mew",
-    capturedByName: null,
-    quality: "mythical",
-    qualityMultiplier: 1.6,
-    ivTotal: 180,
-    isShiny: false,
-    state: "success"
-  };
 
   await new Promise((resolve, reject) => {
     const transaction = v1.transaction(
@@ -128,8 +116,7 @@ test("upgrading v1 -> current adds indexes and backfills only complete ticket ro
       "readwrite"
     );
     transaction.objectStore(STORE_NAMES.SESSIONS).put(seedSession);
-    transaction.objectStore(STORE_NAMES.ENCOUNTERS).put(eligibleEncounter);
-    transaction.objectStore(STORE_NAMES.ENCOUNTERS).put(legacyIncomplete);
+    transaction.objectStore(STORE_NAMES.ENCOUNTERS).put(historicalEncounter);
     transaction.oncomplete = resolve;
     transaction.onerror = () => reject(transaction.error);
   });
@@ -169,29 +156,19 @@ test("upgrading v1 -> current adds indexes and backfills only complete ticket ro
       .objectStore(STORE_NAMES.ENCOUNTERS);
     assert.equal(encountersStore.indexNames.contains("captureTicketAtMs"), true);
 
-    const preservedEligible = await new Promise((resolve, reject) => {
-      const request = encountersStore.get("eligible");
+    const preservedEncounter = await new Promise((resolve, reject) => {
+      const request = encountersStore.get("historical");
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
-    assert.deepEqual(preservedEligible, {
-      ...eligibleEncounter,
-      captureTicketAtMs: eligibleEncounter.captureAtMs
-    });
-
-    const preservedLegacy = await new Promise((resolve, reject) => {
-      const request = encountersStore.get("legacy");
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
-    assert.deepEqual(preservedLegacy, legacyIncomplete);
+    assert.deepEqual(preservedEncounter, historicalEncounter);
 
     const indexedRows = await new Promise((resolve, reject) => {
       const request = encountersStore.index("captureTicketAtMs").getAll();
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
-    assert.deepEqual(indexedRows.map((row) => row.encounterId), ["eligible"]);
+    assert.deepEqual(indexedRows, []);
   } finally {
     current.close();
   }
