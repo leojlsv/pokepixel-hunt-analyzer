@@ -19,7 +19,8 @@ const metadata = `// ==UserScript==
 // @match        https://pokepixel.nietore.com/*
 // @run-at       document-start
 // @sandbox      raw
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @connect      img.pokemondb.net
 // ==/UserScript==`;
 
 await mkdir(fileURLToPath(distDirUrl), { recursive: true });
