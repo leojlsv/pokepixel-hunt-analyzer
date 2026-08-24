@@ -197,16 +197,35 @@ test("upgrading v1 -> current adds indexes and backfills only complete ticket ro
   }
 });
 
-// Migration robustness — the 3 tests below exercise paths data/db.js handles
-// but that otherwise have little direct coverage.
-
-test("a stuck older connection blocks the upgrade and openDatabase() rejects via onblocked", async () => {
+test("managed older connections close on versionchange so a schema upgrade can proceed", async () => {
   const indexedDBFactory = freshIndexedDBFactory();
-
-  // Deliberately does not close on versionchange — simulates a stuck/
-  // unresponsive connection. Production connections normally close on
-  // versionchange, preventing this from blocking for long.
   const older = await openDatabase({ indexedDBFactory, version: 1 });
+
+  const current = await openDatabase({
+    indexedDBFactory,
+    version: SCHEMA_VERSION
+  });
+
+  try {
+    assert.equal(current.version, SCHEMA_VERSION);
+    assert.throws(
+      () => older.transaction(STORE_NAMES.META, "readonly"),
+      /closed|closing|InvalidStateError/i
+    );
+  } finally {
+    current.close();
+  }
+});
+
+// Migration robustness — the 3 tests below exercise failure paths explicitly.
+
+test("a deliberately stuck older connection still reports a blocked upgrade", async () => {
+  const indexedDBFactory = freshIndexedDBFactory();
+  const older = await openDatabase({ indexedDBFactory, version: 1 });
+
+  // Override the normal auto-close behavior to simulate a genuinely stuck
+  // third-party/legacy connection that ignores versionchange.
+  older.onversionchange = () => {};
 
   await assert.rejects(
     () => openDatabase({ indexedDBFactory, version: SCHEMA_VERSION }),
