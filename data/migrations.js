@@ -41,9 +41,23 @@ function applyV2(_db, transaction) {
     .createIndex("startedAtMs", "startedAtMs", { unique: false });
 }
 
+function applyV3(_db, transaction) {
+  // Compound key keeps all terminal capture results grouped by result and
+  // ordered by capture time. Catch Gallery can therefore walk only the
+  // newest successful captures instead of materializing the encounter store.
+  transaction
+    .objectStore(STORE_NAMES.ENCOUNTERS)
+    .createIndex(
+      "captureResultCaptureAtMs",
+      ["captureResult", "captureAtMs"],
+      { unique: false }
+    );
+}
+
 const MIGRATIONS = new Map([
   [1, applyV1],
-  [2, applyV2]
+  [2, applyV2],
+  [3, applyV3]
 ]);
 
 export const SCHEMA_VERSION = Math.max(...MIGRATIONS.keys());
