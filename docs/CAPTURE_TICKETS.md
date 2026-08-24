@@ -115,4 +115,4 @@ The Legend, Mythic and Shiny validation exports were confirmed to contain these 
 
 `userscript/catch-gallery-dev-harness.js` currently injects eight synthetic eligible captures so pagination, filtering, sorting, collapse, Generate and Copy can be smoke-tested without waiting for live rare captures.
 
-The harness is explicitly temporary and must be removed again before production consolidation.
+The harness is explicitly temporary. Delete the harness file and its imports after this smoke-test cycle, before production consolidation.
