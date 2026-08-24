@@ -309,7 +309,7 @@ export function createAudioAlerts() {
       alertsTab.id = TAB_ID;
       alertsTab.className = "tab";
       alertsTab.type = "button";
-      alertsTab.textContent = "Alerts";
+      alertsTab.textContent = "Misc";
       huntTime.before(alertsTab);
     }
 
