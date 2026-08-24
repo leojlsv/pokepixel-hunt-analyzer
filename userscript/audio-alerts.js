@@ -14,9 +14,9 @@ import shinyFled from "./audio-assets/shiny-fled.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STORAGE_KEY = "pokepixel_hunt_analyzer_audio_alerts_v1";
-const UI_STORAGE_KEY = "pokepixel_hunt_analyzer_audio_alerts_ui_v1";
 const STYLE_ID = "pha-audio-alert-styles";
-const SECTION_ID = "alerts-section";
+const TAB_ID = "alerts-tab";
+const VIEW_ID = "view-alerts";
 
 const AUDIO_URLS = Object.freeze({
   epic_captured: epicCaptured,
@@ -37,18 +37,24 @@ const ALERT_ROWS = Object.freeze([
 ]);
 
 const ALERT_STYLES = `
+  .alerts-view {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
   .alert-grid {
-    padding: 7px 10px 8px;
+    padding: 10px;
     display: grid;
-    grid-template-columns: minmax(90px, 1fr) 72px 72px;
-    gap: 6px 8px;
+    grid-template-columns: minmax(110px, 1fr) 90px 90px;
+    gap: 9px 10px;
     align-items: center;
     background: var(--bg-elevated);
   }
 
   .alert-grid > b {
     color: #9e9270;
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 700;
     letter-spacing: .03em;
     text-align: center;
@@ -58,7 +64,7 @@ const ALERT_STYLES = `
   .alert-name {
     overflow: hidden;
     font-size: 10px;
-    font-weight: 700;
+    font-weight: 800;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -73,11 +79,19 @@ const ALERT_STYLES = `
   }
 
   .alert-grid input[type="checkbox"] {
-    width: 14px;
-    height: 14px;
+    width: 15px;
+    height: 15px;
     margin: 0;
     accent-color: var(--gold);
     cursor: pointer;
+  }
+
+  .alert-help {
+    padding: 8px 10px;
+    border-top: 1px solid var(--border-soft);
+    color: var(--muted);
+    font-size: 9px;
+    line-height: 1.35;
   }
 `;
 
@@ -95,8 +109,15 @@ function readSettings() {
   return defaults;
 }
 
-function readCollapsed() {
-  return localStorage.getItem(UI_STORAGE_KEY) === "collapsed";
+function alertRowsMarkup() {
+  return ALERT_ROWS.map(({ label, className, key }) => `
+    <span class="alert-name ${className}">${label}</span>
+    <label title="${label} captured">
+      <input type="checkbox" data-audio-alert="${key}_captured" aria-label="${label} captured sound alert">
+    </label>
+    <label title="${label} fled">
+      <input type="checkbox" data-audio-alert="${key}_fled" aria-label="${label} fled sound alert">
+    </label>`).join("");
 }
 
 function dataUriToArrayBuffer(uri) {
@@ -118,6 +139,7 @@ export function createAudioAlerts() {
   let currentKey = null;
   let boundShadow = null;
   let gestureUnlockInstalled = false;
+  let mountRetry = null;
 
   function writeSettings() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
@@ -218,20 +240,13 @@ export function createAudioAlerts() {
     if (badge) badge.textContent = `${count}/8`;
   }
 
-  function setCollapsed(section, button, collapsed) {
-    section.classList.toggle("collapsed", collapsed);
-    button.textContent = collapsed ? "▸" : "▾";
-    button.title = collapsed ? "Expand" : "Collapse";
-    button.setAttribute("aria-expanded", String(!collapsed));
-    localStorage.setItem(UI_STORAGE_KEY, collapsed ? "collapsed" : "expanded");
-  }
-
   function bindControls(shadow) {
     boundShadow = shadow;
 
     for (const checkbox of shadow.querySelectorAll("[data-audio-alert]")) {
       const key = checkbox.dataset.audioAlert;
-      if (!AUDIO_ALERT_KEYS.includes(key)) continue;
+      if (!AUDIO_ALERT_KEYS.includes(key) || checkbox.dataset.audioBound === "true") continue;
+      checkbox.dataset.audioBound = "true";
       checkbox.checked = settings[key] === true;
       checkbox.addEventListener("change", () => {
         settings[key] = checkbox.checked;
@@ -246,11 +261,40 @@ export function createAudioAlerts() {
     installGestureUnlock();
   }
 
+  function showAlerts(shadow) {
+    const historyTab = shadow.querySelector('[data-view="history"]');
+    // Keep the main UI state out of Current while Alerts is visible so its
+    // one-second Current refresh stays suspended.
+    historyTab?.click();
+
+    shadow.getElementById("view-current").hidden = true;
+    shadow.getElementById("view-history").hidden = true;
+    shadow.getElementById(VIEW_ID).hidden = false;
+    for (const tab of shadow.querySelectorAll("[data-view]")) tab.classList.remove("active");
+    shadow.getElementById(TAB_ID).classList.add("active");
+  }
+
+  function hideAlerts(shadow) {
+    const view = shadow.getElementById(VIEW_ID);
+    const tab = shadow.getElementById(TAB_ID);
+    if (view) view.hidden = true;
+    if (tab) tab.classList.remove("active");
+  }
+
   function mountControls() {
     const shadow = document.getElementById(ROOT_ID)?.shadowRoot;
-    const raritySection = shadow?.getElementById("rarity-section");
-    if (!shadow || !raritySection) return false;
-    if (shadow.getElementById(SECTION_ID)) return true;
+    const panel = shadow?.getElementById("pha-panel");
+    const tabs = shadow?.querySelector(".tabs");
+    const huntTime = shadow?.getElementById("hunt-time");
+    if (!shadow || !panel || !tabs || !huntTime) {
+      if (!mountRetry) {
+        mountRetry = window.setTimeout(() => {
+          mountRetry = null;
+          mountControls();
+        }, 50);
+      }
+      return false;
+    }
 
     if (!shadow.getElementById(STYLE_ID)) {
       const style = document.createElement("style");
@@ -259,28 +303,51 @@ export function createAudioAlerts() {
       shadow.appendChild(style);
     }
 
-    const section = document.createElement("section");
-    section.id = SECTION_ID;
-    section.className = "section alert-section";
-    section.innerHTML = `
-      <div class="section-head">
-        <h3>Sound Alerts</h3>
-        <div class="section-meta">
-          <span id="alerts-enabled-count" class="section-badge">0/8</span>
-          <button id="alerts-collapse" class="collapse-button" type="button" title="Collapse">▾</button>
-        </div>
-      </div>
-      <div class="alert-grid" title="Shiny sound has priority over rarity when both matching alerts are enabled.">
-        <span></span><b>Captured</b><b>Fled</b>
-        ${alertRowsMarkup()}
-      </div>`;
+    let alertsTab = shadow.getElementById(TAB_ID);
+    if (!alertsTab) {
+      alertsTab = document.createElement("button");
+      alertsTab.id = TAB_ID;
+      alertsTab.className = "tab";
+      alertsTab.type = "button";
+      alertsTab.textContent = "Alerts";
+      huntTime.before(alertsTab);
+    }
 
-    raritySection.before(section);
-    const collapseButton = shadow.getElementById("alerts-collapse");
-    collapseButton.addEventListener("click", () => {
-      setCollapsed(section, collapseButton, !section.classList.contains("collapsed"));
-    });
-    setCollapsed(section, collapseButton, readCollapsed());
+    let alertsView = shadow.getElementById(VIEW_ID);
+    if (!alertsView) {
+      alertsView = document.createElement("section");
+      alertsView.id = VIEW_ID;
+      alertsView.className = "view alerts-view";
+      alertsView.hidden = true;
+      alertsView.innerHTML = `
+        <section class="section">
+          <div class="section-head">
+            <h3>Sound Alerts</h3>
+            <div class="section-meta">
+              <span id="alerts-enabled-count" class="section-badge">0/8</span>
+            </div>
+          </div>
+          <div class="alert-grid">
+            <span></span><b>Captured</b><b>Fled</b>
+            ${alertRowsMarkup()}
+          </div>
+          <div class="alert-help">
+            Enable only the alerts you want. Enabling an option plays its sound once as preview.<br>
+            If a Pokémon is Shiny and also Epic/Legendary/Mythical, the enabled Shiny alert has priority.
+          </div>
+        </section>`;
+      panel.appendChild(alertsView);
+    }
+
+    if (alertsTab.dataset.audioBound !== "true") {
+      alertsTab.dataset.audioBound = "true";
+      alertsTab.addEventListener("click", () => showAlerts(shadow));
+
+      for (const tab of shadow.querySelectorAll("[data-view]")) {
+        tab.addEventListener("click", () => hideAlerts(shadow));
+      }
+    }
+
     bindControls(shadow);
     return true;
   }
