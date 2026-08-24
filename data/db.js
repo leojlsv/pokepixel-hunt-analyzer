@@ -41,7 +41,14 @@ export function openDatabase({
     };
 
     request.onsuccess = () => {
-      resolve(request.result);
+      const db = request.result;
+
+      // A userscript update can introduce a new schema while another game tab
+      // still holds an older connection. Closing on versionchange lets the
+      // upgrading tab proceed instead of leaving the user's database blocked
+      // until every older tab is manually closed/reloaded.
+      db.onversionchange = () => db.close();
+      resolve(db);
     };
 
     request.onerror = () => {
