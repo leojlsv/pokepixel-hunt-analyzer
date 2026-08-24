@@ -11,6 +11,7 @@ import { createTabLeadership } from "./tab-leadership.js";
 import { installWebSocketObserver } from "./websocket-observer.js";
 import { createUi } from "./ui.js";
 import { createAudioAlerts } from "./audio-alerts.js";
+import { installCaptureTicketDev } from "./capture-ticket.js";
 
 const APP_VERSION = __APP_VERSION__;
 const TAB_LOCK_REFRESH_MS = 2_000;
@@ -32,6 +33,7 @@ let sessionsRepository;
 let encountersRepository;
 let audioAlerts;
 let ui;
+let captureTicketCleanup = null;
 let updateQueue = Promise.resolve();
 let currentLoadPromise = null;
 let cachedSessionId = null;
@@ -205,6 +207,7 @@ async function handleSessionAction(action) {
 
 function mountUiWhenReady() {
   const mount = () => {
+    captureTicketCleanup?.();
     ui = createUi({
       onSessionAction: (action) => void handleSessionAction(action),
       onLoadHistorySessions: (options) => sessionsRepository.getPage(options),
@@ -212,6 +215,10 @@ function mountUiWhenReady() {
         encountersRepository.getBySessionId(sessionId)
     });
     audioAlerts?.mountControls();
+    captureTicketCleanup = installCaptureTicketDev({
+      getEncounterById: (encounterId) =>
+        cachedEncounters.find((encounter) => encounter.encounterId === encounterId) || null
+    });
     ui.setActive(leadership.isActive());
   };
 
@@ -256,7 +263,10 @@ async function initialize() {
   scheduleRefreshes();
 }
 
-window.addEventListener("beforeunload", () => leadership.release());
+window.addEventListener("beforeunload", () => {
+  captureTicketCleanup?.();
+  leadership.release();
+});
 
 initialize().catch((error) => {
   console.error("PokePixel Hunt Analyzer userscript:", error);
