@@ -11,9 +11,11 @@ import mythicCaptured from "./audio-assets/mythic-captured.js";
 import mythicFled from "./audio-assets/mythic-fled.js";
 import shinyCaptured from "./audio-assets/shiny-captured.js";
 import shinyFled from "./audio-assets/shiny-fled.js";
+import { SET2_SEGMENTS, SET2_SPRITE_URI } from "./audio-assets/set2/sprite.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STORAGE_KEY = "pokepixel_hunt_analyzer_audio_alerts_v1";
+const SOUND_SET_STORAGE_KEY = "pokepixel_hunt_analyzer_audio_set_v1";
 const STYLE_ID = "pha-audio-alert-styles";
 const TAB_ID = "alerts-tab";
 const VIEW_ID = "view-alerts";
@@ -86,6 +88,26 @@ const ALERT_STYLES = `
     cursor: pointer;
   }
 
+  .sound-set-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--muted);
+    font-size: 9px;
+    white-space: nowrap;
+  }
+
+  .sound-set-control select {
+    height: 22px;
+    min-width: 58px;
+    padding: 2px 5px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 9px;
+  }
+
   .alert-help {
     padding: 8px 10px;
     border-top: 1px solid var(--border-soft);
@@ -107,6 +129,10 @@ function readSettings() {
     // Invalid local state falls back to every alert disabled.
   }
   return defaults;
+}
+
+function readSoundSet() {
+  return localStorage.getItem(SOUND_SET_STORAGE_KEY) === "2" ? "2" : "1";
 }
 
 function alertRowsMarkup() {
@@ -133,7 +159,9 @@ function dataUriToArrayBuffer(uri) {
 
 export function createAudioAlerts() {
   const settings = readSettings();
-  const buffers = new Map();
+  const set1Buffers = new Map();
+  let soundSet = readSoundSet();
+  let set2Buffer = null;
   let audioContext = null;
   let currentSource = null;
   let currentKey = null;
@@ -143,6 +171,10 @@ export function createAudioAlerts() {
 
   function writeSettings() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  }
+
+  function writeSoundSet() {
+    localStorage.setItem(SOUND_SET_STORAGE_KEY, soundSet);
   }
 
   function getAudioContext() {
@@ -182,15 +214,23 @@ export function createAudioAlerts() {
     window.addEventListener("keydown", attempt, true);
   }
 
-  async function loadBuffer(key) {
-    if (buffers.has(key)) return buffers.get(key);
+  async function loadSet1Buffer(key) {
+    if (set1Buffers.has(key)) return set1Buffers.get(key);
     const context = getAudioContext();
     const uri = AUDIO_URLS[key];
     if (!context || !uri) return null;
 
     const buffer = await context.decodeAudioData(dataUriToArrayBuffer(uri));
-    buffers.set(key, buffer);
+    set1Buffers.set(key, buffer);
     return buffer;
+  }
+
+  async function loadSet2Buffer() {
+    if (set2Buffer) return set2Buffer;
+    const context = getAudioContext();
+    if (!context) return null;
+    set2Buffer = await context.decodeAudioData(dataUriToArrayBuffer(SET2_SPRITE_URI));
+    return set2Buffer;
   }
 
   function stopCurrent() {
@@ -209,9 +249,13 @@ export function createAudioAlerts() {
     if (!(await unlock())) return false;
 
     try {
-      const buffer = await loadBuffer(key);
       const context = getAudioContext();
-      if (!buffer || !context) return false;
+      if (!context) return false;
+
+      const useSet2 = soundSet === "2";
+      const segment = useSet2 ? SET2_SEGMENTS[key] : null;
+      const buffer = useSet2 ? await loadSet2Buffer() : await loadSet1Buffer(key);
+      if (!buffer || (useSet2 && !segment)) return false;
 
       stopCurrent();
       const source = context.createBufferSource();
@@ -225,7 +269,12 @@ export function createAudioAlerts() {
       }, { once: true });
       currentSource = source;
       currentKey = key;
-      source.start();
+
+      if (useSet2) {
+        source.start(0, segment.offset, segment.duration);
+      } else {
+        source.start();
+      }
       return true;
     } catch (error) {
       console.warn("PokePixel Hunt Analyzer (audio alert):", error);
@@ -242,6 +291,20 @@ export function createAudioAlerts() {
 
   function bindControls(shadow) {
     boundShadow = shadow;
+
+    const soundSetSelect = shadow.getElementById("audio-sound-set");
+    if (soundSetSelect && soundSetSelect.dataset.audioBound !== "true") {
+      soundSetSelect.dataset.audioBound = "true";
+      soundSetSelect.value = soundSet;
+      soundSetSelect.addEventListener("change", () => {
+        soundSet = soundSetSelect.value === "2" ? "2" : "1";
+        soundSetSelect.value = soundSet;
+        writeSoundSet();
+        stopCurrent();
+      });
+    } else if (soundSetSelect) {
+      soundSetSelect.value = soundSet;
+    }
 
     for (const checkbox of shadow.querySelectorAll("[data-audio-alert]")) {
       const key = checkbox.dataset.audioAlert;
@@ -263,7 +326,7 @@ export function createAudioAlerts() {
 
   function showAlerts(shadow) {
     const historyTab = shadow.querySelector('[data-view="history"]');
-    // Keep the main UI state out of Current while Alerts is visible so its
+    // Keep the main UI state out of Current while Misc is visible so its
     // one-second Current refresh stays suspended.
     historyTab?.click();
 
@@ -324,6 +387,12 @@ export function createAudioAlerts() {
           <div class="section-head">
             <h3>Sound Alerts</h3>
             <div class="section-meta">
+              <label class="sound-set-control">Sound Set
+                <select id="audio-sound-set" aria-label="Sound Set">
+                  <option value="1">Set 1</option>
+                  <option value="2">Set 2</option>
+                </select>
+              </label>
               <span id="alerts-enabled-count" class="section-badge">0/8</span>
             </div>
           </div>
@@ -332,7 +401,7 @@ export function createAudioAlerts() {
             ${alertRowsMarkup()}
           </div>
           <div class="alert-help">
-            Enable only the alerts you want. Enabling an option plays its sound once as preview.<br>
+            Choose a Sound Set, then enable only the alerts you want. Enabling an option plays the selected set once as preview.<br>
             If a Pokémon is Shiny and also Epic/Legendary/Mythical, the enabled Shiny alert has priority.
           </div>
         </section>`;
