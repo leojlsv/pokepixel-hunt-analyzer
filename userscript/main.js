@@ -17,6 +17,7 @@ const APP_VERSION = __APP_VERSION__;
 const TAB_LOCK_REFRESH_MS = 2_000;
 const CURRENT_REFRESH_MS = 1_000;
 const STANDBY_RECONCILE_MS = 10_000;
+const CATCH_GALLERY_LOAD_LIMIT = 500;
 const OBSERVED_EVENT_TYPES = new Set(EVENT_TYPES);
 const METRIC_DATA_EVENTS = new Set([
   "loot.received",
@@ -256,7 +257,8 @@ async function initialize() {
   pipeline = createEventPipeline(database, { appVersion: APP_VERSION });
   audioAlerts = createAudioAlerts();
   catchGallery = createCatchGallery({
-    loadEncounters: () => encountersRepository.getAll()
+    loadEncounters: () =>
+      encountersRepository.getRecentSuccessfulCaptures(CATCH_GALLERY_LOAD_LIMIT)
   });
   await pipeline.recoverOnStartup();
 
