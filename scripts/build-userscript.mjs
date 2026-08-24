@@ -20,6 +20,7 @@ const metadata = `// ==UserScript==
 // @run-at       document-start
 // @sandbox      raw
 // @grant        GM_xmlhttpRequest
+// @grant        unsafeWindow
 // @connect      img.pokemondb.net
 // ==/UserScript==`;
 
