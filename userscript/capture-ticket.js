@@ -4,6 +4,8 @@ import {
   resolveCaptureTicketTheme
 } from "../domain/captureTicket.js";
 import { formatCaptureTimestamp } from "./encounter-list-model.js";
+import { loadRemoteImage } from "./remote-image-loader.js";
+import { canvasToPngBlobWithMetadata } from "./png-metadata.js";
 import shinyBackpaper from "./capture-ticket-assets/shiny_backpaper.png";
 import shinyFrame from "./capture-ticket-assets/shiny_ticket_frame.png";
 import legendBackpaper from "./capture-ticket-assets/legend_backpaper.png";
@@ -80,17 +82,12 @@ const GOOGLE_FONT_URL = "https://fonts.googleapis.com/css2?family=Silkscreen:wgh
 const FONT_LINK_ID = "pha-capture-ticket-silkscreen";
 const PREVIEW_HOST_ID = "pha-capture-ticket-preview";
 const FRAME_FINGERPRINT = "rhyxus.pp-prize-ticket.v1";
-const REMOTE_IMAGE_MIN_INTERVAL_MS = 2_000;
 
 function ptToPx(points) {
   return points * 96 / 72;
 }
 
 let fontReadyPromise = null;
-const remoteImageCache = new Map();
-const remoteImageInFlight = new Map();
-let remoteImageRequestGate = Promise.resolve();
-let lastRemoteImageRequestStartedAt = 0;
 
 async function ensureFont() {
   if (!document.fonts) return;
@@ -173,82 +170,6 @@ function loadImage(url) {
   });
 }
 
-function wait(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function acquireRemoteImageRequestSlot() {
-  const slot = remoteImageRequestGate
-    .catch(() => undefined)
-    .then(async () => {
-      const elapsed = Date.now() - lastRemoteImageRequestStartedAt;
-      const delayMs = Math.max(0, REMOTE_IMAGE_MIN_INTERVAL_MS - elapsed);
-      if (delayMs > 0) await wait(delayMs);
-      lastRemoteImageRequestStartedAt = Date.now();
-    });
-
-  remoteImageRequestGate = slot;
-  return slot;
-}
-
-function fetchRemoteImage(url) {
-  return new Promise((resolve, reject) => {
-    if (typeof GM_xmlhttpRequest !== "function") {
-      reject(new Error("Tampermonkey remote image permission is unavailable"));
-      return;
-    }
-
-    GM_xmlhttpRequest({
-      method: "GET",
-      url,
-      responseType: "blob",
-      anonymous: true,
-      onload: async (response) => {
-        if (response.status < 200 || response.status >= 300 || !response.response) {
-          reject(new Error(`Could not fetch remote image: ${url} (${response.status || "network error"})`));
-          return;
-        }
-
-        const objectUrl = URL.createObjectURL(response.response);
-        try {
-          const image = await loadImage(objectUrl);
-          resolve(image);
-        } catch (error) {
-          reject(error);
-        } finally {
-          URL.revokeObjectURL(objectUrl);
-        }
-      },
-      onerror: () => reject(new Error(`Could not fetch remote image: ${url}`)),
-      ontimeout: () => reject(new Error(`Remote image request timed out: ${url}`))
-    });
-  });
-}
-
-function loadRemoteImage(url) {
-  const cached = remoteImageCache.get(url);
-  if (cached) return Promise.resolve(cached);
-
-  const existingRequest = remoteImageInFlight.get(url);
-  if (existingRequest) return existingRequest;
-
-  const request = acquireRemoteImageRequestSlot()
-    .then(() => {
-      const cachedAfterWait = remoteImageCache.get(url);
-      return cachedAfterWait || fetchRemoteImage(url);
-    })
-    .then((image) => {
-      remoteImageCache.set(url, image);
-      return image;
-    })
-    .finally(() => {
-      remoteImageInFlight.delete(url);
-    });
-
-  remoteImageInFlight.set(url, request);
-  return request;
-}
-
 function setFont(ctx, px) {
   ctx.font = `${px}px Silkscreen, monospace`;
   ctx.textBaseline = "middle";
@@ -275,7 +196,12 @@ function drawText(ctx, text, config, { fill, stroke = null } = {}) {
   if (config.overflow === "clip") {
     const clipHeight = Math.max(12, px * 3);
     ctx.beginPath();
-    ctx.rect(config.x - config.maxWidth / 2, config.y - clipHeight / 2, config.maxWidth, clipHeight);
+    ctx.rect(
+      config.x - config.maxWidth / 2,
+      config.y - clipHeight / 2,
+      config.maxWidth,
+      clipHeight
+    );
     ctx.clip();
   }
 
@@ -290,88 +216,6 @@ function drawText(ctx, text, config, { fill, stroke = null } = {}) {
   ctx.fillStyle = fill;
   ctx.fillText(text, config.x, config.y);
   ctx.restore();
-}
-
-function crc32(bytes) {
-  let crc = 0xffffffff;
-  for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) {
-      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
-    }
-  }
-  return (crc ^ 0xffffffff) >>> 0;
-}
-
-function uint32Bytes(value) {
-  return new Uint8Array([
-    (value >>> 24) & 0xff,
-    (value >>> 16) & 0xff,
-    (value >>> 8) & 0xff,
-    value & 0xff
-  ]);
-}
-
-function concatBytes(parts) {
-  const total = parts.reduce((sum, part) => sum + part.length, 0);
-  const output = new Uint8Array(total);
-  let offset = 0;
-  for (const part of parts) {
-    output.set(part, offset);
-    offset += part.length;
-  }
-  return output;
-}
-
-function pngTextChunk(keyword, value) {
-  const encoder = new TextEncoder();
-  const type = encoder.encode("tEXt");
-  const data = encoder.encode(`${keyword}\0${value}`);
-  const crc = crc32(concatBytes([type, data]));
-  return concatBytes([uint32Bytes(data.length), type, data, uint32Bytes(crc)]);
-}
-
-function injectPngMetadata(pngBytes, metadata) {
-  let offset = 8;
-  let iendOffset = -1;
-
-  while (offset + 12 <= pngBytes.length) {
-    const length = (
-      (pngBytes[offset] << 24) |
-      (pngBytes[offset + 1] << 16) |
-      (pngBytes[offset + 2] << 8) |
-      pngBytes[offset + 3]
-    ) >>> 0;
-    const type = String.fromCharCode(
-      pngBytes[offset + 4],
-      pngBytes[offset + 5],
-      pngBytes[offset + 6],
-      pngBytes[offset + 7]
-    );
-    if (type === "IEND") {
-      iendOffset = offset;
-      break;
-    }
-    offset += 12 + length;
-  }
-
-  if (iendOffset < 0) throw new Error("Capture ticket: invalid PNG output");
-
-  const chunks = Object.entries(metadata).map(([key, value]) => pngTextChunk(key, String(value)));
-  return concatBytes([
-    pngBytes.slice(0, iendOffset),
-    ...chunks,
-    pngBytes.slice(iendOffset)
-  ]);
-}
-
-async function canvasToSignedBlob(canvas, metadata) {
-  const blob = await new Promise((resolve, reject) => {
-    canvas.toBlob((value) => value ? resolve(value) : reject(new Error("Could not encode capture ticket PNG")), "image/png");
-  });
-  const bytes = new Uint8Array(await blob.arrayBuffer());
-  const signed = injectPngMetadata(bytes, metadata);
-  return new Blob([signed], { type: "image/png" });
 }
 
 function safeFilename(value) {
@@ -438,7 +282,7 @@ export async function generateCaptureTicket(encounter) {
     Theme: data.theme
   };
 
-  const blob = await canvasToSignedBlob(canvas, metadata);
+  const blob = await canvasToPngBlobWithMetadata(canvas, metadata);
   return {
     blob,
     url: URL.createObjectURL(blob),
@@ -491,7 +335,10 @@ export async function openCaptureTicketPreview(encounter) {
     host.remove();
   };
   shadow.querySelector(".close").addEventListener("click", close);
-  shadow.querySelector(".download").addEventListener("click", () => downloadBlob(result.blob, result.filename));
+  shadow.querySelector(".download").addEventListener(
+    "click",
+    () => downloadBlob(result.blob, result.filename)
+  );
   shadow.querySelector(".backdrop").addEventListener("click", (event) => {
     if (event.target === event.currentTarget) close();
   });
