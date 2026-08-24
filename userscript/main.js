@@ -258,7 +258,7 @@ async function initialize() {
   audioAlerts = createAudioAlerts();
   catchGallery = createCatchGallery({
     loadEncounters: () =>
-      encountersRepository.getRecentSuccessfulCaptures(CATCH_GALLERY_LOAD_LIMIT)
+      encountersRepository.getRecentCaptureTickets(CATCH_GALLERY_LOAD_LIMIT)
   });
   await pipeline.recoverOnStartup();
 
