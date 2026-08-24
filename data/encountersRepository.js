@@ -54,18 +54,19 @@ export function createEncountersRepository(db) {
   }
 
   /**
-   * Returns at most `limit` successful captures, newest first.
+   * Returns at most `limit` ticket-eligible captures, newest first.
    *
-   * The v3 compound index groups rows by captureResult and orders each group
-   * by captureAtMs, so Catch Gallery never calls getAll() or materializes the
-   * complete encounters store. Eligibility (Legendary/Mythical/Shiny with
-   * complete ticket data) remains a domain concern and is filtered by the
-   * gallery model after this bounded persistence read.
+   * `captureTicketAtMs` is a sparse v3 index: only encounters that satisfy
+   * the Capture Ticket contract receive this derived field. Catch Gallery
+   * therefore reads only relevant rows and never materializes the complete
+   * encounters store.
    */
-  function getRecentSuccessfulCaptures(limit = 500) {
+  function getRecentCaptureTickets(limit = 500) {
     if (!Number.isInteger(limit) || limit < 1) {
       return Promise.reject(
-        new RangeError("encountersRepository.getRecentSuccessfulCaptures: limit must be >= 1")
+        new RangeError(
+          "encountersRepository.getRecentCaptureTickets: limit must be >= 1"
+        )
       );
     }
 
@@ -74,36 +75,19 @@ export function createEncountersRepository(db) {
       const store = db
         .transaction(STORE_NAMES.ENCOUNTERS, "readonly")
         .objectStore(STORE_NAMES.ENCOUNTERS);
-      const index = store.index("captureResultCaptureAtMs");
-      const request = index.openCursor(null, "prev");
-      let enteredSuccessRange = false;
+      const request = store.index("captureTicketAtMs").openCursor(null, "prev");
 
       request.onsuccess = () => {
         const cursor = request.result;
+
         if (!cursor) {
           resolve(rows);
           return;
         }
 
-        const resultKey = Array.isArray(cursor.key) ? cursor.key[0] : null;
+        rows.push(cursor.value);
 
-        if (resultKey === "success") {
-          enteredSuccessRange = true;
-          rows.push(cursor.value);
-
-          if (rows.length >= limit) {
-            resolve(rows);
-            return;
-          }
-
-          cursor.continue();
-          return;
-        }
-
-        // In descending index order a key below "success" means the success
-        // range has already been passed. Keys above it (for example a future
-        // result type) are skipped until the range is reached.
-        if (enteredSuccessRange || (typeof resultKey === "string" && resultKey < "success")) {
+        if (rows.length >= limit) {
           resolve(rows);
           return;
         }
@@ -152,7 +136,7 @@ export function createEncountersRepository(db) {
     get,
     getAll,
     getBySessionId,
-    getRecentSuccessfulCaptures,
+    getRecentCaptureTickets,
     deleteBySessionId
   };
 }
