@@ -12,7 +12,7 @@ A ticket is available only for a persisted `capture.success` encounter with comp
 
 Theme priority is `Shiny > Mythic > Legend`.
 
-Historical encounters that predate `captured_by_name` remain intentionally ineligible. Schema v3 does not invent missing capture data.
+Historical encounters that predate `captured_by_name` remain intentionally ineligible. Schema v3 does not invent or backfill missing Capture Ticket data.
 
 ## Data source
 
@@ -26,9 +26,9 @@ The renderer consumes one persisted encounter:
 - player: `capturedByName`, normalized from `capture.success.captured_by_name`
 - timestamp: `captureAtMs`
 
-For persistence lookup only, eligible rows also receive the derived field `captureTicketAtMs = captureAtMs`.
+For persistence lookup only, newly finalized eligible rows also receive the derived field `captureTicketAtMs = captureAtMs`.
 
-Schema v3 adds the sparse IndexedDB index `encounters.captureTicketAtMs`. During migration, existing rows receive this derived field only when they already satisfy the complete Capture Ticket contract. Rows with incomplete historical data are left unchanged.
+Schema v3 adds the sparse IndexedDB index `encounters.captureTicketAtMs`. The migration creates the index only; it does not scan/rewrite historical encounters or duplicate ticket eligibility rules inside the persistence layer. Eligibility remains owned by the domain/service pipeline.
 
 ## Catch Gallery
 
@@ -147,7 +147,7 @@ Manual smoke tests approved:
 
 Automated coverage includes:
 
-- sparse Capture Ticket index migration/backfill;
+- sparse Capture Ticket index migration with no historical row rewrite;
 - bounded newest-first Gallery persistence query;
 - future eligible capture persistence;
 - remote sprite cache hits, in-flight dedupe, 2-second rate limit, LRU eviction and failure recovery;
