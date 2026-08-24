@@ -41,44 +41,13 @@ function applyV2(_db, transaction) {
     .createIndex("startedAtMs", "startedAtMs", { unique: false });
 }
 
-function isTicketEligibleV3(row) {
-  const notable =
-    row?.isShiny === true ||
-    row?.quality === "legendary" ||
-    row?.quality === "mythical";
-
-  return Boolean(
-    row?.captureResult === "success" &&
-    notable &&
-    row.speciesName &&
-    row.capturedByName &&
-    Number.isFinite(row.qualityMultiplier) &&
-    Number.isFinite(row.ivTotal) &&
-    Number.isFinite(row.captureAtMs)
-  );
-}
-
 function applyV3(_db, transaction) {
-  const store = transaction.objectStore(STORE_NAMES.ENCOUNTERS);
-
-  // Sparse index: only rows with a numeric captureTicketAtMs participate.
-  // This lets Catch Gallery read ticket-eligible captures directly without
-  // scanning successes or materializing the whole encounter store.
-  store.createIndex("captureTicketAtMs", "captureTicketAtMs", { unique: false });
-
-  // Backfill only rows that already satisfy the exact v3 ticket contract.
-  // Old encounters missing capturedByName remain untouched/ineligible.
-  const request = store.openCursor();
-  request.onsuccess = () => {
-    const cursor = request.result;
-    if (!cursor) return;
-
-    const row = cursor.value;
-    if (isTicketEligibleV3(row) && row.captureTicketAtMs !== row.captureAtMs) {
-      cursor.update({ ...row, captureTicketAtMs: row.captureAtMs });
-    }
-    cursor.continue();
-  };
+  // Sparse index: only future rows with a numeric captureTicketAtMs
+  // participate. Eligibility remains a domain/service concern; migrations do
+  // not duplicate ticket business rules or scan/rewrite historical rows.
+  transaction
+    .objectStore(STORE_NAMES.ENCOUNTERS)
+    .createIndex("captureTicketAtMs", "captureTicketAtMs", { unique: false });
 }
 
 const MIGRATIONS = new Map([
