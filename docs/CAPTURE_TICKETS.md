@@ -1,6 +1,6 @@
 # Capture Tickets
 
-Development specification for manually generated capture tickets.
+Specification for manually generated Capture Tickets and the Misc > Catch Gallery surface.
 
 ## Eligibility
 
@@ -28,6 +28,26 @@ The renderer consumes one persisted encounter:
 
 No new IndexedDB store, index, schema version or migration is required.
 
+## Catch Gallery
+
+The final user surface is `Misc > Catch Gallery`, directly below Sound Alerts.
+
+The gallery is a compact table of all eligible persisted captures, newest first, with columns:
+
+- Pokémon
+- Captured
+- Quality
+- IV
+- Generate
+
+Legendary and Mythical names use the analyzer's established rarity colors. Shiny overrides the rarity color: the Pokémon name is silver and receives a `★` marker.
+
+The gallery performs a whole-store encounter read only when Misc is opened or when a new successful capture marks the gallery dirty. It is not part of the one-second Current refresh loop.
+
+When no eligible captures exist, the column headers remain visible with blank placeholder rows; no empty-state card or explanatory message is shown.
+
+`Generate` opens the existing Capture Ticket preview/download flow for that encounter.
+
 ## Sprite
 
 Sprites use PokémonDB Black/White assets:
@@ -36,6 +56,8 @@ Sprites use PokémonDB Black/White assets:
 https://img.pokemondb.net/sprites/black-white/normal/{pokemon}.png
 https://img.pokemondb.net/sprites/black-white/shiny/{pokemon}.png
 ```
+
+Tampermonkey fetches the sprite with `GM_xmlhttpRequest` and `@connect img.pokemondb.net`, avoiding page-origin CORS and tainted-canvas export failures.
 
 The 96×96 source is drawn at 192×192 with image smoothing disabled.
 
@@ -61,7 +83,9 @@ CAPTURED BY {capturedByName}
 {YYYY-MM-DD HH:mm:ss}
 ```
 
-Layout values are centralized in `userscript/capture-ticket.js` as `TICKET_LAYOUT` and preserve the Photoshop point-size references supplied for validation.
+The Google Fonts stylesheet and Silkscreen face are fully awaited before Canvas rendering, including the first generation after page reload.
+
+Final visually validated layout values live in `userscript/capture-ticket.js` as `TICKET_LAYOUT`.
 
 ## Artwork metadata
 
@@ -76,8 +100,8 @@ Downloaded PNGs receive non-visible PNG text metadata before export:
 
 This is attribution/fingerprinting, not DRM; PNG metadata can be removed by image re-encoding.
 
-## Temporary validation surface
+The Legend, Mythic and Shiny validation exports were confirmed to contain these PNG `tEXt` chunks with valid CRCs.
 
-`userscript/capture-ticket-dev-harness.js` adds Legend / Mythic / Shiny sample buttons to Misc so all three templates can be validated without waiting for a rare live capture.
+## Validation harness
 
-The harness is temporary and must be removed before the production release. The real `Generate Ticket` action remains tied to eligible Captured encounter detail rows.
+The temporary `DEV · Capture Ticket Preview` harness was used only for visual validation of Legend / Mythic / Shiny and was removed after approval. Production access is exclusively through Catch Gallery.
