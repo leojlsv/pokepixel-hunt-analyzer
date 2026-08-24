@@ -30,23 +30,30 @@ No new IndexedDB store, index, schema version or migration is required.
 
 ## Catch Gallery
 
-The final user surface is `Misc > Catch Gallery`, directly below Sound Alerts.
+The user surface is `Misc > Catch Gallery`, directly below Sound Alerts.
 
-The gallery is a compact table of all eligible persisted captures, newest first, with columns:
+The gallery is a compact collapsible table with columns:
 
 - Pokémon
 - Captured
 - Quality
 - IV
-- Generate
+- actions
 
 Legendary and Mythical names use the analyzer's established rarity colors. Shiny overrides the rarity color: the Pokémon name is silver and receives a `★` marker.
 
-The gallery performs a whole-store encounter read when Misc is explicitly opened. A new successful capture also marks the gallery dirty and refreshes it immediately when Misc is already visible. It is not part of the one-second Current refresh loop.
+Controls:
 
-When no eligible captures exist, the column headers remain visible with blank placeholder rows; no empty-state card or explanatory message is shown.
+- Pokémon text filter
+- rarity filter: All / Legendary / Mythical / Shiny
+- sortable Captured, Quality and IV headers; clicking the active header toggles ascending/descending
+- pagination capped at 5 captures per page
+- `Generate` opens the Capture Ticket preview/download flow
+- `Copy` generates the same PNG and writes it to the browser image clipboard so it can be pasted into compatible targets such as Discord
 
-`Generate` opens the existing Capture Ticket preview/download flow for that encounter.
+When no eligible captures exist, only the table column headers remain; no blank rows or empty-state card are rendered.
+
+The gallery performs a whole-store encounter read only when Misc is explicitly opened or when a successful capture marks the visible gallery dirty. It is not part of the one-second Current refresh loop. Filtering, sorting and pagination run in memory over the loaded eligible set.
 
 ## Sprite
 
@@ -102,6 +109,8 @@ This is attribution/fingerprinting, not DRM; PNG metadata can be removed by imag
 
 The Legend, Mythic and Shiny validation exports were confirmed to contain these PNG `tEXt` chunks with valid CRCs.
 
-## Validation harness
+## Temporary Catch Gallery harness
 
-The temporary `DEV · Capture Ticket Preview` harness was used only for visual validation of Legend / Mythic / Shiny and was removed after approval. Production access is exclusively through Catch Gallery.
+`userscript/catch-gallery-dev-harness.js` currently injects eight synthetic eligible captures so pagination, filtering, sorting, collapse, Generate and Copy can be smoke-tested without waiting for live rare captures.
+
+The harness is explicitly temporary and must be removed again before production consolidation.
