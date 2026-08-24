@@ -110,17 +110,6 @@ function dataUriToArrayBuffer(uri) {
   return bytes.buffer;
 }
 
-function alertRowsMarkup() {
-  return ALERT_ROWS.map(({ label, className, key }) => `
-    <span class="alert-name ${className}">${label}</span>
-    <label title="${label} captured">
-      <input type="checkbox" data-audio-alert="${key}_captured" aria-label="${label} captured sound alert">
-    </label>
-    <label title="${label} fled">
-      <input type="checkbox" data-audio-alert="${key}_fled" aria-label="${label} fled sound alert">
-    </label>`).join("");
-}
-
 export function createAudioAlerts() {
   const settings = readSettings();
   const buffers = new Map();
@@ -194,6 +183,34 @@ export function createAudioAlerts() {
     currentKey = null;
   }
 
+  async function playKey(key) {
+    if (!(await unlock())) return false;
+
+    try {
+      const buffer = await loadBuffer(key);
+      const context = getAudioContext();
+      if (!buffer || !context) return false;
+
+      stopCurrent();
+      const source = context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(context.destination);
+      source.addEventListener("ended", () => {
+        if (currentSource !== source) return;
+        source.disconnect();
+        currentSource = null;
+        currentKey = null;
+      }, { once: true });
+      currentSource = source;
+      currentKey = key;
+      source.start();
+      return true;
+    } catch (error) {
+      console.warn("PokePixel Hunt Analyzer (audio alert):", error);
+      return false;
+    }
+  }
+
   function updateEnabledCount() {
     if (!boundShadow) return;
     const count = AUDIO_ALERT_KEYS.filter((key) => settings[key]).length;
@@ -221,7 +238,7 @@ export function createAudioAlerts() {
         writeSettings();
         updateEnabledCount();
         if (!checkbox.checked && currentKey === key) stopCurrent();
-        if (checkbox.checked) void unlock();
+        if (checkbox.checked) void playKey(key);
       });
     }
 
@@ -270,32 +287,7 @@ export function createAudioAlerts() {
 
   async function handleTerminalAlert(alert) {
     const key = selectAudioAlertKey(alert, settings);
-    if (!key) return false;
-    if (!(await unlock())) return false;
-
-    try {
-      const buffer = await loadBuffer(key);
-      const context = getAudioContext();
-      if (!buffer || !context) return false;
-
-      stopCurrent();
-      const source = context.createBufferSource();
-      source.buffer = buffer;
-      source.connect(context.destination);
-      source.addEventListener("ended", () => {
-        if (currentSource !== source) return;
-        source.disconnect();
-        currentSource = null;
-        currentKey = null;
-      }, { once: true });
-      currentSource = source;
-      currentKey = key;
-      source.start();
-      return true;
-    } catch (error) {
-      console.warn("PokePixel Hunt Analyzer (audio alert):", error);
-      return false;
-    }
+    return key ? playKey(key) : false;
   }
 
   return {
