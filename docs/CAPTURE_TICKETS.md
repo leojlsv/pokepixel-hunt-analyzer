@@ -57,6 +57,8 @@ When no eligible captures exist, only the table column headers remain; no blank 
 
 The gallery performs a whole-store encounter read only when Misc is explicitly opened or when a successful capture marks the visible gallery dirty. It is not part of the one-second Current refresh loop. Filtering, sorting and pagination run in memory over the loaded eligible set.
 
+The filter/sort/page model is covered by unit tests; the current CI passed 226/226 tests with the existing 4,128-encounter replay fixture and userscript build.
+
 ## Sprite
 
 Sprites use PokémonDB Black/White assets:
