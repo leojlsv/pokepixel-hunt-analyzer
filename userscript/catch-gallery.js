@@ -296,7 +296,7 @@ export function createCatchGallery({ loadEncounters }) {
 
     if (tab.dataset.catchGalleryBound !== "true") {
       tab.dataset.catchGalleryBound = "true";
-      tab.addEventListener("click", () => void refresh());
+      tab.addEventListener("click", () => void refresh({ force: true }));
     }
 
     return true;
