@@ -15,7 +15,7 @@ import { SET2_SEGMENTS, SET2_SPRITE_URI } from "./audio-assets/set2/sprite.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STORAGE_KEY = "pokepixel_hunt_analyzer_audio_alerts_v1";
-const SOUND_SET_STORAGE_KEY = "pokepixel_hunt_analyzer_audio_set_v1";
+const CHOICE_STORAGE_KEY = "pokepixel_hunt_analyzer_audio_choices_v1";
 const STYLE_ID = "pha-audio-alert-styles";
 const TAB_ID = "alerts-tab";
 const VIEW_ID = "view-alerts";
@@ -48,7 +48,7 @@ const ALERT_STYLES = `
   .alert-grid {
     padding: 10px;
     display: grid;
-    grid-template-columns: minmax(110px, 1fr) 90px 90px;
+    grid-template-columns: minmax(105px, 1fr) 100px 100px;
     gap: 9px 10px;
     align-items: center;
     background: var(--bg-elevated);
@@ -73,39 +73,30 @@ const ALERT_STYLES = `
 
   .alert-shiny { color: var(--gold); }
 
-  .alert-grid label {
+  .alert-choice-pair {
     min-width: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 9px;
   }
 
-  .alert-grid input[type="checkbox"] {
+  .alert-choice {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: var(--muted);
+    font-size: 8px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .alert-choice input[type="checkbox"] {
     width: 15px;
     height: 15px;
     margin: 0;
     accent-color: var(--gold);
     cursor: pointer;
-  }
-
-  .sound-set-control {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    color: var(--muted);
-    font-size: 9px;
-    white-space: nowrap;
-  }
-
-  .sound-set-control select {
-    height: 22px;
-    min-width: 58px;
-    padding: 2px 5px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: var(--bg);
-    color: var(--text);
-    font-size: 9px;
   }
 
   .alert-help {
@@ -117,33 +108,63 @@ const ALERT_STYLES = `
   }
 `;
 
-function readSettings() {
-  const defaults = defaultAudioAlertSettings();
+function readChoices() {
+  const choices = Object.fromEntries(AUDIO_ALERT_KEYS.map((key) => [key, 0]));
+
   try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-    if (!stored || typeof stored !== "object") return defaults;
-    for (const key of AUDIO_ALERT_KEYS) {
-      defaults[key] = stored[key] === true;
+    const stored = JSON.parse(localStorage.getItem(CHOICE_STORAGE_KEY) || "null");
+    if (stored && typeof stored === "object") {
+      for (const key of AUDIO_ALERT_KEYS) {
+        choices[key] = stored[key] === 2 ? 2 : stored[key] === 1 ? 1 : 0;
+      }
+      return choices;
     }
   } catch {
-    // Invalid local state falls back to every alert disabled.
+    // Invalid local state falls through to legacy migration.
   }
-  return defaults;
+
+  try {
+    const legacy = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+    if (legacy && typeof legacy === "object") {
+      for (const key of AUDIO_ALERT_KEYS) {
+        if (legacy[key] === true) choices[key] = 1;
+      }
+    }
+  } catch {
+    // Invalid legacy state leaves every alert disabled.
+  }
+
+  return choices;
 }
 
-function readSoundSet() {
-  return localStorage.getItem(SOUND_SET_STORAGE_KEY) === "2" ? "2" : "1";
+function settingsFromChoices(choices) {
+  const settings = defaultAudioAlertSettings();
+  for (const key of AUDIO_ALERT_KEYS) {
+    settings[key] = choices[key] === 1 || choices[key] === 2;
+  }
+  return settings;
+}
+
+function alertChoiceMarkup(label, key, result) {
+  const alertKey = `${key}_${result}`;
+  return `
+    <div class="alert-choice-pair" title="${label} ${result}">
+      <label class="alert-choice" title="Sound 1">
+        <input type="checkbox" data-audio-key="${alertKey}" data-audio-choice="1" aria-label="${label} ${result} sound 1">
+        <span>1</span>
+      </label>
+      <label class="alert-choice" title="Sound 2">
+        <input type="checkbox" data-audio-key="${alertKey}" data-audio-choice="2" aria-label="${label} ${result} sound 2">
+        <span>2</span>
+      </label>
+    </div>`;
 }
 
 function alertRowsMarkup() {
   return ALERT_ROWS.map(({ label, className, key }) => `
     <span class="alert-name ${className}">${label}</span>
-    <label title="${label} captured">
-      <input type="checkbox" data-audio-alert="${key}_captured" aria-label="${label} captured sound alert">
-    </label>
-    <label title="${label} fled">
-      <input type="checkbox" data-audio-alert="${key}_fled" aria-label="${label} fled sound alert">
-    </label>`).join("");
+    ${alertChoiceMarkup(label, key, "captured")}
+    ${alertChoiceMarkup(label, key, "fled")}`).join("");
 }
 
 function dataUriToArrayBuffer(uri) {
@@ -158,23 +179,20 @@ function dataUriToArrayBuffer(uri) {
 }
 
 export function createAudioAlerts() {
-  const settings = readSettings();
-  const set1Buffers = new Map();
-  let soundSet = readSoundSet();
-  let set2Buffer = null;
+  const choices = readChoices();
+  const settings = settingsFromChoices(choices);
+  const sound1Buffers = new Map();
+  let sound2Buffer = null;
   let audioContext = null;
   let currentSource = null;
-  let currentKey = null;
+  let currentPlayback = null;
   let boundShadow = null;
   let gestureUnlockInstalled = false;
   let mountRetry = null;
 
-  function writeSettings() {
+  function writeChoices() {
+    localStorage.setItem(CHOICE_STORAGE_KEY, JSON.stringify(choices));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  }
-
-  function writeSoundSet() {
-    localStorage.setItem(SOUND_SET_STORAGE_KEY, soundSet);
   }
 
   function getAudioContext() {
@@ -214,23 +232,23 @@ export function createAudioAlerts() {
     window.addEventListener("keydown", attempt, true);
   }
 
-  async function loadSet1Buffer(key) {
-    if (set1Buffers.has(key)) return set1Buffers.get(key);
+  async function loadSound1Buffer(key) {
+    if (sound1Buffers.has(key)) return sound1Buffers.get(key);
     const context = getAudioContext();
     const uri = AUDIO_URLS[key];
     if (!context || !uri) return null;
 
     const buffer = await context.decodeAudioData(dataUriToArrayBuffer(uri));
-    set1Buffers.set(key, buffer);
+    sound1Buffers.set(key, buffer);
     return buffer;
   }
 
-  async function loadSet2Buffer() {
-    if (set2Buffer) return set2Buffer;
+  async function loadSound2Buffer() {
+    if (sound2Buffer) return sound2Buffer;
     const context = getAudioContext();
     if (!context) return null;
-    set2Buffer = await context.decodeAudioData(dataUriToArrayBuffer(SET2_SPRITE_URI));
-    return set2Buffer;
+    sound2Buffer = await context.decodeAudioData(dataUriToArrayBuffer(SET2_SPRITE_URI));
+    return sound2Buffer;
   }
 
   function stopCurrent() {
@@ -242,20 +260,22 @@ export function createAudioAlerts() {
     }
     currentSource.disconnect();
     currentSource = null;
-    currentKey = null;
+    currentPlayback = null;
   }
 
-  async function playKey(key) {
+  async function playKey(key, choice = choices[key]) {
+    const selected = Number(choice);
+    if (selected !== 1 && selected !== 2) return false;
     if (!(await unlock())) return false;
 
     try {
       const context = getAudioContext();
       if (!context) return false;
 
-      const useSet2 = soundSet === "2";
-      const segment = useSet2 ? SET2_SEGMENTS[key] : null;
-      const buffer = useSet2 ? await loadSet2Buffer() : await loadSet1Buffer(key);
-      if (!buffer || (useSet2 && !segment)) return false;
+      const useSound2 = selected === 2;
+      const segment = useSound2 ? SET2_SEGMENTS[key] : null;
+      const buffer = useSound2 ? await loadSound2Buffer() : await loadSound1Buffer(key);
+      if (!buffer || (useSound2 && !segment)) return false;
 
       stopCurrent();
       const source = context.createBufferSource();
@@ -265,12 +285,12 @@ export function createAudioAlerts() {
         if (currentSource !== source) return;
         source.disconnect();
         currentSource = null;
-        currentKey = null;
+        currentPlayback = null;
       }, { once: true });
       currentSource = source;
-      currentKey = key;
+      currentPlayback = `${key}:${selected}`;
 
-      if (useSet2) {
+      if (useSound2) {
         source.start(0, segment.offset, segment.duration);
       } else {
         source.start();
@@ -289,34 +309,42 @@ export function createAudioAlerts() {
     if (badge) badge.textContent = `${count}/8`;
   }
 
+  function syncChoicePair(shadow, key) {
+    for (const checkbox of shadow.querySelectorAll(`[data-audio-key="${key}"]`)) {
+      checkbox.checked = Number(checkbox.dataset.audioChoice) === choices[key];
+    }
+  }
+
   function bindControls(shadow) {
     boundShadow = shadow;
 
-    const soundSetSelect = shadow.getElementById("audio-sound-set");
-    if (soundSetSelect && soundSetSelect.dataset.audioBound !== "true") {
-      soundSetSelect.dataset.audioBound = "true";
-      soundSetSelect.value = soundSet;
-      soundSetSelect.addEventListener("change", () => {
-        soundSet = soundSetSelect.value === "2" ? "2" : "1";
-        soundSetSelect.value = soundSet;
-        writeSoundSet();
-        stopCurrent();
-      });
-    } else if (soundSetSelect) {
-      soundSetSelect.value = soundSet;
-    }
+    for (const checkbox of shadow.querySelectorAll("[data-audio-key][data-audio-choice]")) {
+      const key = checkbox.dataset.audioKey;
+      const choice = Number(checkbox.dataset.audioChoice);
+      if (!AUDIO_ALERT_KEYS.includes(key) || ![1, 2].includes(choice)) continue;
 
-    for (const checkbox of shadow.querySelectorAll("[data-audio-alert]")) {
-      const key = checkbox.dataset.audioAlert;
-      if (!AUDIO_ALERT_KEYS.includes(key) || checkbox.dataset.audioBound === "true") continue;
+      checkbox.checked = choices[key] === choice;
+      if (checkbox.dataset.audioBound === "true") continue;
       checkbox.dataset.audioBound = "true";
-      checkbox.checked = settings[key] === true;
+
       checkbox.addEventListener("change", () => {
-        settings[key] = checkbox.checked;
-        writeSettings();
-        updateEnabledCount();
-        if (!checkbox.checked && currentKey === key) stopCurrent();
-        if (checkbox.checked) void playKey(key);
+        if (checkbox.checked) {
+          choices[key] = choice;
+          settings[key] = true;
+          syncChoicePair(shadow, key);
+          writeChoices();
+          updateEnabledCount();
+          void playKey(key, choice);
+          return;
+        }
+
+        if (choices[key] === choice) {
+          choices[key] = 0;
+          settings[key] = false;
+          writeChoices();
+          updateEnabledCount();
+          if (currentPlayback === `${key}:${choice}`) stopCurrent();
+        }
       });
     }
 
@@ -387,12 +415,6 @@ export function createAudioAlerts() {
           <div class="section-head">
             <h3>Sound Alerts</h3>
             <div class="section-meta">
-              <label class="sound-set-control">Sound Set
-                <select id="audio-sound-set" aria-label="Sound Set">
-                  <option value="1">Set 1</option>
-                  <option value="2">Set 2</option>
-                </select>
-              </label>
               <span id="alerts-enabled-count" class="section-badge">0/8</span>
             </div>
           </div>
@@ -401,8 +423,8 @@ export function createAudioAlerts() {
             ${alertRowsMarkup()}
           </div>
           <div class="alert-help">
-            Choose a Sound Set, then enable only the alerts you want. Enabling an option plays the selected set once as preview.<br>
-            If a Pokémon is Shiny and also Epic/Legendary/Mythical, the enabled Shiny alert has priority.
+            Choose sound 1 or 2 independently for each alert. Leave both unchecked to disable that alert.<br>
+            Selecting a sound replaces the other option in the same pair and plays it once as preview. Shiny keeps priority over notable rarity when both apply.
           </div>
         </section>`;
       panel.appendChild(alertsView);
@@ -423,7 +445,7 @@ export function createAudioAlerts() {
 
   async function handleTerminalAlert(alert) {
     const key = selectAudioAlertKey(alert, settings);
-    return key ? playKey(key) : false;
+    return key ? playKey(key, choices[key]) : false;
   }
 
   return {
