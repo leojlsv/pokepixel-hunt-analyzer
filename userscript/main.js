@@ -11,8 +11,7 @@ import { createTabLeadership } from "./tab-leadership.js";
 import { installWebSocketObserver } from "./websocket-observer.js";
 import { createUi } from "./ui.js";
 import { createAudioAlerts } from "./audio-alerts.js";
-import { installCaptureTicketDev } from "./capture-ticket.js";
-import { mountCaptureTicketDevHarness } from "./capture-ticket-dev-harness.js";
+import { createCatchGallery } from "./catch-gallery.js";
 
 const APP_VERSION = __APP_VERSION__;
 const TAB_LOCK_REFRESH_MS = 2_000;
@@ -33,9 +32,8 @@ let pipeline;
 let sessionsRepository;
 let encountersRepository;
 let audioAlerts;
+let catchGallery;
 let ui;
-let captureTicketCleanup = null;
-let captureTicketHarnessCleanup = null;
 let updateQueue = Promise.resolve();
 let currentLoadPromise = null;
 let cachedSessionId = null;
@@ -100,6 +98,10 @@ function enqueueProtocolEvent(payload, socketId) {
 
       if (eventResult?.terminalAlert) {
         void audioAlerts?.handleTerminalAlert(eventResult.terminalAlert);
+      }
+
+      if (payload.type === "capture.success") {
+        catchGallery?.markDirty();
       }
 
       if (TERMINAL_LIST_EVENTS.has(payload.type)) {
@@ -209,8 +211,7 @@ async function handleSessionAction(action) {
 
 function mountUiWhenReady() {
   const mount = () => {
-    captureTicketCleanup?.();
-    captureTicketHarnessCleanup?.();
+    catchGallery?.dispose();
     ui = createUi({
       onSessionAction: (action) => void handleSessionAction(action),
       onLoadHistorySessions: (options) => sessionsRepository.getPage(options),
@@ -218,14 +219,7 @@ function mountUiWhenReady() {
         encountersRepository.getBySessionId(sessionId)
     });
     audioAlerts?.mountControls();
-    const analyzerShadow = document.getElementById("pokepixel-hunt-analyzer-root")?.shadowRoot;
-    if (analyzerShadow) {
-      captureTicketHarnessCleanup = mountCaptureTicketDevHarness(analyzerShadow);
-    }
-    captureTicketCleanup = installCaptureTicketDev({
-      getEncounterById: (encounterId) =>
-        cachedEncounters.find((encounter) => encounter.encounterId === encounterId) || null
-    });
+    catchGallery?.mountControls();
     ui.setActive(leadership.isActive());
   };
 
@@ -261,6 +255,9 @@ async function initialize() {
   encountersRepository = createEncountersRepository(database);
   pipeline = createEventPipeline(database, { appVersion: APP_VERSION });
   audioAlerts = createAudioAlerts();
+  catchGallery = createCatchGallery({
+    loadEncounters: () => encountersRepository.getAll()
+  });
   await pipeline.recoverOnStartup();
 
   mountUiWhenReady();
@@ -271,8 +268,7 @@ async function initialize() {
 }
 
 window.addEventListener("beforeunload", () => {
-  captureTicketCleanup?.();
-  captureTicketHarnessCleanup?.();
+  catchGallery?.dispose();
   leadership.release();
 });
 
