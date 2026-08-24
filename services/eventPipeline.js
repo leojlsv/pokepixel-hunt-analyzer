@@ -15,6 +15,7 @@ import {
 import { buildCanonicalConfig } from "../domain/config.js";
 import { buildGroupKey } from "../domain/groupKey.js";
 import { decideSessionTransition } from "../domain/huntLifecycle.js";
+import { buildTerminalAlert } from "../domain/terminalAlert.js";
 import { createConfigsRepository } from "../data/configsRepository.js";
 import { createEncountersRepository } from "../data/encountersRepository.js";
 import { createSessionsRepository } from "../data/sessionsRepository.js";
@@ -221,6 +222,7 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
     trackerState = swept.state;
     await applyEffects(swept.effects);
 
+    const terminalAlert = buildTerminalAlert(envelope, trackerState);
     const result = applyEvent(trackerState, envelope);
     trackerState = { ...result.state, seenKeys: new Set() };
     await applyEffects(result.effects);
@@ -233,7 +235,7 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
       await bumpDiagnostics({ orphanEvents: orphansCreated });
     }
 
-    return { ok: true };
+    return { ok: true, terminalAlert };
   }
 
   async function getDiagnosticsSnapshot() {
