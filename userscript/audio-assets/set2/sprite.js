@@ -2,14 +2,20 @@ import chunk1 from "./chunk-1.js";
 import chunk2 from "./chunk-2.js";
 import chunk3 from "./chunk-3.js";
 import chunk4 from "./chunk-4.js";
-import chunk5 from "./chunk-5.js";
+import chunk5a from "./chunk-5a.js";
+import chunk5b from "./chunk-5b.js";
+import chunk5c from "./chunk-5c.js";
+import chunk5d from "./chunk-5d.js";
 import chunk6 from "./chunk-6.js";
 import chunk7 from "./chunk-7.js";
 import chunk8 from "./chunk-8.js";
-import chunk9 from "./chunk-9.js";
+import chunk9a from "./chunk-9a.js";
+import chunk9b from "./chunk-9b.js";
+import chunk9c from "./chunk-9c.js";
+import chunk9d from "./chunk-9d.js";
 import chunk10 from "./chunk-10.js";
 
-export const SET2_SPRITE_URI = `data:audio/ogg;base64,${chunk1}${chunk2}${chunk3}${chunk4}${chunk5}${chunk6}${chunk7}${chunk8}${chunk9}${chunk10}`;
+export const SET2_SPRITE_URI = `data:audio/ogg;base64,${chunk1}${chunk2}${chunk3}${chunk4}${chunk5a}${chunk5b}${chunk5c}${chunk5d}${chunk6}${chunk7}${chunk8}${chunk9a}${chunk9b}${chunk9c}${chunk9d}${chunk10}`;
 
 export const SET2_SEGMENTS = Object.freeze({
   epic_captured: Object.freeze({ offset: 0, duration: 1.764333 }),
