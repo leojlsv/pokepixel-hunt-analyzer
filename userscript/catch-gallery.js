@@ -9,10 +9,6 @@ import {
   generateCaptureTicket,
   openCaptureTicketPreview
 } from "./capture-ticket.js";
-import {
-  CATCH_GALLERY_DEV_HARNESS,
-  withCatchGalleryDevHarness
-} from "./catch-gallery-dev-harness.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const TAB_ID = "alerts-tab";
@@ -21,215 +17,83 @@ const SECTION_ID = "catch-gallery";
 const STYLE_ID = "pha-catch-gallery-styles";
 
 const STYLES = `
-  .catch-gallery-section .section-head {
-    cursor: default;
-  }
-
-  .catch-gallery-head-meta {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .catch-gallery-dev-badge {
-    padding: 2px 5px;
-    border: 1px solid #6b6248;
-    border-radius: 3px;
-    color: #c9b878;
-    font-size: 8px;
-    font-weight: 800;
-    line-height: 1;
-  }
+  .catch-gallery-section .section-head { cursor: default; }
+  .catch-gallery-head-meta { display:flex; align-items:center; gap:6px; }
 
   .catch-gallery-filters {
-    padding: 7px 9px;
-    display: grid;
-    grid-template-columns: minmax(120px, 1fr) 116px;
-    gap: 7px;
-    border-bottom: 1px solid var(--border-soft);
-    background: var(--bg-elevated);
+    padding:7px 9px;
+    display:grid;
+    grid-template-columns:minmax(120px,1fr) 116px;
+    gap:7px;
+    border-bottom:1px solid var(--border-soft);
+    background:var(--bg-elevated);
   }
-
   .catch-gallery-filters input,
   .catch-gallery-filters select {
-    width: 100%;
-    min-width: 0;
-    height: 26px;
-    padding: 4px 6px;
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    background: var(--bg);
-    color: var(--text);
-    font-size: 10px;
+    width:100%; min-width:0; height:26px; padding:4px 6px;
+    border:1px solid var(--border); border-radius:3px;
+    background:var(--bg); color:var(--text); font-size:10px;
   }
 
-  .catch-gallery-section .table-wrap {
-    max-height: none;
-    overflow: auto;
-  }
-
-  .catch-gallery-table {
-    table-layout: fixed;
-  }
-
+  .catch-gallery-section .table-wrap { max-height:none; overflow:auto; }
+  .catch-gallery-table { table-layout:fixed; }
   .catch-gallery-table th,
-  .catch-gallery-table td {
-    height: 29px;
-    padding: 5px 7px;
-    vertical-align: middle;
-  }
-
-  .catch-gallery-table th:nth-child(1) { width: 25%; }
-  .catch-gallery-table th:nth-child(2) { width: 21%; }
-  .catch-gallery-table th:nth-child(3) { width: 12%; text-align: right; }
-  .catch-gallery-table th:nth-child(4) { width: 9%; text-align: right; }
-  .catch-gallery-table th:nth-child(5) { width: 33%; text-align: right; }
-
+  .catch-gallery-table td { height:29px; padding:5px 7px; vertical-align:middle; }
+  .catch-gallery-table th:nth-child(1) { width:25%; }
+  .catch-gallery-table th:nth-child(2) { width:21%; }
+  .catch-gallery-table th:nth-child(3) { width:12%; text-align:right; }
+  .catch-gallery-table th:nth-child(4) { width:9%; text-align:right; }
+  .catch-gallery-table th:nth-child(5) { width:33%; text-align:right; }
   .catch-gallery-table td:nth-child(3),
   .catch-gallery-table td:nth-child(4),
-  .catch-gallery-table td:nth-child(5) {
-    text-align: right;
-  }
+  .catch-gallery-table td:nth-child(5) { text-align:right; }
 
   .catch-gallery-sort {
-    appearance: none;
-    width: 100%;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    font: inherit;
-    font-weight: inherit;
-    text-align: inherit;
-    cursor: pointer;
-    white-space: nowrap;
+    appearance:none; width:100%; padding:0; border:0; background:transparent;
+    color:inherit; font:inherit; font-weight:inherit; text-align:inherit;
+    cursor:pointer; white-space:nowrap;
   }
-
-  .catch-gallery-sort:hover {
-    color: var(--gold);
-  }
-
-  .catch-gallery-sort-arrow {
-    margin-left: 3px;
-    color: #77746a;
-    font-size: 8px;
-  }
-
-  .catch-gallery-sort.active .catch-gallery-sort-arrow {
-    color: var(--gold);
-  }
+  .catch-gallery-sort:hover { color:var(--gold); }
+  .catch-gallery-sort-arrow { margin-left:3px; color:#77746a; font-size:8px; }
+  .catch-gallery-sort.active .catch-gallery-sort-arrow { color:var(--gold); }
 
   .catch-gallery-name {
-    display: inline-flex;
-    align-items: center;
-    min-width: 0;
-    max-width: 100%;
-    overflow: hidden;
-    font-weight: 800;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display:inline-flex; align-items:center; min-width:0; max-width:100%;
+    overflow:hidden; font-weight:800; text-overflow:ellipsis; white-space:nowrap;
   }
-
-  .catch-gallery-shiny {
-    color: #cfd5de !important;
-  }
-
-  .catch-gallery-star {
-    flex: 0 0 auto;
-    margin-right: 4px;
-    color: #e4e7ec;
-    font-size: 10px;
-    line-height: 1;
-  }
-
+  .catch-gallery-shiny { color:#cfd5de !important; }
+  .catch-gallery-star { flex:0 0 auto; margin-right:4px; color:#e4e7ec; font-size:10px; line-height:1; }
   .catch-gallery-date {
-    overflow: hidden;
-    color: var(--muted);
-    font-size: 10px;
-    font-variant-numeric: tabular-nums;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow:hidden; color:var(--muted); font-size:10px;
+    font-variant-numeric:tabular-nums; text-overflow:ellipsis; white-space:nowrap;
   }
+  .catch-gallery-number { color:#d8d4c9; font-variant-numeric:tabular-nums; }
 
-  .catch-gallery-number {
-    color: #d8d4c9;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .catch-gallery-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 4px;
-  }
-
+  .catch-gallery-actions { display:flex; align-items:center; justify-content:flex-end; gap:4px; }
   .catch-gallery-action {
-    min-width: 46px;
-    height: 21px;
-    padding: 0 5px;
-    border: 1px solid #5b594f;
-    border-radius: 3px;
-    background: #30312c;
-    color: #d8d4c9;
-    font-size: 9px;
-    line-height: 19px;
-    white-space: nowrap;
-    cursor: pointer;
+    min-width:46px; height:21px; padding:0 5px;
+    border:1px solid #5b594f; border-radius:3px; background:#30312c;
+    color:#d8d4c9; font-size:9px; line-height:19px; white-space:nowrap; cursor:pointer;
   }
-
-  .catch-gallery-action.generate {
-    min-width: 62px;
-    color: #dccd95;
-  }
-
-  .catch-gallery-action:hover {
-    border-color: #81764f;
-    background: #3a392f;
-  }
-
-  .catch-gallery-action:disabled {
-    cursor: default;
-    opacity: .55;
-  }
+  .catch-gallery-action.generate { min-width:62px; color:#dccd95; }
+  .catch-gallery-action:hover { border-color:#81764f; background:#3a392f; }
+  .catch-gallery-action:disabled { cursor:default; opacity:.55; }
 
   .catch-gallery-pagination {
-    min-height: 31px;
-    padding: 5px 8px;
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
-    border-top: 1px solid var(--border-soft);
-    background: var(--bg-elevated);
+    min-height:31px; padding:5px 8px; display:flex; align-items:center;
+    justify-content:flex-end; gap:6px; border-top:1px solid var(--border-soft);
+    background:var(--bg-elevated);
   }
-
-  .catch-gallery-pagination[hidden] {
-    display: none !important;
-  }
-
+  .catch-gallery-pagination[hidden] { display:none !important; }
   .catch-gallery-page-button {
-    min-width: 48px;
-    height: 21px;
-    padding: 0 6px;
-    border: 1px solid #55544c;
-    border-radius: 3px;
-    background: #30312c;
-    color: var(--text);
-    font-size: 9px;
-    cursor: pointer;
+    min-width:48px; height:21px; padding:0 6px;
+    border:1px solid #55544c; border-radius:3px; background:#30312c;
+    color:var(--text); font-size:9px; cursor:pointer;
   }
-
-  .catch-gallery-page-button:disabled {
-    opacity: .4;
-    cursor: default;
-  }
-
+  .catch-gallery-page-button:disabled { opacity:.4; cursor:default; }
   .catch-gallery-page-label {
-    min-width: 38px;
-    color: var(--muted);
-    font-size: 9px;
-    font-variant-numeric: tabular-nums;
-    text-align: center;
+    min-width:38px; color:var(--muted); font-size:9px;
+    font-variant-numeric:tabular-nums; text-align:center;
   }
 `;
 
@@ -426,14 +290,14 @@ export function createCatchGallery({ loadEncounters }) {
       .then(() => loadEncounters())
       .then((encounters) => {
         if (disposed) return;
-        rawEncounters = withCatchGalleryDevHarness(encounters);
+        rawEncounters = Array.isArray(encounters) ? encounters : [];
         page = 1;
         render();
         dirty = false;
       })
       .catch((error) => {
         console.error("PokePixel Hunt Analyzer (Catch Gallery load):", error);
-        rawEncounters = withCatchGalleryDevHarness([]);
+        rawEncounters = [];
         page = 1;
         render();
       })
@@ -492,7 +356,6 @@ export function createCatchGallery({ loadEncounters }) {
       <div class="section-head">
         <h3>Catch Gallery</h3>
         <div class="catch-gallery-head-meta">
-          ${CATCH_GALLERY_DEV_HARNESS ? '<span class="catch-gallery-dev-badge">DEV HARNESS</span>' : ""}
           <button class="collapse-button catch-gallery-collapse" type="button" title="Collapse Catch Gallery" aria-expanded="true">▾</button>
         </div>
       </div>
