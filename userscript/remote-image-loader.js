@@ -1,5 +1,6 @@
 export const REMOTE_IMAGE_MIN_INTERVAL_MS = 2_000;
 export const REMOTE_IMAGE_MAX_CACHE_ENTRIES = 32;
+export const REMOTE_IMAGE_TIMEOUT_MS = 10_000;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -34,6 +35,7 @@ function fetchImageWithTampermonkey(url) {
       url,
       responseType: "blob",
       anonymous: true,
+      timeout: REMOTE_IMAGE_TIMEOUT_MS,
       onload: async (response) => {
         if (response.status < 200 || response.status >= 300 || !response.response) {
           reject(
