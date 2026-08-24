@@ -42,7 +42,7 @@ The gallery is a compact table of all eligible persisted captures, newest first,
 
 Legendary and Mythical names use the analyzer's established rarity colors. Shiny overrides the rarity color: the Pokémon name is silver and receives a `★` marker.
 
-The gallery performs a whole-store encounter read only when Misc is opened or when a new successful capture marks the gallery dirty. It is not part of the one-second Current refresh loop.
+The gallery performs a whole-store encounter read when Misc is explicitly opened. A new successful capture also marks the gallery dirty and refreshes it immediately when Misc is already visible. It is not part of the one-second Current refresh loop.
 
 When no eligible captures exist, the column headers remain visible with blank placeholder rows; no empty-state card or explanatory message is shown.
 
