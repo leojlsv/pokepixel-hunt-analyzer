@@ -15,7 +15,7 @@ function freshIndexedDBFactory() {
   return new IDBFactory();
 }
 
-test("creates all v1 stores and the encounters indexes", async () => {
+test("creates all stores and the current encounters indexes", async () => {
   const db = await openDatabase({
     indexedDBFactory: freshIndexedDBFactory()
   });
@@ -37,6 +37,7 @@ test("creates all v1 stores and the encounters indexes", async () => {
     const encounters = tx.objectStore(STORE_NAMES.ENCOUNTERS);
 
     assert.deepEqual(Array.from(encounters.indexNames).sort(), [
+      "captureResultCaptureAtMs",
       "groupKey",
       "quality",
       "sessionId",
@@ -88,21 +89,30 @@ test("rejects when no IndexedDB implementation is available", async () => {
   );
 });
 
-test("upgrading v1 -> v2 adds sessions.startedAtMs without touching existing data", async () => {
+test("upgrading v1 -> current adds indexes without touching existing data", async () => {
   const indexedDBFactory = freshIndexedDBFactory();
 
   // Open at v1 only — simulates a real user's browser that installed the
-  // extension before this migration shipped.
+  // analyzer before later migrations shipped.
   const v1 = await openDatabase({ indexedDBFactory, version: 1 });
 
   const seedSession = { sessionId: "s1", status: "ended", startedAtMs: 1000 };
+  const seedEncounter = {
+    encounterId: "e1",
+    captureResult: "success",
+    captureAtMs: 2000,
+    state: "success"
+  };
+
   await new Promise((resolve, reject) => {
-    const request = v1
-      .transaction(STORE_NAMES.SESSIONS, "readwrite")
-      .objectStore(STORE_NAMES.SESSIONS)
-      .put(seedSession);
-    request.onsuccess = resolve;
-    request.onerror = () => reject(request.error);
+    const transaction = v1.transaction(
+      [STORE_NAMES.SESSIONS, STORE_NAMES.ENCOUNTERS],
+      "readwrite"
+    );
+    transaction.objectStore(STORE_NAMES.SESSIONS).put(seedSession);
+    transaction.objectStore(STORE_NAMES.ENCOUNTERS).put(seedEncounter);
+    transaction.oncomplete = resolve;
+    transaction.onerror = () => reject(transaction.error);
   });
 
   assert.equal(
@@ -110,42 +120,56 @@ test("upgrading v1 -> v2 adds sessions.startedAtMs without touching existing dat
       .length,
     0
   );
+  assert.equal(
+    v1.transaction(STORE_NAMES.ENCOUNTERS).objectStore(STORE_NAMES.ENCOUNTERS)
+      .indexNames.contains("captureResultCaptureAtMs"),
+    false
+  );
 
   v1.close();
 
-  // Reopen at the real current version — triggers the v1 -> v2 upgrade.
-  const v2 = await openDatabase({ indexedDBFactory, version: SCHEMA_VERSION });
+  const current = await openDatabase({ indexedDBFactory, version: SCHEMA_VERSION });
 
   try {
-    assert.equal(v2.version, SCHEMA_VERSION);
+    assert.equal(current.version, SCHEMA_VERSION);
 
-    const tx = v2.transaction(STORE_NAMES.SESSIONS, "readonly");
-    const store = tx.objectStore(STORE_NAMES.SESSIONS);
+    const sessionsStore = current
+      .transaction(STORE_NAMES.SESSIONS, "readonly")
+      .objectStore(STORE_NAMES.SESSIONS);
+    assert.deepEqual(Array.from(sessionsStore.indexNames), ["startedAtMs"]);
 
-    assert.deepEqual(Array.from(store.indexNames), ["startedAtMs"]);
-
-    const preserved = await new Promise((resolve, reject) => {
-      const request = store.get("s1");
+    const preservedSession = await new Promise((resolve, reject) => {
+      const request = sessionsStore.get("s1");
       request.onsuccess = () => resolve(request.result);
       request.onerror = () => reject(request.error);
     });
+    assert.deepEqual(preservedSession, seedSession);
 
-    assert.deepEqual(preserved, seedSession);
+    const encountersStore = current
+      .transaction(STORE_NAMES.ENCOUNTERS, "readonly")
+      .objectStore(STORE_NAMES.ENCOUNTERS);
+    assert.equal(encountersStore.indexNames.contains("captureResultCaptureAtMs"), true);
+
+    const preservedEncounter = await new Promise((resolve, reject) => {
+      const request = encountersStore.get("e1");
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    assert.deepEqual(preservedEncounter, seedEncounter);
   } finally {
-    v2.close();
+    current.close();
   }
 });
 
-// Fase 5 step 2 (migration robustness) — the 3 tests below exercise paths
-// data/db.js already handles but that had zero coverage until now.
+// Migration robustness — the 3 tests below exercise paths data/db.js handles
+// but that otherwise have little direct coverage.
 
 test("a stuck older connection blocks the upgrade and openDatabase() rejects via onblocked", async () => {
   const indexedDBFactory = freshIndexedDBFactory();
 
   // Deliberately does not close on versionchange — simulates a stuck/
-  // unresponsive connection. In production, sidepanel.js's real
-  // `db.onversionchange = () => db.close()` is what normally prevents this
-  // from ever blocking for long.
+  // unresponsive connection. Production connections normally close on
+  // versionchange, preventing this from blocking for long.
   const older = await openDatabase({ indexedDBFactory, version: 1 });
 
   await assert.rejects(
@@ -164,10 +188,7 @@ test("a migration that throws mid-upgrade aborts atomically — no partial index
 
   // Simulates a broken v2 migration directly against the raw IndexedDB API
   // (bypassing data/migrations.js on purpose) — partially creates an index,
-  // then throws, to confirm the whole upgrade transaction rolls back
-  // atomically instead of leaving a half-migrated store behind. This is a
-  // native IndexedDB guarantee data/migrations.js's design depends on but
-  // that was never actually verified against fake-indexeddb until now.
+  // then throws, to confirm the whole upgrade transaction rolls back.
   const brokenOpen = indexedDBFactory.open(DB_NAME, 2);
 
   const brokenResult = await new Promise((resolve) => {
@@ -185,8 +206,6 @@ test("a migration that throws mid-upgrade aborts atomically — no partial index
 
   assert.equal(brokenResult.ok, false);
 
-  // Reopening at v1 (the last version that actually committed) should show
-  // no trace of the aborted index.
   const reopened = await openDatabase({ indexedDBFactory, version: 1 });
 
   try {
@@ -208,8 +227,5 @@ test("opening at a version lower than what is already persisted rejects cleanly"
   const atCurrent = await openDatabase({ indexedDBFactory, version: SCHEMA_VERSION });
   atCurrent.close();
 
-  // Simulates reverting the extension to an older build after a newer one
-  // already upgraded the schema. No special handling needed on our side —
-  // this documents the native IndexedDB rejection already covers it.
   await assert.rejects(() => openDatabase({ indexedDBFactory, version: 1 }));
 });
