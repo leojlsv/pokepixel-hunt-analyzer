@@ -81,6 +81,7 @@ const THEMES = Object.freeze({
 const GOOGLE_FONT_URL = "https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap";
 const FONT_LINK_ID = "pha-capture-ticket-silkscreen";
 const PREVIEW_HOST_ID = "pha-capture-ticket-preview";
+const ANALYZER_ROOT_ID = "pokepixel-hunt-analyzer-root";
 const FRAME_FINGERPRINT = "rhyxus.pp-prize-ticket.v1";
 
 function ptToPx(points) {
@@ -197,8 +198,7 @@ function pngTextChunk(keyword, value) {
 }
 
 function injectPngMetadata(pngBytes, metadata) {
-  const signatureLength = 8;
-  let offset = signatureLength;
+  let offset = 8;
   let iendOffset = -1;
 
   while (offset + 12 <= pngBytes.length) {
@@ -258,7 +258,7 @@ export async function generateCaptureTicket(encounter) {
   if (!theme) throw new Error("Capture ticket theme is unavailable");
 
   await ensureFont();
-  const [backpaper, sprite, frame] = await Promise.all([
+  const [backpaperImage, pokemonSpriteImage, frameImage] = await Promise.all([
     loadImage(theme.backpaper),
     loadImage(data.spriteUrl, { crossOrigin: true }),
     loadImage(theme.frame)
@@ -271,20 +271,20 @@ export async function generateCaptureTicket(encounter) {
   if (!ctx) throw new Error("Capture ticket canvas is unavailable");
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(backpaper, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(backpaperImage, 0, 0, canvas.width, canvas.height);
 
-  const sprite = TICKET_LAYOUT.sprite;
+  const spriteLayout = TICKET_LAYOUT.sprite;
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(
-    sprite,
-    sprite.x - sprite.width / 2,
-    sprite.y - sprite.height / 2,
-    sprite.width,
-    sprite.height
+    pokemonSpriteImage,
+    spriteLayout.x - spriteLayout.width / 2,
+    spriteLayout.y - spriteLayout.height / 2,
+    spriteLayout.width,
+    spriteLayout.height
   );
   ctx.imageSmoothingEnabled = true;
 
-  ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
 
   drawText(ctx, data.pokemonName, TICKET_LAYOUT.pokemonName, {
     fill: theme.nameFill,
@@ -363,4 +363,57 @@ export async function openCaptureTicketPreview(encounter) {
   });
 
   document.documentElement.appendChild(host);
+}
+
+export function installCaptureTicketDev({ getEncounterById }) {
+  if (!ENABLE_CAPTURE_TICKET_DEV) return () => {};
+
+  const host = document.getElementById(ANALYZER_ROOT_ID);
+  const shadow = host?.shadowRoot;
+  if (!shadow) return () => {};
+
+  function injectButtons() {
+    for (const detailRow of shadow.querySelectorAll("#captured-body tr[data-detail-for]")) {
+      if (detailRow.querySelector("[data-capture-ticket-dev]")) continue;
+      const encounter = getEncounterById(detailRow.dataset.detailFor);
+      if (!canGenerateCaptureTicket(encounter)) continue;
+
+      const content = detailRow.querySelector("td > div");
+      if (!content) continue;
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.captureTicketDev = "true";
+      button.textContent = "Generate Ticket";
+      button.title = "Temporary Capture Ticket preview";
+      button.style.cssText = "margin-left:auto;background:#2d2e29;color:#dccd95;border:1px solid #595a51;border-radius:3px;padding:3px 6px;font:9px Arial,sans-serif;cursor:pointer;white-space:nowrap;";
+      button.addEventListener("click", async (event) => {
+        event.stopPropagation();
+        const original = button.textContent;
+        button.disabled = true;
+        button.textContent = "Generating…";
+        try {
+          await openCaptureTicketPreview(encounter);
+        } catch (error) {
+          console.error("PokePixel Hunt Analyzer (Capture Ticket):", error);
+          button.title = error?.message || "Capture Ticket generation failed";
+          button.textContent = "Ticket Error";
+          setTimeout(() => {
+            button.textContent = original;
+            button.disabled = false;
+          }, 1800);
+          return;
+        }
+        button.textContent = original;
+        button.disabled = false;
+      });
+      content.appendChild(button);
+    }
+  }
+
+  const observer = new MutationObserver(injectButtons);
+  observer.observe(shadow, { childList: true, subtree: true });
+  injectButtons();
+
+  return () => observer.disconnect();
 }
