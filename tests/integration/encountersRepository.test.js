@@ -76,71 +76,75 @@ test("getBySessionId returns only encounters for that session", async () => {
   db.close();
 });
 
-test("getRecentSuccessfulCaptures returns newest successes only and respects limit", async () => {
+test("getRecentCaptureTickets returns newest indexed tickets only and respects limit", async () => {
   const db = await setup();
   const repo = createEncountersRepository(db);
 
   await repo.create({
-    encounterId: "success-old",
+    encounterId: "ticket-old",
     captureResult: "success",
     captureAtMs: 100,
+    captureTicketAtMs: 100,
     state: "success"
   });
   await repo.create({
-    encounterId: "failed-new",
-    captureResult: "failed",
-    captureAtMs: 500,
-    state: "failed"
+    encounterId: "ordinary-new",
+    captureResult: "success",
+    captureAtMs: 900,
+    state: "success"
   });
   await repo.create({
-    encounterId: "success-mid",
+    encounterId: "ticket-mid",
     captureResult: "success",
     captureAtMs: 300,
+    captureTicketAtMs: 300,
     state: "success"
   });
   await repo.create({
-    encounterId: "success-new",
+    encounterId: "ticket-new",
     captureResult: "success",
     captureAtMs: 700,
+    captureTicketAtMs: 700,
     state: "success"
   });
 
-  const recent = await repo.getRecentSuccessfulCaptures(2);
+  const recent = await repo.getRecentCaptureTickets(2);
 
   assert.deepEqual(
     recent.map((row) => row.encounterId),
-    ["success-new", "success-mid"]
+    ["ticket-new", "ticket-mid"]
   );
   db.close();
 });
 
-test("getRecentSuccessfulCaptures is bounded even when more successes exist", async () => {
+test("getRecentCaptureTickets is bounded even when more tickets exist", async () => {
   const db = await setup();
   const repo = createEncountersRepository(db);
 
   for (let index = 0; index < 12; index += 1) {
     await repo.create({
-      encounterId: `success-${index}`,
+      encounterId: `ticket-${index}`,
       captureResult: "success",
       captureAtMs: index + 1,
+      captureTicketAtMs: index + 1,
       state: "success"
     });
   }
 
-  const recent = await repo.getRecentSuccessfulCaptures(5);
+  const recent = await repo.getRecentCaptureTickets(5);
   assert.equal(recent.length, 5);
   assert.deepEqual(
-    recent.map((row) => row.captureAtMs),
+    recent.map((row) => row.captureTicketAtMs),
     [12, 11, 10, 9, 8]
   );
   db.close();
 });
 
-test("getRecentSuccessfulCaptures rejects invalid limits", async () => {
+test("getRecentCaptureTickets rejects invalid limits", async () => {
   const db = await setup();
   const repo = createEncountersRepository(db);
 
-  await assert.rejects(() => repo.getRecentSuccessfulCaptures(0), /limit must be >= 1/);
+  await assert.rejects(() => repo.getRecentCaptureTickets(0), /limit must be >= 1/);
   db.close();
 });
 
