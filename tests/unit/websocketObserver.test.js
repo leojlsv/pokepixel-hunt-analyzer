@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   decodeMessageData,
-  parseProtocolPayload
+  parseProtocolPayload,
+  resolvePageWindow
 } from "../../userscript/websocket-observer.js";
 
 test("decodes supported WebSocket message payload types", async () => {
@@ -29,4 +30,22 @@ test("parses JSON objects and ignores invalid frames", async () => {
   assert.equal(await parseProtocolPayload("not json"), null);
   assert.equal(await parseProtocolPayload("null"), null);
   assert.equal(await parseProtocolPayload("42"), null);
+});
+
+test("prefers unsafeWindow for the WebSocket hook when available", () => {
+  const sandboxWindow = { name: "sandbox" };
+  const pageWindow = { name: "page" };
+
+  assert.equal(
+    resolvePageWindow({
+      unsafeWindowObject: pageWindow,
+      windowObject: sandboxWindow
+    }),
+    pageWindow
+  );
+
+  assert.equal(
+    resolvePageWindow({ windowObject: sandboxWindow }),
+    sandboxWindow
+  );
 });
