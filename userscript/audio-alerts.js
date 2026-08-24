@@ -12,6 +12,11 @@ import mythicFled from "./audio-assets/mythic-fled.js";
 import shinyCaptured from "./audio-assets/shiny-captured.js";
 import shinyFled from "./audio-assets/shiny-fled.js";
 import { SET2_SEGMENTS, SET2_SPRITE_URI } from "./audio-assets/set2/sprite.js";
+import {
+  createCustomAudioRepository,
+  CUSTOM_AUDIO_MAX_BYTES,
+  CUSTOM_AUDIO_MAX_DURATION_SECONDS
+} from "./custom-audio-repository.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STORAGE_KEY = "pokepixel_hunt_analyzer_audio_alerts_v1";
@@ -48,8 +53,8 @@ const ALERT_STYLES = `
   .alert-grid {
     padding: 10px;
     display: grid;
-    grid-template-columns: minmax(105px, 1fr) 100px 100px;
-    gap: 9px 10px;
+    grid-template-columns: minmax(95px, 1fr) 120px 120px;
+    gap: 9px 7px;
     align-items: center;
     background: var(--bg-elevated);
   }
@@ -74,17 +79,18 @@ const ALERT_STYLES = `
   .alert-shiny { color: var(--gold); }
 
   .alert-choice-pair {
+    position: relative;
     min-width: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 9px;
+    gap: 5px;
   }
 
   .alert-choice {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: 2px;
     color: var(--muted);
     font-size: 8px;
     font-weight: 700;
@@ -92,12 +98,86 @@ const ALERT_STYLES = `
   }
 
   .alert-choice input[type="checkbox"] {
-    width: 15px;
-    height: 15px;
+    width: 14px;
+    height: 14px;
     margin: 0;
     accent-color: var(--gold);
     cursor: pointer;
   }
+
+  .alert-choice.custom-ready { color: var(--gold); }
+  .alert-choice.custom-missing { color: #cf6868; }
+
+  .custom-audio-manage {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 1px solid var(--border-soft);
+    border-radius: 3px;
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 16px;
+    cursor: pointer;
+  }
+
+  .custom-audio-manage:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+
+  .custom-audio-popover {
+    position: absolute;
+    z-index: 20;
+    top: 22px;
+    right: 0;
+    min-width: 132px;
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-elevated);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .35);
+  }
+
+  .custom-audio-file-name {
+    display: block;
+    max-width: 150px;
+    margin-bottom: 5px;
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .custom-audio-actions {
+    display: flex;
+    gap: 5px;
+  }
+
+  .custom-audio-actions button {
+    flex: 1;
+    padding: 3px 5px;
+    border: 1px solid var(--border-soft);
+    border-radius: 3px;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 8px;
+    cursor: pointer;
+  }
+
+  .custom-audio-actions button:hover { border-color: var(--gold); }
+  .custom-audio-actions .custom-remove:hover { border-color: #cf6868; color: #cf6868; }
+
+  .custom-audio-status {
+    min-height: 12px;
+    margin-top: 5px;
+    color: var(--muted);
+    font-size: 8px;
+  }
+
+  .custom-audio-status.error { color: #cf6868; }
+  .custom-audio-status.ok { color: #72c98b; }
 
   .alert-help {
     padding: 8px 10px;
@@ -108,15 +188,20 @@ const ALERT_STYLES = `
   }
 `;
 
+function normalizeChoice(value) {
+  if (value === 1 || value === "1") return 1;
+  if (value === 2 || value === "2") return 2;
+  if (value === "custom") return "custom";
+  return 0;
+}
+
 function readChoices() {
   const choices = Object.fromEntries(AUDIO_ALERT_KEYS.map((key) => [key, 0]));
 
   try {
     const stored = JSON.parse(localStorage.getItem(CHOICE_STORAGE_KEY) || "null");
     if (stored && typeof stored === "object") {
-      for (const key of AUDIO_ALERT_KEYS) {
-        choices[key] = stored[key] === 2 ? 2 : stored[key] === 1 ? 1 : 0;
-      }
+      for (const key of AUDIO_ALERT_KEYS) choices[key] = normalizeChoice(stored[key]);
       return choices;
     }
   } catch {
@@ -139,16 +224,14 @@ function readChoices() {
 
 function settingsFromChoices(choices) {
   const settings = defaultAudioAlertSettings();
-  for (const key of AUDIO_ALERT_KEYS) {
-    settings[key] = choices[key] === 1 || choices[key] === 2;
-  }
+  for (const key of AUDIO_ALERT_KEYS) settings[key] = choices[key] !== 0;
   return settings;
 }
 
 function alertChoiceMarkup(label, key, result) {
   const alertKey = `${key}_${result}`;
   return `
-    <div class="alert-choice-pair" title="${label} ${result}">
+    <div class="alert-choice-pair" data-custom-pair="${alertKey}" title="${label} ${result}">
       <label class="alert-choice" title="Sound 1">
         <input type="checkbox" data-audio-key="${alertKey}" data-audio-choice="1" aria-label="${label} ${result} sound 1">
         <span>1</span>
@@ -157,6 +240,18 @@ function alertChoiceMarkup(label, key, result) {
         <input type="checkbox" data-audio-key="${alertKey}" data-audio-choice="2" aria-label="${label} ${result} sound 2">
         <span>2</span>
       </label>
+      <label class="alert-choice custom-choice" title="Custom sound">
+        <input type="checkbox" data-audio-key="${alertKey}" data-audio-choice="custom" aria-label="${label} ${result} custom sound">
+        <span>C</span>
+      </label>
+      <button class="custom-audio-manage" type="button" data-custom-manage="${alertKey}" title="Manage custom sound" hidden>⚙</button>
+      <div class="custom-audio-popover" data-custom-popover="${alertKey}" hidden>
+        <span class="custom-audio-file-name" data-custom-file-name="${alertKey}"></span>
+        <div class="custom-audio-actions">
+          <button type="button" data-custom-replace="${alertKey}">Replace</button>
+          <button type="button" class="custom-remove" data-custom-remove="${alertKey}">Remove</button>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -172,16 +267,22 @@ function dataUriToArrayBuffer(uri) {
   if (comma < 0) throw new Error("Invalid embedded audio data URI");
   const binary = atob(uri.slice(comma + 1));
   const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
   return bytes.buffer;
+}
+
+function formatBytes(bytes) {
+  return `${Math.ceil(bytes / 1024)} KB`;
 }
 
 export function createAudioAlerts() {
   const choices = readChoices();
   const settings = settingsFromChoices(choices);
   const sound1Buffers = new Map();
+  const customBuffers = new Map();
+  const customRecords = new Map();
+  const customRepository = createCustomAudioRepository(window.indexedDB);
+  let customStorageAvailable = true;
   let sound2Buffer = null;
   let audioContext = null;
   let currentSource = null;
@@ -189,6 +290,7 @@ export function createAudioAlerts() {
   let boundShadow = null;
   let gestureUnlockInstalled = false;
   let mountRetry = null;
+  let pendingCustomImport = null;
 
   function writeChoices() {
     localStorage.setItem(CHOICE_STORAGE_KEY, JSON.stringify(choices));
@@ -237,7 +339,6 @@ export function createAudioAlerts() {
     const context = getAudioContext();
     const uri = AUDIO_URLS[key];
     if (!context || !uri) return null;
-
     const buffer = await context.decodeAudioData(dataUriToArrayBuffer(uri));
     sound1Buffers.set(key, buffer);
     return buffer;
@@ -249,6 +350,24 @@ export function createAudioAlerts() {
     if (!context) return null;
     sound2Buffer = await context.decodeAudioData(dataUriToArrayBuffer(SET2_SPRITE_URI));
     return sound2Buffer;
+  }
+
+  async function loadCustomBuffer(key) {
+    if (customBuffers.has(key)) return customBuffers.get(key);
+    const context = getAudioContext();
+    if (!context || !customStorageAvailable) return null;
+
+    const record = customRecords.get(key) || await customRepository.get(key);
+    if (!record?.data) {
+      customRecords.delete(key);
+      updateCustomSlot(boundShadow, key, null);
+      return null;
+    }
+
+    const buffer = await context.decodeAudioData(record.data.slice(0));
+    customRecords.set(key, record);
+    customBuffers.set(key, buffer);
+    return buffer;
   }
 
   function stopCurrent() {
@@ -264,18 +383,26 @@ export function createAudioAlerts() {
   }
 
   async function playKey(key, choice = choices[key]) {
-    const selected = Number(choice);
-    if (selected !== 1 && selected !== 2) return false;
+    const selected = normalizeChoice(choice);
+    if (![1, 2, "custom"].includes(selected)) return false;
     if (!(await unlock())) return false;
 
     try {
       const context = getAudioContext();
       if (!context) return false;
 
-      const useSound2 = selected === 2;
-      const segment = useSound2 ? SET2_SEGMENTS[key] : null;
-      const buffer = useSound2 ? await loadSound2Buffer() : await loadSound1Buffer(key);
-      if (!buffer || (useSound2 && !segment)) return false;
+      let buffer = null;
+      let segment = null;
+      if (selected === 1) buffer = await loadSound1Buffer(key);
+      if (selected === 2) {
+        segment = SET2_SEGMENTS[key];
+        buffer = await loadSound2Buffer();
+      }
+      if (selected === "custom") buffer = await loadCustomBuffer(key);
+      if (!buffer || (selected === 2 && !segment)) {
+        if (selected === "custom") setCustomStatus("Custom sound is missing. Import it again.", true);
+        return false;
+      }
 
       stopCurrent();
       const source = context.createBufferSource();
@@ -290,14 +417,12 @@ export function createAudioAlerts() {
       currentSource = source;
       currentPlayback = `${key}:${selected}`;
 
-      if (useSound2) {
-        source.start(0, segment.offset, segment.duration);
-      } else {
-        source.start();
-      }
+      if (selected === 2) source.start(0, segment.offset, segment.duration);
+      else source.start();
       return true;
     } catch (error) {
       console.warn("PokePixel Hunt Analyzer (audio alert):", error);
+      if (selected === "custom") setCustomStatus("Custom sound could not be decoded.", true);
       return false;
     }
   }
@@ -310,8 +435,139 @@ export function createAudioAlerts() {
   }
 
   function syncChoicePair(shadow, key) {
+    if (!shadow) return;
     for (const checkbox of shadow.querySelectorAll(`[data-audio-key="${key}"]`)) {
-      checkbox.checked = Number(checkbox.dataset.audioChoice) === choices[key];
+      checkbox.checked = normalizeChoice(checkbox.dataset.audioChoice) === choices[key];
+    }
+  }
+
+  function setCustomStatus(message = "", isError = false) {
+    const status = boundShadow?.getElementById("custom-audio-status");
+    if (!status) return;
+    status.textContent = message;
+    status.classList.toggle("error", Boolean(message) && isError);
+    status.classList.toggle("ok", Boolean(message) && !isError);
+  }
+
+  function closeCustomPopovers(shadow, exceptKey = null) {
+    if (!shadow) return;
+    for (const popover of shadow.querySelectorAll("[data-custom-popover]")) {
+      if (popover.dataset.customPopover !== exceptKey) popover.hidden = true;
+    }
+  }
+
+  function updateCustomSlot(shadow, key, record) {
+    if (!shadow) return;
+    if (record) customRecords.set(key, record);
+    else customRecords.delete(key);
+
+    const hasCustom = Boolean(record);
+    const manage = shadow.querySelector(`[data-custom-manage="${key}"]`);
+    const fileName = shadow.querySelector(`[data-custom-file-name="${key}"]`);
+    const customInput = shadow.querySelector(`[data-audio-key="${key}"][data-audio-choice="custom"]`);
+    const customLabel = customInput?.closest(".alert-choice");
+
+    if (manage) manage.hidden = !hasCustom;
+    if (fileName) fileName.textContent = hasCustom
+      ? `${record.fileName || "Custom audio"} · ${formatBytes(record.size || record.data?.byteLength || 0)}`
+      : "";
+    if (customInput) customInput.disabled = !customStorageAvailable;
+    customLabel?.classList.toggle("custom-ready", hasCustom);
+    customLabel?.classList.toggle("custom-missing", choices[key] === "custom" && !hasCustom);
+  }
+
+  async function refreshCustomSlots(shadow) {
+    try {
+      const records = await customRepository.list();
+      const byKey = new Map(records.map((record) => [record.key, record]));
+      for (const key of AUDIO_ALERT_KEYS) updateCustomSlot(shadow, key, byKey.get(key) || null);
+      customStorageAvailable = true;
+    } catch (error) {
+      customStorageAvailable = false;
+      for (const key of AUDIO_ALERT_KEYS) updateCustomSlot(shadow, key, null);
+      setCustomStatus("Custom audio storage is unavailable in this browser context.", true);
+      console.warn("PokePixel Hunt Analyzer (custom audio storage):", error);
+    }
+  }
+
+  function requestCustomImport(key) {
+    if (!customStorageAvailable || !AUDIO_ALERT_KEYS.includes(key) || !boundShadow) return;
+    pendingCustomImport = key;
+    const input = boundShadow.getElementById("custom-audio-file-input");
+    if (!input) return;
+    input.value = "";
+    input.click();
+  }
+
+  async function importCustomFile(key, file) {
+    if (!file) return false;
+    if (file.size > CUSTOM_AUDIO_MAX_BYTES) {
+      setCustomStatus(`File too large. Maximum is ${CUSTOM_AUDIO_MAX_BYTES / 1024 / 1024} MB.`, true);
+      return false;
+    }
+
+    const context = getAudioContext();
+    if (!context) {
+      setCustomStatus("Web Audio is unavailable in this browser.", true);
+      return false;
+    }
+
+    try {
+      const data = await file.arrayBuffer();
+      const decoded = await context.decodeAudioData(data.slice(0));
+      if (!Number.isFinite(decoded.duration) || decoded.duration <= 0) throw new Error("Invalid audio duration");
+      if (decoded.duration > CUSTOM_AUDIO_MAX_DURATION_SECONDS) {
+        setCustomStatus(`Audio too long. Maximum is ${CUSTOM_AUDIO_MAX_DURATION_SECONDS} seconds.`, true);
+        return false;
+      }
+
+      const record = {
+        key,
+        fileName: file.name || "custom-audio",
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+        duration: decoded.duration,
+        data,
+        createdAt: Date.now()
+      };
+
+      await customRepository.put(record);
+      customBuffers.set(key, decoded);
+      updateCustomSlot(boundShadow, key, record);
+      choices[key] = "custom";
+      settings[key] = true;
+      syncChoicePair(boundShadow, key);
+      writeChoices();
+      updateEnabledCount();
+      closeCustomPopovers(boundShadow);
+      setCustomStatus(`${record.fileName} imported for ${key.replace("_", " ")}.`);
+      await playKey(key, "custom");
+      return true;
+    } catch (error) {
+      console.warn("PokePixel Hunt Analyzer (custom audio import):", error);
+      setCustomStatus("Unsupported or invalid audio. Use MP3, WAV or OGG/Opus.", true);
+      return false;
+    }
+  }
+
+  async function removeCustom(key) {
+    try {
+      await customRepository.remove(key);
+      customBuffers.delete(key);
+      updateCustomSlot(boundShadow, key, null);
+      if (choices[key] === "custom") {
+        choices[key] = 0;
+        settings[key] = false;
+        syncChoicePair(boundShadow, key);
+        writeChoices();
+        updateEnabledCount();
+      }
+      if (currentPlayback === `${key}:custom`) stopCurrent();
+      closeCustomPopovers(boundShadow);
+      setCustomStatus(`Custom sound removed from ${key.replace("_", " ")}.`);
+    } catch (error) {
+      console.warn("PokePixel Hunt Analyzer (custom audio remove):", error);
+      setCustomStatus("Custom sound could not be removed.", true);
     }
   }
 
@@ -320,8 +576,8 @@ export function createAudioAlerts() {
 
     for (const checkbox of shadow.querySelectorAll("[data-audio-key][data-audio-choice]")) {
       const key = checkbox.dataset.audioKey;
-      const choice = Number(checkbox.dataset.audioChoice);
-      if (!AUDIO_ALERT_KEYS.includes(key) || ![1, 2].includes(choice)) continue;
+      const choice = normalizeChoice(checkbox.dataset.audioChoice);
+      if (!AUDIO_ALERT_KEYS.includes(key) || ![1, 2, "custom"].includes(choice)) continue;
 
       checkbox.checked = choices[key] === choice;
       if (checkbox.dataset.audioBound === "true") continue;
@@ -329,6 +585,12 @@ export function createAudioAlerts() {
 
       checkbox.addEventListener("change", () => {
         if (checkbox.checked) {
+          if (choice === "custom" && !customRecords.has(key)) {
+            checkbox.checked = false;
+            requestCustomImport(key);
+            return;
+          }
+
           choices[key] = choice;
           settings[key] = true;
           syncChoicePair(shadow, key);
@@ -348,8 +610,49 @@ export function createAudioAlerts() {
       });
     }
 
+    for (const button of shadow.querySelectorAll("[data-custom-manage]")) {
+      if (button.dataset.customBound === "true") continue;
+      button.dataset.customBound = "true";
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const key = button.dataset.customManage;
+        const popover = shadow.querySelector(`[data-custom-popover="${key}"]`);
+        const willOpen = Boolean(popover?.hidden);
+        closeCustomPopovers(shadow, willOpen ? key : null);
+        if (popover) popover.hidden = !willOpen;
+      });
+    }
+
+    for (const button of shadow.querySelectorAll("[data-custom-replace]")) {
+      if (button.dataset.customBound === "true") continue;
+      button.dataset.customBound = "true";
+      button.addEventListener("click", () => requestCustomImport(button.dataset.customReplace));
+    }
+
+    for (const button of shadow.querySelectorAll("[data-custom-remove]")) {
+      if (button.dataset.customBound === "true") continue;
+      button.dataset.customBound = "true";
+      button.addEventListener("click", () => void removeCustom(button.dataset.customRemove));
+    }
+
+    const fileInput = shadow.getElementById("custom-audio-file-input");
+    if (fileInput && fileInput.dataset.customBound !== "true") {
+      fileInput.dataset.customBound = "true";
+      fileInput.addEventListener("change", () => {
+        const key = pendingCustomImport;
+        const file = fileInput.files?.[0] || null;
+        pendingCustomImport = null;
+        if (key && file) void importCustomFile(key, file);
+      });
+    }
+
+    shadow.addEventListener("click", (event) => {
+      if (!event.target.closest(".alert-choice-pair")) closeCustomPopovers(shadow);
+    });
+
     updateEnabledCount();
     installGestureUnlock();
+    void refreshCustomSlots(shadow);
   }
 
   function showAlerts(shadow) {
@@ -370,6 +673,7 @@ export function createAudioAlerts() {
     const tab = shadow.getElementById(TAB_ID);
     if (view) view.hidden = true;
     if (tab) tab.classList.remove("active");
+    closeCustomPopovers(shadow);
   }
 
   function mountControls() {
@@ -422,9 +726,11 @@ export function createAudioAlerts() {
             <span></span><b>Captured</b><b>Fled</b>
             ${alertRowsMarkup()}
           </div>
+          <input id="custom-audio-file-input" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/ogg,audio/opus" hidden>
           <div class="alert-help">
-            Choose sound 1 or 2 independently for each alert. Leave both unchecked to disable that alert.<br>
-            Selecting a sound replaces the other option in the same pair and plays it once as preview. Shiny keeps priority over notable rarity when both apply.
+            Choose 1, 2 or C independently for each alert. C imports one local custom sound for that exact Rarity + Status slot.<br>
+            Importing again replaces the previous custom file in that slot. Custom audio stays only in this browser (max 2 MB / 10 s). Shiny keeps priority when both rules apply.
+            <div id="custom-audio-status" class="custom-audio-status"></div>
           </div>
         </section>`;
       panel.appendChild(alertsView);
