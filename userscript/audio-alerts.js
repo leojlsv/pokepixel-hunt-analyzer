@@ -64,7 +64,7 @@ const ALERT_STYLES = `
     font-size: 9px;
     font-weight: 700;
     letter-spacing: .03em;
-    text-align: center;
+    text-align: left;
     text-transform: uppercase;
   }
 
