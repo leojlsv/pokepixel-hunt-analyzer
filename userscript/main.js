@@ -2,6 +2,7 @@ import { openDatabase } from "../data/db.js";
 import { createSessionsRepository } from "../data/sessionsRepository.js";
 import { createEncountersRepository } from "../data/encountersRepository.js";
 import { createEventPipeline } from "../services/eventPipeline.js";
+import { deleteHuntData } from "../services/huntDeletion.js";
 import {
   computeSessionMetrics,
   refreshSessionMetrics
@@ -12,6 +13,7 @@ import { installWebSocketObserver } from "./websocket-observer.js";
 import { createUi } from "./ui.js";
 import { createAudioAlerts } from "./audio-alerts.js";
 import { createCatchGallery } from "./catch-gallery.js";
+import { createHistoryDeleteControl } from "./history-delete.js";
 
 const APP_VERSION = __APP_VERSION__;
 const TAB_LOCK_REFRESH_MS = 2_000;
@@ -34,6 +36,7 @@ let sessionsRepository;
 let encountersRepository;
 let audioAlerts;
 let catchGallery;
+let historyDeleteControl;
 let ui;
 let updateQueue = Promise.resolve();
 let currentLoadPromise = null;
@@ -210,9 +213,44 @@ async function handleSessionAction(action) {
   await updateQueue;
 }
 
+async function handleHistorySessionDelete(sessionId) {
+  if (!leadership.isActive()) {
+    throw new Error("Hunt deletion is available only on the ACTIVE tab");
+  }
+
+  const task = updateQueue.then(async () => {
+    await ready;
+    if (currentLoadPromise) await currentLoadPromise;
+
+    const current = await sessionsRepository.getCurrentReadOnly();
+    const deletingCurrent = current?.sessionId === sessionId;
+
+    await deleteHuntData({
+      sessionId,
+      sessionsRepository,
+      encountersRepository
+    });
+
+    // Removed captures must disappear from Catch Gallery the next time it
+    // renders. Deleting the current Hunt also invalidates Current's cache.
+    catchGallery?.markDirty();
+    if (deletingCurrent) {
+      invalidateEncounterCache();
+      await loadCurrent();
+    }
+  });
+
+  updateQueue = task.catch((error) => {
+    console.error("PokePixel Hunt Analyzer (History delete):", error);
+  });
+
+  return task;
+}
+
 function mountUiWhenReady() {
   const mount = () => {
     catchGallery?.dispose();
+    historyDeleteControl?.dispose();
     ui = createUi({
       onSessionAction: (action) => void handleSessionAction(action),
       onLoadHistorySessions: (options) => sessionsRepository.getPage(options),
@@ -221,6 +259,7 @@ function mountUiWhenReady() {
     });
     audioAlerts?.mountControls();
     catchGallery?.mountControls();
+    historyDeleteControl?.mount();
     ui.setActive(leadership.isActive());
   };
 
@@ -260,6 +299,9 @@ async function initialize() {
     loadEncounters: () =>
       encountersRepository.getRecentCaptureTickets(CATCH_GALLERY_LOAD_LIMIT)
   });
+  historyDeleteControl = createHistoryDeleteControl({
+    onDeleteSession: handleHistorySessionDelete
+  });
   await pipeline.recoverOnStartup();
 
   mountUiWhenReady();
@@ -271,6 +313,7 @@ async function initialize() {
 
 window.addEventListener("beforeunload", () => {
   catchGallery?.dispose();
+  historyDeleteControl?.dispose();
   leadership.release();
 });
 
