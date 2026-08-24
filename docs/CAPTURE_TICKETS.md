@@ -136,4 +136,6 @@ Manual smoke tests approved:
 - Generate preview/download
 - Copy image and paste into Discord
 
+Automated validation after the sprite request guard: 226/226 tests passed, the 4,128-encounter fixture replay passed, and the userscript build completed successfully.
+
 The temporary Catch Gallery harness used for this validation has been removed. Production behavior now uses only persisted real captures.
