@@ -34,6 +34,9 @@ await build({
   legalComments: "none",
   minify: false,
   sourcemap: false,
+  loader: {
+    ".png": "dataurl"
+  },
   banner: { js: metadata },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
