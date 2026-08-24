@@ -105,13 +105,46 @@ async function ensureFont() {
   ]);
 }
 
-function loadImage(url, { crossOrigin = false } = {}) {
+function loadImage(url) {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    if (crossOrigin) image.crossOrigin = "anonymous";
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error(`Could not load image: ${url}`));
     image.src = url;
+  });
+}
+
+function loadRemoteImage(url) {
+  return new Promise((resolve, reject) => {
+    if (typeof GM_xmlhttpRequest !== "function") {
+      reject(new Error("Tampermonkey remote image permission is unavailable"));
+      return;
+    }
+
+    GM_xmlhttpRequest({
+      method: "GET",
+      url,
+      responseType: "blob",
+      anonymous: true,
+      onload: async (response) => {
+        if (response.status < 200 || response.status >= 300 || !response.response) {
+          reject(new Error(`Could not fetch remote image: ${url} (${response.status || "network error"})`));
+          return;
+        }
+
+        const objectUrl = URL.createObjectURL(response.response);
+        try {
+          const image = await loadImage(objectUrl);
+          resolve(image);
+        } catch (error) {
+          reject(error);
+        } finally {
+          URL.revokeObjectURL(objectUrl);
+        }
+      },
+      onerror: () => reject(new Error(`Could not fetch remote image: ${url}`)),
+      ontimeout: () => reject(new Error(`Remote image request timed out: ${url}`))
+    });
   });
 }
 
@@ -260,7 +293,7 @@ export async function generateCaptureTicket(encounter) {
   await ensureFont();
   const [backpaperImage, pokemonSpriteImage, frameImage] = await Promise.all([
     loadImage(theme.backpaper),
-    loadImage(data.spriteUrl, { crossOrigin: true }),
+    loadRemoteImage(data.spriteUrl),
     loadImage(theme.frame)
   ]);
 
