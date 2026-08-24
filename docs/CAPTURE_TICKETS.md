@@ -12,7 +12,7 @@ A ticket is available only for a persisted `capture.success` encounter with comp
 
 Theme priority is `Shiny > Mythic > Legend`.
 
-Historical encounters that predate `captured_by_name` are not backfilled and are intentionally ineligible.
+Historical encounters that predate `captured_by_name` remain intentionally ineligible. Schema v3 does not invent missing capture data.
 
 ## Data source
 
@@ -26,7 +26,9 @@ The renderer consumes one persisted encounter:
 - player: `capturedByName`, normalized from `capture.success.captured_by_name`
 - timestamp: `captureAtMs`
 
-No new IndexedDB store, index, schema version or migration is required.
+For persistence lookup only, eligible rows also receive the derived field `captureTicketAtMs = captureAtMs`.
+
+Schema v3 adds the sparse IndexedDB index `encounters.captureTicketAtMs`. During migration, existing rows receive this derived field only when they already satisfy the complete Capture Ticket contract. Rows with incomplete historical data are left unchanged.
 
 ## Catch Gallery
 
@@ -55,7 +57,7 @@ The image clipboard path uses `navigator.clipboard.write()` with a PNG `Clipboar
 
 When no eligible captures exist, only the table column headers remain; no blank rows or empty-state card are rendered.
 
-The gallery performs a whole-store encounter read only when Misc is explicitly opened or when a successful capture marks the visible gallery dirty. It is not part of the one-second Current refresh loop. Filtering, sorting and pagination run in memory over the loaded eligible set.
+The gallery no longer performs a whole-store encounter read. When it needs data, it walks the sparse `captureTicketAtMs` index newest-first and loads at most 500 ticket-eligible captures. It reloads only when Misc/Gallery needs a dirty refresh; it is not part of Current's one-second refresh loop. Filtering, sorting and five-row pagination run in memory over that bounded set.
 
 ## Sprite
 
@@ -68,13 +70,14 @@ https://img.pokemondb.net/sprites/black-white/shiny/{pokemon}.png
 
 Tampermonkey fetches the sprite with `GM_xmlhttpRequest` and `@connect img.pokemondb.net`, avoiding page-origin CORS and tainted-canvas export failures.
 
-Remote request protection:
+Remote request protection lives in `userscript/remote-image-loader.js`:
 
-- decoded sprites are cached in memory by exact sprite URL for the lifetime of the page;
+- decoded sprites are cached by exact URL in a bounded 32-entry LRU cache;
 - simultaneous requests for the same URL share one in-flight Promise, preventing duplicate GETs;
 - only cache misses may reach PokémonDB;
 - starts of new remote requests are globally spaced by at least 2 seconds;
-- cached `Generate` and `Copy` operations have no artificial cooldown and produce no additional PokémonDB request.
+- cached `Generate` and `Copy` operations have no artificial cooldown and produce no additional PokémonDB request;
+- failed requests are not cached and are removed from the in-flight registry.
 
 This rate limit is a client-side courtesy guard against accidental request bursts, not an anti-abuse security boundary; the userscript is open source and can be modified by a determined user.
 
@@ -106,7 +109,9 @@ The Google Fonts stylesheet and Silkscreen face are fully awaited before Canvas 
 
 Final visually validated layout values live in `userscript/capture-ticket.js` as `TICKET_LAYOUT`.
 
-## Artwork metadata
+## PNG export and metadata
+
+PNG chunk encoding is isolated in `userscript/png-metadata.js`; the renderer only supplies the Canvas and metadata payload.
 
 Downloaded PNGs receive non-visible PNG text metadata before export:
 
@@ -119,7 +124,11 @@ Downloaded PNGs receive non-visible PNG text metadata before export:
 
 This is attribution/fingerprinting, not DRM; PNG metadata can be removed by image re-encoding.
 
-The Legend, Mythic and Shiny validation exports were confirmed to contain these PNG `tEXt` chunks with valid CRCs.
+The Legend, Mythic and Shiny validation exports were confirmed to contain these PNG `tEXt` chunks with valid CRCs. Automated tests also validate generated `tEXt` CRCs and reject malformed PNG signatures/chunk lengths.
+
+## Build and dependency gate
+
+The build tool is pinned to the reviewed esbuild `0.28.2` line in `package-lock.json`. The reviewed esbuild install script is declared in `package.json`, and CI runs `npm audit --audit-level=high` before test/build validation.
 
 ## Validation
 
@@ -136,6 +145,13 @@ Manual smoke tests approved:
 - Generate preview/download
 - Copy image and paste into Discord
 
-Automated validation after the sprite request guard: 226/226 tests passed, the 4,128-encounter fixture replay passed, and the userscript build completed successfully.
+Automated coverage includes:
 
-The temporary Catch Gallery harness used for this validation has been removed. Production behavior now uses only persisted real captures.
+- sparse Capture Ticket index migration/backfill;
+- bounded newest-first Gallery persistence query;
+- future eligible capture persistence;
+- remote sprite cache hits, in-flight dedupe, 2-second rate limit, LRU eviction and failure recovery;
+- PNG metadata validation and CRCs;
+- the full fixture regression and userscript build.
+
+The temporary Catch Gallery harness used for manual validation has been removed. Production behavior uses only persisted real captures.
