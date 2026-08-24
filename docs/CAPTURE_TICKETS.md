@@ -51,6 +51,8 @@ Controls:
 - `Generate` opens the Capture Ticket preview/download flow
 - `Copy` generates the same PNG and writes it to the browser image clipboard so it can be pasted into compatible targets such as Discord
 
+The image clipboard path uses `navigator.clipboard.write()` with a PNG `ClipboardItem`. Browser/OS clipboard support and the final Discord paste behavior are verified by manual smoke test because they cannot be proven in Node CI.
+
 When no eligible captures exist, only the table column headers remain; no blank rows or empty-state card are rendered.
 
 The gallery performs a whole-store encounter read only when Misc is explicitly opened or when a successful capture marks the visible gallery dirty. It is not part of the one-second Current refresh loop. Filtering, sorting and pagination run in memory over the loaded eligible set.
