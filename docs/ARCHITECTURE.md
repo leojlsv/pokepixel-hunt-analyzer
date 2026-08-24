@@ -60,7 +60,7 @@ Browser-specific APIs should remain in this layer.
 
 Application coordination.
 
-`eventPipeline.js` receives normalized runtime events and coordinates session/config/encounter operations. It is the integration boundary between protocol events and persistence. Derived persistence markers that depend on complete domain state, such as `captureTicketAtMs`, are assigned here rather than in raw protocol normalization.
+`eventPipeline.js` receives normalized runtime events and coordinates session/config/encounter operations. It is the integration boundary between protocol events and persistence. Derived persistence markers that depend on complete domain state, such as `captureTicketAtMs`, are assigned here rather than in raw protocol normalization or migrations.
 
 ### `domain/`
 
@@ -148,7 +148,7 @@ startedAtMs
 captureTicketAtMs
 ```
 
-`captureTicketAtMs` is sparse: only complete Legendary/Mythical/Shiny successful captures eligible for Capture Ticket generation receive that derived property. Catch Gallery walks this index newest-first with a bounded read instead of materializing the encounter store.
+`captureTicketAtMs` is sparse: only newly finalized, complete Legendary/Mythical/Shiny successful captures eligible for Capture Ticket generation receive that derived property. Catch Gallery walks this index newest-first with a bounded read instead of materializing the encounter store.
 
 See `docs/PROTOCOL_AND_ANALYTICS.md` for protocol field ownership and metric semantics.
 
@@ -156,7 +156,9 @@ See `docs/PROTOCOL_AND_ANALYTICS.md` for protocol field ownership and metric sem
 
 Never edit a migration that may already exist in a user's browser. Add the next schema version and migrate forward.
 
-IndexedDB object stores are schemaless beyond keys/indexes, so adding ordinary row properties does not require a migration. Adding `captureTicketAtMs` as an indexed query surface required schema v3; its migration backfills the derived field only where existing data already satisfies the ticket contract.
+IndexedDB object stores are schemaless beyond keys/indexes, so adding ordinary row properties does not require a migration. Adding `captureTicketAtMs` as an indexed query surface required schema v3. The migration creates the sparse index only and does not scan/rewrite historical encounters; the service pipeline assigns the field to future eligible captures.
+
+Managed database connections close themselves on `versionchange`, preventing an older open game tab from unnecessarily blocking a schema upgrade.
 
 ## 5. Identity
 
