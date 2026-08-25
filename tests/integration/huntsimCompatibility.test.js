@@ -4,6 +4,7 @@ import { IDBFactory } from "fake-indexeddb";
 
 import { openDatabase } from "../../data/db.js";
 import { createEncountersRepository } from "../../data/encountersRepository.js";
+import { computeRarityBreakdown } from "../../domain/rarityBreakdown.js";
 import { createEventPipeline } from "../../services/eventPipeline.js";
 import { createProtocolAdapter } from "../../userscript/protocol-adapter.js";
 
@@ -296,4 +297,72 @@ test("DEV capture failure preserves the fields the terminal protocol actually ex
   assert.equal(row.ivs, null);
   assert.equal(row.qualityMultiplier, null);
   assert.equal(row.cycleMs, 200);
+});
+
+test("DEV unmatched capture.success still preserves terminal metadata and BY RARITY capture", async () => {
+  const { db, ingest } = await setup();
+  await primeHuntSim(ingest);
+
+  // Reproduces the real fallback path: terminal data arrives without a
+  // correlated synthetic HuntSim target. The terminal payload itself still
+  // authoritatively carries capture metadata under data.creature.
+  const terminal = await ingest({
+    type: "capture.success",
+    seq: 30,
+    ts: 3000,
+    data: {
+      auto_sell_value: 0,
+      auto_sold: false,
+      capsule_item_id: "capsule_ultra",
+      capsule_name: "Ultra Ball",
+      chance: 0.12299999999999998,
+      creature: {
+        species_id: "pidgey",
+        level: 1,
+        quality: "rare",
+        is_shiny: false,
+        captured_by_name: "Rhyxus",
+        elements: ["normal", "flying"],
+        gender: "female",
+        nature: "lax",
+        quality_multiplier: 1.374341469965942,
+        ivs: { hp: 15, atk: 8, def: 11, spa: 24, spd: 8, spe: 16 }
+      },
+      event_id: 99,
+      map_id: 14,
+      species_id: "pidgey",
+      species_name: "Pidgey",
+      supply_cost: 130,
+      wild_monster_id: "real-dev-wild-id",
+      zone_id: "zone-pidgey"
+    }
+  });
+
+  assert.equal(terminal.canonical.length, 1);
+  assert.equal(terminal.canonical[0].data.wild_monster_id, "real-dev-wild-id");
+
+  const rows = await createEncountersRepository(db).getAll();
+  assert.equal(rows.length, 1);
+  const row = rows[0];
+
+  assert.equal(row.state, "orphan");
+  assert.equal(row.captureResult, "success");
+  assert.equal(row.speciesName, "Pidgey");
+  assert.equal(row.quality, "rare");
+  assert.equal(row.level, null, "captured creature level=1 is not target level");
+  assert.equal(row.gender, "female");
+  assert.equal(row.nature, "lax");
+  assert.equal(row.qualityMultiplier, 1.374341469965942);
+  assert.equal(row.ivTotal, 82);
+  assert.deepEqual(row.ivs, { hp: 15, atk: 8, def: 11, spa: 24, spd: 8, spe: 16 });
+  assert.equal(row.isShiny, false);
+  assert.equal(row.capsuleName, "Ultra Ball");
+  assert.equal(row.captureChance, 0.12299999999999998);
+  assert.equal(row.capturedByName, "Rhyxus");
+
+  const rarity = computeRarityBreakdown(rows);
+  assert.equal(rarity.captured, 1);
+  assert.equal(rarity.failed, 0);
+  assert.equal(rarity.rarities.rare.captured, 1);
+  assert.equal(rarity.rarities.rare.failed, 0);
 });
