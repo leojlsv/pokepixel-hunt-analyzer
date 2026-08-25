@@ -10,13 +10,13 @@ const outputUrl = new URL("../dist/pokepixel-hunt-analyzer.user.js", import.meta
 const pkg = JSON.parse(await readFile(packageUrl, "utf8"));
 
 const metadata = `// ==UserScript==
-// @name         PokePixel Hunt Analyzer
-// @namespace    https://github.com/leojlsv/pokepixel-analyzer-sidepanel
-// @version      ${pkg.version}
-// @description  Passive Hunt analytics for PokePixel. Current, History and local tools.
+// @name         PokePixel Hunt Analyzer DEV
+// @namespace    https://github.com/leojlsv/pokepixel-hunt-analyzer/dev
+// @version      ${pkg.version}-dev
+// @description  DEV-only HuntSim compatibility build for PokePixel Hunt Analyzer.
 // @author       Rhyxus
 // @license      MIT
-// @match        https://pokepixel.nietore.com/*
+// @match        https://dev.pokepixel.nietore.com/*
 // @run-at       document-start
 // @sandbox      raw
 // @grant        GM_xmlhttpRequest
@@ -41,9 +41,9 @@ await build({
   },
   banner: { js: metadata },
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
+    __APP_VERSION__: JSON.stringify(`${pkg.version}-dev`),
     "process.env.NODE_ENV": '"production"'
   }
 });
 
-console.log(`Built dist/pokepixel-hunt-analyzer.user.js v${pkg.version}`);
+console.log(`Built dist/pokepixel-hunt-analyzer.user.js v${pkg.version}-dev`);
