@@ -12,7 +12,10 @@ const FULL_FRAME =
 
 async function setup() {
   const db = await openDatabase({ indexedDBFactory: new IDBFactory() });
-  const pipeline = createEventPipeline(db, { appVersion: "1.8.0-dev-test" });
+  const pipeline = createEventPipeline(db, {
+    now: () => 0,
+    appVersion: "1.8.0-dev-test"
+  });
   const adapter = createProtocolAdapter();
 
   async function ingest(payload) {
