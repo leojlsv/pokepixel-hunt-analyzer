@@ -225,9 +225,14 @@ function drawPokemonSprite(ctx, image, layout) {
     throw new Error("Capture ticket Pokémon sprite has invalid dimensions");
   }
 
+  // 1x means: fit the complete source PNG canvas inside the 192x192 sprite area.
+  // Additional zoom is relative to that fitted baseline, never to the visible
+  // Pokémon silhouette. This preserves transparent padding from the source PNG.
+  const fitScale = Math.min(layout.width / sourceWidth, layout.height / sourceHeight);
   const zoom = Number.isFinite(layout.zoom) ? layout.zoom : 1;
-  const width = Math.max(1, Math.round(sourceWidth * zoom));
-  const height = Math.max(1, Math.round(sourceHeight * zoom));
+  const scale = fitScale * zoom;
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
   const areaLeft = Math.round(layout.x - layout.width / 2);
   const areaTop = Math.round(layout.y - layout.height / 2);
 
