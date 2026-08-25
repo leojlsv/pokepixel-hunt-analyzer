@@ -1,6 +1,8 @@
-# Capture Tickets
+# Capture Tickets — BETA
 
 Specification for manually generated Capture Tickets and the `Misc > Catch Gallery` surface.
+
+> **Status: BETA.** Visuals and the primary Edge/Chromium flow are validated, but community behavior across different browsers, Tampermonkey versions, clipboard implementations and external asset availability is still being observed.
 
 ## Eligibility
 
@@ -32,7 +34,7 @@ Schema v3 adds the sparse IndexedDB index `encounters.captureTicketAtMs`. The mi
 
 ## Catch Gallery
 
-The user surface is `Misc > Catch Gallery`, directly below Sound Alerts.
+The user surface is `Misc > Catch Gallery`, directly below Sound Alerts. The section is visibly marked `BETA`.
 
 The gallery is a compact collapsible table with columns:
 
@@ -53,13 +55,15 @@ Controls:
 - `Generate` opens the Capture Ticket preview/download flow
 - `Copy` generates the same PNG and writes it to the browser image clipboard so it can be pasted into compatible targets such as Discord
 
-The image clipboard path uses `navigator.clipboard.write()` with a PNG `ClipboardItem`.
+The image clipboard path uses `navigator.clipboard.write()` with a PNG `ClipboardItem`. Browsers that do not support image clipboard writes can still use `Generate`.
 
 When no eligible captures exist, only the table column headers remain; no blank rows or empty-state card are rendered.
 
 The gallery no longer performs a whole-store encounter read. When it needs data, it walks the sparse `captureTicketAtMs` index newest-first and loads at most 500 ticket-eligible captures. It reloads only when Misc/Gallery needs a dirty refresh; it is not part of Current's one-second refresh loop. Filtering, sorting and five-row pagination run in memory over that bounded set.
 
-## Sprite
+## External render assets
+
+Capture Ticket generation intentionally depends on public render assets; Hunt analytics themselves do not.
 
 Sprites use PokémonDB Black/White assets:
 
@@ -69,6 +73,10 @@ https://img.pokemondb.net/sprites/black-white/shiny/{pokemon}.png
 ```
 
 Tampermonkey fetches the sprite with `GM_xmlhttpRequest` and `@connect img.pokemondb.net`, avoiding page-origin CORS and tainted-canvas export failures.
+
+The Silkscreen font is loaded through Google Fonts and fully awaited before Canvas rendering. No Hunt payload, authentication data or Analyzer database content is intentionally attached to these asset requests.
+
+The userscript also uses `unsafeWindow` so the core WebSocket observer can keep targeting the page-owned WebSocket after privileged Tampermonkey grants are enabled. Capture Ticket code must not change that runtime boundary without a full WebSocket smoke test.
 
 Remote request protection lives in `userscript/remote-image-loader.js`:
 
@@ -132,7 +140,7 @@ The build tool is pinned to the reviewed esbuild `0.28.2` line in `package-lock.
 
 ## Validation
 
-Manual smoke tests approved:
+Manual smoke tests approved on the primary validation environment:
 
 - Silkscreen on first generation after reload
 - Legend / Mythic / Shiny visuals
@@ -154,4 +162,4 @@ Automated coverage includes:
 - PNG metadata validation and CRCs;
 - the full fixture regression and userscript build.
 
-The temporary Catch Gallery harness used for manual validation has been removed. Production behavior uses only persisted real captures.
+The temporary Catch Gallery harness used for manual validation is not part of the release branch. Production behavior uses only persisted real captures.
