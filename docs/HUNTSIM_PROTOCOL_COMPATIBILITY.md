@@ -4,13 +4,13 @@ Status: v1.9.0 release-ready compatibility layer. Validated against the HuntSim 
 
 ## Why an adapter exists
 
-The legacy analytics path are encounter-centric and correlate:
+The legacy analytics path is encounter-centric and correlates:
 
 ```text
 combat.started -> loot.received -> capture.failed/capture.success
 ```
 
-The DEV HuntSim runtime is frame-centric. It emits compact state and duplicated projections:
+The HuntSim runtime is frame-centric. It emits compact state plus duplicated projections:
 
 ```text
 hunt.frame
@@ -22,7 +22,7 @@ loot.received (aggregated, per_kill[])
 capture.failed / capture.success
 ```
 
-The domain/persistence model remains unchanged. `userscript/protocol-adapter.js` converts HuntSim traffic into the canonical events already consumed by the canonical pipeline.
+The domain/persistence model remains unchanged. `userscript/protocol-adapter.js` converts HuntSim traffic into the canonical events consumed by the existing pipeline.
 
 ## Canonical sources
 
@@ -45,7 +45,7 @@ The following are intentionally ignored as duplicate projections:
 
 ## Correlation key
 
-DEV no longer provides the legacy `wild_monster_id` across every event. The adapter creates:
+HuntSim no longer provides the legacy `wild_monster_id` across every event. The adapter creates:
 
 ```text
 huntsim:<server-session-or-zone>:<kill-seq>
@@ -70,26 +70,26 @@ Observed full-frame entity directory:
 - shiny flag: bit 0 at `+14`;
 - species string length: byte `+15`.
 
-The frame is used only for correlation metadata. Its shiny flag is not trusted as terminal truth because map slots can respawn between periodic full frames.
+The frame is used only for correlation metadata. Its Shiny flag is not trusted as terminal truth because map slots can respawn between periodic full frames.
 
 ## Capture detail policy
 
 ### Successful capture
 
-`capture.success.creature` is used to fill fields missing from the synthetic HuntSim start:
+`capture.success.creature` is used to fill fields missing from the synthetic HuntSim target:
 
-- quality;
+- Rarity/quality;
 - IV breakdown / IV total;
-- shiny;
-- elements;
-- gender;
-- nature;
-- quality multiplier;
-- captured-by name.
+- Shiny;
+- Elements;
+- Gender;
+- Nature;
+- Quality Multiplier;
+- Captured By name.
 
-`creature.level` is never used as the target level. DEV can return a captured creature at a rebased level that differs from the hunted target.
+`creature.level` is never used as target level. HuntSim can return a captured creature at a rebased level that differs from the hunted target.
 
-A complete legacy `combat.started` snapshot always wins for non-terminal individual fields. This preserves PROD behavior.
+A complete legacy `combat.started` snapshot wins for individual target fields. This preserves legacy behavior while allowing HuntSim to recover details that otherwise have no authoritative target snapshot.
 
 ### Failed capture
 
@@ -97,18 +97,18 @@ Observed `capture.failed` exposes:
 
 - species;
 - target level;
-- quality;
+- Rarity/quality;
 - IV total;
-- shiny;
+- Shiny;
 - capsule/chance/cost.
 
-It does **not** expose gender, nature, full IV breakdown, elements or quality multiplier. Those fields remain `null` for failed HuntSim attempts unless a future protocol event provides an authoritative target snapshot. The adapter must not invent them.
+It does **not** expose Gender, Nature, full IV breakdown, Elements or Quality Multiplier. Those fields remain `null` for failed HuntSim attempts unless a future protocol event provides an authoritative target snapshot. The adapter must not invent them.
 
 ## Event ordering
 
-HuntSim commonly emits capture terminal events before `loot.received`. The tracker therefore keeps the finalized encounter correlated in memory until late loot arrives, then patches reward fields on the same persisted encounter and releases the correlation.
+HuntSim commonly emits terminal capture events before `loot.received`. The tracker therefore keeps the finalized encounter correlated in memory until late loot arrives, patches reward fields on the same persisted encounter, then releases the correlation.
 
-Legacy PROD ordering (loot before capture) remains supported unchanged.
+Legacy ordering (loot before capture) remains supported unchanged.
 
 ## Build targets
 
