@@ -41,7 +41,8 @@ Mantenha cada mudança focada em um problema. Evite misturar feature, refactor e
 - `package-lock.json` deve permanecer versionado e sincronizado com `package.json`.
 - Não criar arquivos de patch por versão (`*-v123.js`). Evolua os módulos por responsabilidade.
 - Não registrar changelog em comentários de código. Histórico de release pertence ao `CHANGELOG.md`.
-- Não adicionar dependências sem uma necessidade concreta.
+- Não adicionar dependências ou novos `@grant`/`@connect` sem necessidade concreta e revisão do impacto no runtime.
+- Integrações com objetos JS da página, como `WebSocket`, devem usar explicitamente o page window resolvido pelo runtime; não assumir que o `window` do userscript é o `window` da página quando existem grants Tampermonkey.
 
 ## Testes
 
@@ -55,15 +56,21 @@ Mudanças de domínio ou persistência devem incluir teste automatizado quando h
 
 Mudanças de UI/runtime também exigem smoke test manual no PokePixel:
 
-1. conexão do jogo;
-2. Current e métricas;
-3. New Hunt / Pause / Resume / End Hunt;
-4. Captured / Failed e filtros;
-5. HUD minimizado;
-6. drag, resize, scroll e alpha;
-7. Compare e ordenação;
-8. reload e persistência;
-9. duas abas com ACTIVE / STANDBY.
+1. jogo conecta normalmente com o userscript habilitado;
+2. `window.__POKEPIXEL_HUNT_ANALYZER_USERSCRIPT_HOOKED__ === true`;
+3. Current atualiza Seen / XP / Dollar durante a Hunt;
+4. New Hunt / Pause / Resume / End Hunt;
+5. Captured / Failed, filtros e detalhes;
+6. HUD minimizado;
+7. drag, resize, scroll e alpha;
+8. History: Hunts / Pokémon / Attempts, filtros e drill-downs;
+9. DELETE: Running/Paused Current bloqueada; Hunt encerrada pode ser apagada e permanece apagada após refresh/F5;
+10. Sound Alerts: Sound 1 / Sound 2, exclusividade por slot e persistência;
+11. Custom Audio: import / replace / remove / persistência;
+12. Catch Gallery: collapse, filtros, ordenação e paginação;
+13. Capture Ticket BETA: Generate e Copy quando suportado pelo browser;
+14. F5 preserva IndexedDB e estado de UI;
+15. duas abas: apenas uma ACTIVE e a outra STANDBY.
 
 ## Pull Request
 
@@ -72,6 +79,7 @@ O PR deve explicar:
 - o problema;
 - o que foi alterado;
 - como foi validado;
-- riscos ou limitações conhecidas.
+- riscos ou limitações conhecidas;
+- novos grants, conexões externas ou migrations, quando existirem.
 
 Não inclua `dist/`, exports locais, logs, credenciais ou capturas brutas do navegador.
