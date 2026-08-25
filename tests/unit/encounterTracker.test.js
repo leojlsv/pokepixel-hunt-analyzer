@@ -114,7 +114,18 @@ function captureFailed(wildId, { ts, seq, quality = "common" }) {
 
 function captureSuccess(
   wildId,
-  { ts, seq, autoSold = false, creatureQuality = "common", creatureLevel = 1 }
+  {
+    ts,
+    seq,
+    autoSold = false,
+    creatureQuality = "common",
+    creatureLevel = 1,
+    gender = "female",
+    nature = "lax",
+    qualityMultiplier = 1.374341469965942,
+    isShiny = false,
+    ivs = { atk: 8, def: 11, hp: 15, spa: 24, spd: 8, spe: 16 }
+  }
 ) {
   return envelope(
     "capture.success",
@@ -132,8 +143,12 @@ function captureSuccess(
         species_id: "chansey",
         level: creatureLevel,
         quality: creatureQuality,
-        is_shiny: false,
-        ivs: { atk: 8, def: 11, hp: 15, spa: 24, spd: 8, spe: 16 }
+        is_shiny: isShiny,
+        ivs,
+        elements: ["normal"],
+        gender,
+        nature,
+        quality_multiplier: qualityMultiplier
       }
     },
     { seq, ts }
@@ -379,19 +394,40 @@ test("orphan: capture.failed inherits quality/level/ivTotal/isShiny from the eve
   assert.equal(create.row.isShiny, false);
 });
 
-test("orphan: capture.success does NOT inherit quality/level from the creature", () => {
+test("orphan: capture.success preserves terminal creature metadata but never uses creature.level", () => {
   resetIds();
   const state = createTrackerState();
+  const ivs = { atk: 8, def: 11, hp: 15, spa: 24, spd: 8, spe: 16 };
 
   const result = applyEvent(
     state,
-    captureSuccess("wild_9", { ts: 1000, seq: 1, creatureQuality: "epic", creatureLevel: 5 }),
+    captureSuccess("wild_9", {
+      ts: 1000,
+      seq: 1,
+      creatureQuality: "rare",
+      creatureLevel: 5,
+      gender: "female",
+      nature: "lax",
+      qualityMultiplier: 1.374341469965942,
+      isShiny: false,
+      ivs
+    }),
     nextId
   );
   const create = result.effects.find((e) => e.type === "encounter.create");
 
-  assert.equal(create.row.quality, null);
-  assert.equal(create.row.level, null);
+  assert.equal(create.row.state, "orphan");
+  assert.equal(create.row.captureResult, "success");
+  assert.equal(create.row.quality, "rare");
+  assert.equal(create.row.level, null, "captured creature level must not replace target level");
+  assert.equal(create.row.gender, "female");
+  assert.equal(create.row.nature, "lax");
+  assert.equal(create.row.qualityMultiplier, 1.374341469965942);
+  assert.equal(create.row.ivTotal, 82);
+  assert.deepEqual(create.row.ivs, ivs);
+  assert.equal(create.row.isShiny, false);
+  assert.equal(create.row.capsuleName, "Ultra Ball");
+  assert.equal(create.row.captureChance, 0.05);
 });
 
 test("duplicate event (same socketId|eventType|seq) is ignored", () => {
