@@ -45,8 +45,14 @@ function isTerminalCaptureResult(value) {
   return value === "success" || value === "failed";
 }
 
-function firstKnown(current, fallback) {
-  return current !== null && current !== undefined ? current : fallback;
+function isMissing(value) {
+  return value === null || value === undefined;
+}
+
+function addFallback(patch, key, current, fallback) {
+  if (isMissing(current) && !isMissing(fallback)) {
+    patch[key] = fallback;
+  }
 }
 
 function ivTotalOrNull(ivs) {
@@ -306,31 +312,43 @@ function applyLootReceived(state, envelope) {
 }
 
 function captureEnrichment(existing, data, resultType) {
+  const patch = {};
+
   if (resultType === "failed") {
-    return {
-      level: firstKnown(existing?.level, data.level),
-      quality: firstKnown(existing?.quality, data.quality),
-      ivTotal: firstKnown(existing?.ivTotal, data.iv_total),
-      isShiny: firstKnown(existing?.isShiny, data.is_shiny)
-    };
+    addFallback(patch, "level", existing?.level, data.level);
+    addFallback(patch, "quality", existing?.quality, data.quality);
+    addFallback(patch, "ivTotal", existing?.ivTotal, data.iv_total);
+
+    // Terminal capture payload is the authoritative shiny result. This also
+    // protects HuntSim from a stale full-frame shiny bit after slot respawn.
+    if (typeof data.is_shiny === "boolean") {
+      patch.isShiny = data.is_shiny;
+    }
+
+    return patch;
   }
 
   const creature = data.creature;
-  if (!creature) return {};
+  if (!creature) return patch;
 
-  return {
-    quality: firstKnown(existing?.quality, creature.quality),
-    ivTotal: firstKnown(existing?.ivTotal, ivTotalOrNull(creature.ivs)),
-    isShiny: firstKnown(existing?.isShiny, creature.is_shiny),
-    elements: firstKnown(existing?.elements, creature.elements),
-    gender: firstKnown(existing?.gender, creature.gender),
-    nature: firstKnown(existing?.nature, creature.nature),
-    ivs: firstKnown(existing?.ivs, creature.ivs),
-    qualityMultiplier: firstKnown(
-      existing?.qualityMultiplier,
-      creature.quality_multiplier
-    )
-  };
+  addFallback(patch, "quality", existing?.quality, creature.quality);
+  addFallback(patch, "ivTotal", existing?.ivTotal, ivTotalOrNull(creature.ivs));
+  addFallback(patch, "elements", existing?.elements, creature.elements);
+  addFallback(patch, "gender", existing?.gender, creature.gender);
+  addFallback(patch, "nature", existing?.nature, creature.nature);
+  addFallback(patch, "ivs", existing?.ivs, creature.ivs);
+  addFallback(
+    patch,
+    "qualityMultiplier",
+    existing?.qualityMultiplier,
+    creature.quality_multiplier
+  );
+
+  if (typeof creature.is_shiny === "boolean") {
+    patch.isShiny = creature.is_shiny;
+  }
+
+  return patch;
 }
 
 function applyCaptureResult(state, envelope, resultType) {
@@ -362,7 +380,12 @@ function applyCaptureResult(state, envelope, resultType) {
 
   if (!existing) {
     const orphanId = crypto.randomUUID();
-    const enrichment = captureEnrichment(null, data, resultType);
+    // Keep the legacy invariant for orphan successes: a captured creature can
+    // be level-rebased and is not a substitute for a missing target snapshot.
+    // HuntSim's normal path creates a synthetic encounter before terminal data.
+    const enrichment = resultType === "failed"
+      ? captureEnrichment(null, data, resultType)
+      : {};
 
     const row = orphanRow({
       encounterId: orphanId,
