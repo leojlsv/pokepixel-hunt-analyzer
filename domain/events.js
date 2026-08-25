@@ -29,6 +29,11 @@ function str(value) {
 }
 
 function num(value) {
+  // `Number(null)` and `Number("")` are both 0, which is unsafe for protocol
+  // normalization: HuntSim deliberately emits canonical nulls for fields not
+  // present in its compact target snapshot. Preserve absence as null and only
+  // coerce values that were actually supplied.
+  if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
