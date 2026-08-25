@@ -23,6 +23,9 @@ const TAB_LOCK_REFRESH_MS = 2_000;
 const CURRENT_REFRESH_MS = 1_000;
 const STANDBY_RECONCILE_MS = 10_000;
 const CATCH_GALLERY_LOAD_LIMIT = 500;
+const ROOT_ID = "pokepixel-hunt-analyzer-root";
+const CATCH_GALLERY_SECTION_ID = "catch-gallery";
+const CATCH_GALLERY_BETA_STYLE_ID = "pha-catch-gallery-beta-style";
 const OBSERVED_EVENT_TYPES = new Set(EVENT_TYPES);
 const METRIC_DATA_EVENTS = new Set([
   "loot.received",
@@ -74,6 +77,44 @@ function invalidateEncounterCache() {
   cachedEncounterListRevision = -1;
   lastEncounterSyncAt = 0;
   markEncounterListDirty();
+}
+
+function markCatchGalleryBeta() {
+  const shadow = document.getElementById(ROOT_ID)?.shadowRoot;
+  const heading = shadow?.querySelector(
+    `#${CATCH_GALLERY_SECTION_ID} .section-head h3`
+  );
+  if (!shadow || !heading || heading.querySelector(".catch-gallery-beta-badge")) return;
+
+  if (!shadow.getElementById(CATCH_GALLERY_BETA_STYLE_ID)) {
+    const style = document.createElement("style");
+    style.id = CATCH_GALLERY_BETA_STYLE_ID;
+    style.textContent = `
+      .catch-gallery-beta-badge {
+        display:inline-flex;
+        align-items:center;
+        height:14px;
+        margin-left:5px;
+        padding:0 4px;
+        border:1px solid #8a7741;
+        border-radius:3px;
+        background:#3b3422;
+        color:#d8c071;
+        font-size:7px;
+        font-weight:800;
+        letter-spacing:.08em;
+        line-height:12px;
+        vertical-align:1px;
+      }
+    `;
+    shadow.appendChild(style);
+  }
+
+  const badge = document.createElement("span");
+  badge.className = "catch-gallery-beta-badge";
+  badge.textContent = "BETA";
+  badge.title = "Capture Ticket is in beta";
+  heading.appendChild(badge);
 }
 
 const leadership = createTabLeadership({
@@ -260,6 +301,7 @@ function mountUiWhenReady() {
     });
     audioAlerts?.mountControls();
     catchGallery?.mountControls();
+    markCatchGalleryBeta();
     historyDeleteControl?.mount();
     ui.setActive(leadership.isActive());
   };
