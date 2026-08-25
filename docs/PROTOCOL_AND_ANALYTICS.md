@@ -2,7 +2,9 @@
 
 This document distinguishes fixture-confirmed protocol data from product decisions. Do not silently infer unsupported fields.
 
-## 1. Minimum inbound events
+## 1. Protocol generations and canonical inbound events
+
+The domain pipeline remains canonical and consumes:
 
 ```text
 combat.started
@@ -13,7 +15,9 @@ hunt.stopped
 hunt.analyzer_reset
 ```
 
-Ignore unrelated frames early and do not persist full WebSocket frames.
+Legacy traffic already arrives in this shape. HuntSim additionally emits `hunt.frame`, `hunt.events`, `hunt.capture_queue`, `hunt.kill_reward` and `hunt.rewards`; `userscript/protocol-adapter.js` reconciles those raw payloads into the canonical events above. Duplicate projections are intentionally ignored. Raw WebSocket frames are never persisted.
+
+See `docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md` for the observed frame/correlation contract.
 
 ## 2. `combat.started`
 
@@ -50,17 +54,14 @@ confirmed in a real capture — distinct from the discrete `quality` tier
 "Captured" list (§10) filters on it. `enemy.ivs`'s 6 individual stats
 (`hp`/`atk`/`def`/`spa`/`spd`/`spe`) are now persisted individually too,
 not just summed into `ivTotal` (`domain/ivTotal.js` still does the sum;
-the raw per-stat object is kept alongside it for that same list). Both
-are combat.started-only — `capture.failed` doesn't carry either at all,
-same non-overwrite policy as `level`/`quality`/`elements`/`gender`/
-`nature`.
+the raw per-stat object is kept alongside it for that same list). Under the legacy protocol these fields come from `combat.started`. Under HuntSim, successful terminal `capture.success.creature` may authoritatively fill fields absent from the synthetic target snapshot; failed HuntSim attempts expose only the subset documented in §4.
 
 The game `session.id` is metadata (`serverSessionId`), not the local `session_id`.
 `session.summary` is cumulative; do not sum snapshots as incremental rewards.
 
 ## 3. `loot.received`
 
-Extract:
+Legacy individual reward extracts:
 
 ```text
 ts
@@ -74,6 +75,8 @@ loot_sell_value
 auto_potion_used
 supply_cost
 ```
+
+HuntSim may aggregate rewards in one envelope containing `kills`, `session_id` and `per_kill[]`. Each `per_kill` entry is converted by the adapter into one canonical individual reward correlated by kill sequence. Envelope totals must not be counted again after splitting.
 
 Primary encounter cycle:
 
@@ -137,16 +140,7 @@ creature.ivs
 Do not use `creature.level` as target level. Keep the target level captured at `combat.started`.
 `auto_sold = true` is still a successful capture.
 
-The captured creature also carries `elements`, `gender`, `nature` and
-`quality_multiplier` (confirmed in a real capture) — none of these are
-extracted. Same reasoning as `creature.level`: the captured individual
-is not necessarily the same as the target snapshotted at
-`combat.started` (its own `level` already proves that), so nothing
-about it overwrites that snapshot. `creature.quality`/`creature.ivs` ARE
-extracted above but, for the same reason, never used to patch an
-encounter row (`domain/encounterTracker.js`'s `applyCaptureResult`).
-`combat.started.data.enemy.elements/gender/nature/quality_multiplier/ivs`
-(§2) is the only source for those fields.
+The captured creature also carries `elements`, `gender`, `nature`, `quality_multiplier` and `captured_by_name`. A complete legacy `combat.started` snapshot remains preferred for individual target fields. HuntSim, however, may have no equivalent complete target snapshot; in that case successful terminal `creature` fields are preserved/enriched because they are the only authoritative source available. `creature.level` is the exception and is never used as hunted target level. Unmatched HuntSim successes retain these terminal fields instead of degrading to an empty orphan.
 
 ## 6. Correlation
 
@@ -156,23 +150,27 @@ Temporary lookup:
 activeByWildMonsterId.set(wildMonsterId, encounterId)
 ```
 
-Expected flow:
+Legacy expected flow:
 
 ```text
-combat.started
-      ↓
-   STARTED
-      ↓
-loot.received
-      ↓
-    LOOTED
-   ↙      ↘
-success  failed
+combat.started → loot.received → capture.success / capture.failed
 ```
+
+HuntSim commonly uses:
+
+```text
+hunt.frame / hunt.capture_queue / hunt.events
+                  ↓ kill sequence
+capture.success / capture.failed
+                  ↓
+loot.received.per_kill[]   (may arrive after terminal capture)
+```
+
+The adapter synthesizes `wildMonsterId = huntsim:<server-session-or-zone>:<kill-seq>` so the existing tracker/persistence model can remain stable.
 
 Do not remove correlation at `loot.received` if a later capture result still needs to attach.
 
-Finalize/remove on capture result, wild-id reuse by a new `combat.started`, or conservative stale timeout.
+Legacy correlation finalizes/removes on capture result, wild-id reuse by a new `combat.started`, or conservative stale timeout. HuntSim keeps finalized correlation long enough for late loot to patch the same encounter, then releases it after reward reconciliation/closure.
 
 ## 7. Wild-id reuse and orphans
 
@@ -324,3 +322,5 @@ Rare+        133
 ```
 
 The fixture also contains wild-id reuse and orphan events. Do not hard-code a final normalized encounter count until correlation rules are covered by tests.
+
+Observed HuntSim DEV capture used for v1.9 compatibility validation included approximately 7,209 `hunt.frame`, 681 `hunt.capture_queue`, 628 `hunt.events`, 312 `hunt.kill_reward`, 309 `hunt.rewards`, 309 `loot.received`, 249 `capture.failed` and 46 `capture.success` messages. These counts are evidence for adapter behavior, not constants to hard-code. The legacy 4000+ fixture remains the regression baseline and currently persists 4,128 encounter rows.

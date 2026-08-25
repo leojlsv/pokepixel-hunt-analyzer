@@ -1,10 +1,10 @@
 # HuntSim protocol compatibility
 
-Status: DEV-only implementation on `dev/huntsim-protocol-compat`.
+Status: v1.9.0 release-ready compatibility layer. Validated against the HuntSim DEV protocol; merge/release is intentionally gated on the game update reaching production.
 
 ## Why an adapter exists
 
-Production v1.8 analytics are encounter-centric and correlate:
+The legacy analytics path are encounter-centric and correlate:
 
 ```text
 combat.started -> loot.received -> capture.failed/capture.success
@@ -22,7 +22,7 @@ loot.received (aggregated, per_kill[])
 capture.failed / capture.success
 ```
 
-The domain/persistence model remains unchanged. `userscript/protocol-adapter.js` converts HuntSim traffic into the canonical events already consumed by the v1.8 pipeline.
+The domain/persistence model remains unchanged. `userscript/protocol-adapter.js` converts HuntSim traffic into the canonical events already consumed by the canonical pipeline.
 
 ## Canonical sources
 
@@ -110,14 +110,22 @@ HuntSim commonly emits capture terminal events before `loot.received`. The track
 
 Legacy PROD ordering (loot before capture) remains supported unchanged.
 
-## Build isolation
+## Build targets
 
-The branch builds a DEV-only Tampermonkey identity:
+The default build is release-safe and targets production with the historical userscript identity/namespace:
 
-```text
-@name      PokePixel Hunt Analyzer DEV
-@namespace https://github.com/leojlsv/pokepixel-hunt-analyzer/dev
-@match     https://dev.pokepixel.nietore.com/*
+```bash
+npm run build:userscript
 ```
 
-This prevents the DEV test userscript from replacing or executing on the released PROD userscript.
+For future HuntSim smoke tests, an explicit isolated DEV build remains available:
+
+```bash
+npm run build:userscript:dev
+```
+
+The DEV build uses its own `@name`, namespace, `-dev` version suffix and `https://dev.pokepixel.nietore.com/*` match, so it cannot replace the installed production userscript.
+
+## Deployment gate
+
+The adapter is backward-compatible with legacy traffic: legacy canonical events pass through unchanged. The v1.9 branch is technically merge-ready, but release timing is intentionally gated on the HuntSim server update reaching production so the release aligns with the game protocol transition.

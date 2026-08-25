@@ -52,6 +52,7 @@ feat/
 fix/
 refactor/
 docs/
+dev/
 release/
 ```
 
@@ -72,7 +73,7 @@ For runtime/UI changes, also perform the manual smoke test in section 8.
 ### Boundaries
 
 - Runtime/browser integration belongs in `userscript/`.
-- Protocol normalization belongs in `domain/events.js`.
+- Generation-specific protocol reconciliation belongs in `userscript/protocol-adapter.js`; canonical event normalization belongs in `domain/events.js`.
 - Metrics/formulas belong in domain modules, not the UI.
 - IndexedDB access belongs in `data/` repositories.
 - Cross-module application coordination belongs in `services/`.
@@ -141,11 +142,12 @@ Do not use source comments as a changelog. Release/history notes belong in `CHAN
 Before consuming a new field/event:
 
 1. confirm it from real protocol evidence;
-2. document semantics in `docs/PROTOCOL_AND_ANALYTICS.md`;
-3. normalize it in `domain/events.js`;
-4. update tracker/persistence only if the product needs it;
-5. add regression coverage;
-6. verify that sensitive/raw data is not persisted.
+2. document semantics in `docs/PROTOCOL_AND_ANALYTICS.md` (and `docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md` when generation-specific);
+3. reconcile generation-specific/raw shapes in `userscript/protocol-adapter.js`;
+4. normalize the resulting canonical event in `domain/events.js`;
+5. update tracker/persistence only if the product needs it;
+6. add regression coverage;
+7. verify that sensitive/raw data is not persisted or logged.
 
 Do not infer fields that have not been observed.
 
@@ -185,7 +187,7 @@ The test suite uses Node's built-in test runner and `fake-indexeddb`.
 Coverage areas include:
 
 - config canonicalization/hash;
-- encounter correlation/dedupe;
+- encounter correlation/dedupe, including HuntSim kill-sequence correlation and terminal-before-loot ordering;
 - Hunt lifecycle/timing;
 - rarity/metrics calculations;
 - IndexedDB migrations/repositories;
@@ -210,7 +212,7 @@ Required after UI/runtime/WebSocket changes:
 5. New Hunt works.
 6. Pause / Resume works.
 7. End Hunt works.
-8. Captured / Failed lists, filters and detail expansion work.
+8. Captured filters/details work; Failed shows Pokémon / IV / Pokéball / Fled at directly with Rarity/Shiny/IV filters.
 9. HUD minimized values update.
 10. Drag, resize, wheel scroll and alpha work.
 11. History loads Hunts / Pokémon / Attempts and its filters/drill-downs work.
@@ -228,10 +230,16 @@ A clean automated suite does not replace this smoke test for browser behavior.
 
 ## 9. Build and release
 
-Build only:
+Production build:
 
 ```bash
 npm run build:userscript
+```
+
+Isolated DEV protocol build:
+
+```bash
+npm run build:userscript:dev
 ```
 
 Output:
@@ -251,7 +259,7 @@ Release process:
 5. run `npm ci`;
 6. run `npm run audit:deps`;
 7. run `npm run validate`;
-8. build/install the userscript from that exact release branch and complete section 8;
+8. build/install the **production** userscript from that exact release branch and complete section 8; for a protocol transition, also validate the isolated DEV build before the game update reaches production;
 9. open the release PR against `main` and require green CI;
 10. merge the validated release PR;
 11. tag the merged commit as `vX.Y.Z`;

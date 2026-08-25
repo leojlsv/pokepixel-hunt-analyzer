@@ -22,6 +22,8 @@ PokePixel WebSocket
         ↓
 userscript/websocket-observer.js
         ↓ parsed inbound payload
+userscript/protocol-adapter.js
+        ↓ canonical legacy-shaped event(s)
 userscript/main.js
         ↓ allowlist + serialized queue
 services/eventPipeline.js
@@ -43,6 +45,7 @@ Browser/runtime boundary.
 
 - `main.js` — initialization, repositories, pipeline queue, refresh scheduling and view orchestration.
 - `websocket-observer.js` — passive WebSocket constructor interception and frame decoding.
+- `protocol-adapter.js` — generation-specific protocol reconciliation; maps HuntSim frames/queues/rewards into canonical events while passing legacy events through unchanged.
 - `tab-leadership.js` — localStorage lease that elects one ACTIVE tab.
 - `ui.js` / `ui-markup.js` — panel lifecycle, navigation and static analyzer markup.
 - `current-view.js` — Current Hunt rendering.
@@ -69,7 +72,7 @@ Application coordination.
 
 Business rules and pure calculations where possible:
 
-- protocol normalization;
+- canonical event normalization (`domain/events.js`);
 - encounter correlation/state transitions;
 - Hunt lifecycle/timing;
 - configuration canonicalization/hash;
@@ -180,18 +183,20 @@ socketId        local WebSocket-instance identifier
 
 ## 6. Event processing
 
-Observed event types are defined by `domain/events.js` and allowlisted before entering the pipeline.
+Observed raw payloads first pass through `userscript/protocol-adapter.js`. Legacy events pass through unchanged; HuntSim traffic may emit zero, one or multiple canonical events. Canonical event types are then defined/normalized by `domain/events.js` and allowlisted before entering the pipeline.
 
 Important rules:
 
-- protocol normalization belongs in `domain/events.js`;
-- frames outside the allowlist are ignored early;
+- generation-specific reconciliation/decoding belongs in `userscript/protocol-adapter.js`;
+- canonical field normalization belongs in `domain/events.js`;
+- raw frames that are neither canonical nor adapter inputs are ignored early;
 - events are processed through one Promise queue to preserve ordering;
 - `socketId | eventType | seq` is used for reconnect-safe dedupe;
-- `wildMonsterId` correlates a temporary encounter but is never the DB primary key;
+- `wildMonsterId` correlates a temporary encounter but is never the DB primary key; HuntSim uses a synthetic `huntsim:<server-session-or-zone>:<kill-seq>` value;
 - repeated `combat.started` for the same individual must not create duplicate encounters;
 - potion-only `loot.received` events update session expenses and do not create encounters;
-- `capture.success` never overwrites the combat-started individual snapshot with captured-creature fields.
+- legacy `capture.success` never overwrites a complete combat-started individual snapshot; HuntSim successful captures may enrich fields missing from the synthetic/unmatched target because terminal `creature` data is authoritative for those fields, but `creature.level` is never used as target level.
+- duplicate HuntSim projections (`hunt.kill_reward`, `hunt.rewards`, capture projections in `hunt.events`) must not enter analytics twice.
 
 ### Tampermonkey page-window boundary
 
@@ -296,7 +301,7 @@ Output:
 dist/pokepixel-hunt-analyzer.user.js
 ```
 
-`scripts/build-userscript.mjs` injects the version from `package.json` and generates the Tampermonkey metadata block.
+`scripts/build-userscript.mjs` injects the version from `package.json` and generates the Tampermonkey metadata block. The default build targets PROD and preserves the historical production namespace. `npm run build:userscript:dev` uses a separate DEV identity/domain for live protocol smoke testing.
 
 CI performs a clean dependency install, a high-severity npm audit gate, the complete test suite and the userscript build.
 

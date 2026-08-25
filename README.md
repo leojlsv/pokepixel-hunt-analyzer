@@ -4,7 +4,7 @@ Analytics de Hunt em tempo real para **PokePixel**, direto dentro do jogo.
 
 O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** que observa passivamente eventos do jogo, organiza Hunts e calcula métricas de eficiência sem automatizar gameplay.
 
-**Versão:** `v1.8.0`  
+**Versão:** `v1.9.0`  
 **Core Analyzer:** estável  
 **Capture Ticket:** BETA  
 **Dados e analytics:** locais  
@@ -30,10 +30,33 @@ Acompanha a Hunt atual em tempo real:
 - Seen, Captured, Failed e Capture Rate;
 - distribuição por raridade e Shiny;
 - listas de Captured e Failed;
-- filtros por Rarity, Shiny, Quality e IV;
-- detalhes de captura/tentativa, Capsule, timestamp e Chance quando disponível.
+- Captured com filtros por Rarity, Shiny, Quality e IV;
+- Failed com filtros por Rarity, Shiny e IV e colunas diretas `Pokémon | IV | Pokéball | Fled at`;
+- Captured mostra o breakdown de IVs em `HP · Atk · sAtk · Def · sDef · SpD`;
+- detalhes de Captured incluem Capsule, timestamp e Chance quando disponível.
 
 O Current usa cache de snapshots e agregados reutilizáveis para evitar reprocessamento excessivo em Hunts longas.
+
+
+### Compatibilidade de protocolo
+
+A v1.9 mantém uma fronteira explícita entre o protocolo observado do jogo e o domínio de analytics:
+
+```text
+PokePixel WebSocket
+        ↓
+websocket-observer.js
+        ↓
+protocol-adapter.js
+        ↓ eventos canônicos
+eventPipeline.js
+        ↓
+domain + IndexedDB
+```
+
+O adapter aceita tanto o fluxo legado baseado em `combat.started`/`loot.received` quanto o novo HuntSim baseado em `hunt.frame`, `hunt.capture_queue`, `hunt.events` e rewards agregados. Projeções duplicadas do HuntSim são reconciliadas/ignoradas para evitar dupla contagem.
+
+Detalhes: [`docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md`](docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md).
 
 ### History
 
@@ -160,7 +183,7 @@ Fechar o navegador ou reiniciar o computador não apaga automaticamente o histó
 
 ### Permissões do userscript
 
-A v1.8.0 usa permissões Tampermonkey para manter duas necessidades separadas:
+A v1.9.0 usa permissões Tampermonkey para manter duas necessidades separadas:
 
 - `unsafeWindow` — instalar o observer no `WebSocket` real da página;
 - `GM_xmlhttpRequest` + `@connect img.pokemondb.net` — buscar sprites públicos para Capture Ticket sem contaminar o Canvas por CORS.
@@ -268,10 +291,16 @@ npm ci
 npm run validate
 ```
 
-`npm run validate` executa os testes e gera:
+`npm run validate` executa os testes e gera o build **PROD**:
 
 ```text
 dist/pokepixel-hunt-analyzer.user.js
+```
+
+Para smoke do servidor DEV sem alterar a identidade de release:
+
+```bash
+npm run build:userscript:dev
 ```
 
 O `dist/` não é versionado; o artefato é gerado para teste/release.
@@ -282,6 +311,7 @@ O `dist/` não é versionado; o artefato é gerado para teste/release.
 userscript/
 ├── main.js
 ├── websocket-observer.js
+├── protocol-adapter.js
 ├── tab-leadership.js
 ├── ui.js
 ├── ui-markup.js
@@ -311,6 +341,8 @@ PokePixel WebSocket
         ↓
 websocket-observer.js
         ↓
+protocol-adapter.js
+        ↓
 main.js
         ↓
 eventPipeline.js
@@ -324,6 +356,7 @@ Documentação técnica:
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - [`docs/PROTOCOL_AND_ANALYTICS.md`](docs/PROTOCOL_AND_ANALYTICS.md)
+- [`docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md`](docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md)
 - [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 - [`docs/CAPTURE_TICKETS.md`](docs/CAPTURE_TICKETS.md)
 - [`SECURITY.md`](SECURITY.md)
