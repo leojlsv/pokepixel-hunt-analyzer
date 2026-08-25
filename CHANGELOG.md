@@ -3,6 +3,51 @@
 All notable project changes should be recorded here.
 The project follows Semantic Versioning.
 
+## [1.8.0] - 2026-08-25
+
+### Added — History
+- Replaced the retired Compare surface with session-first `History`.
+- Added compact `Hunts | Pokémon | Attempts` subviews with period, Pokémon, rarity, result and advanced filters.
+- Added Hunt drill-downs for Start/End, Capture, XP/h, $/h, Profit, Expenses, Failed and notable Epic/Legendary/Mythical encounters.
+- Added bounded/paginated History loading rather than whole-store encounter reads.
+
+### Added — Sound Alerts
+- Added independent Captured/Fled alerts for Epic, Legendary, Mythical and Shiny.
+- Added per-event Sound 1 / Sound 2 selection with persisted choices and immediate preview.
+- Added per-event Custom Audio import/replace/remove with a separate local IndexedDB asset store.
+- Custom files are validated through Web Audio decode, capped at 2 MB and 10 seconds, and never uploaded by the Analyzer.
+
+### Added — Capture Ticket BETA
+- Added `Misc > Catch Gallery` for new eligible Legendary/Mythical/Shiny captures.
+- Added filtering, sorting, five-row pagination, `Generate` preview/download and `Copy` image clipboard actions.
+- Added themed Legend/Mythic/Shiny 303x500 PNG rendering with Silkscreen typography, PokémonDB Black/White sprites and non-visible PNG attribution/fingerprint metadata.
+- Added bounded 32-entry remote sprite LRU cache, same-URL in-flight dedupe, 2-second spacing between new remote GET starts and a 10-second request timeout.
+- Added a visible `BETA` marker because browser/Tampermonkey/clipboard behavior still needs broader community validation.
+
+### Added — Hunt deletion
+- Added `DELETE` to expanded History Hunts with explicit confirmation and immediate History refresh.
+- Encounter rows are removed before the session row so partial failures remain safely retryable.
+- Deleting a Hunt invalidates Catch Gallery data when needed.
+- Running/Paused Current Hunt deletion is blocked; the player must use `End Hunt` first. An ended Current Hunt may then be deleted.
+
+### Changed — Runtime and persistence
+- IndexedDB schema v3 adds the sparse `encounters.captureTicketAtMs` index without rewriting historical encounters.
+- Managed IndexedDB connections close on `versionchange` to reduce upgrade blocking between open tabs.
+- Capture Ticket sprite access introduces `GM_xmlhttpRequest` / `@connect img.pokemondb.net`.
+- Added explicit `unsafeWindow` page-window resolution for the WebSocket observer so privileged Tampermonkey grants do not disconnect the Analyzer from the game's real `WebSocket` constructor.
+- Retained `@sandbox raw` and the historical userscript namespace for update compatibility.
+- Removed the retired `userscript/compare-view.js` source module.
+
+### Build / security
+- Upgraded esbuild to the reviewed `0.28.2` line and declared the reviewed install script allowlist.
+- CI now gates on `npm audit --audit-level=high` before tests/build.
+- `package.json` and `package-lock.json` are synchronized at `1.8.0`.
+- README, architecture/development guidance and Capture Ticket documentation were aligned with the v1.8 runtime and external-asset boundary.
+
+### Validation
+- Core Analyzer, WebSocket ingestion, Current metrics, History, Sound 1 / Sound 2, Custom Audio, ACTIVE/STANDBY behavior, persistence, Capture Ticket Generate/Copy and Catch Gallery flows were manually validated during development.
+- The release PR remains gated by the complete automated suite, sanitized 4,128-encounter fixture, dependency audit, userscript build and final live smoke test from the exact release branch.
+
 ## [1.7.0] - 2026-08-22
 
 ### Performance — Long Hunt stability
