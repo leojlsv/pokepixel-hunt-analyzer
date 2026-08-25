@@ -50,8 +50,8 @@ function createEncounterSectionMarkup(prefix, title) {
         <label style="${filterStyle}">Quality &gt;<input id="${prefix}-quality" type="number" step="0.01"></label>
         <label style="${filterStyle}">IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>`;
   const headers = isFailed
-    ? `<th>Pokémon</th>${sortableHeader(prefix, "iv", "IV", "Order by IV Total")}<th>Pokéball</th>${sortableHeader(prefix, "capturedAt", "Timestamp", "Order by fail timestamp")}`
-    : `${sortableHeader(prefix, "capturedAt", "Pokémon", "Order by capture timestamp")}<th title="Gender">G</th><th>Nat</th>${sortableHeader(prefix, "quality", "Qlt", "Order by Quality")}${sortableHeader(prefix, "iv", "IV", "Order by IV Total")}`;
+    ? `<th>Pokémon</th>${sortableHeader(prefix, "iv", "IV", "Order by IV Total")}<th>Pokéball</th>${sortableHeader(prefix, "capturedAt", "Fled at", "Order by fail timestamp")}`
+    : `${sortableHeader(prefix, "capturedAt", "Pokémon", "Order by capture timestamp")}<th title="Gender">G</th><th>Nat</th>${sortableHeader(prefix, "quality", "Qlt", "Order by Quality")}${sortableHeader(prefix, "iv", "HP · Atk · sAtk · Def · sDef · SpD", "Order by IV Total")}`;
   const columns = isFailed ? 3 : 4;
 
   return `
