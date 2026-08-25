@@ -37,6 +37,10 @@ function decodeBase64Bytes(value) {
   }
 }
 
+function uint16be(bytes, offset) {
+  return (bytes[offset] << 8) | bytes[offset + 1];
+}
+
 /**
  * Decodes only the stable entity directory from HuntSim `hunt.frame/full`.
  *
@@ -72,8 +76,8 @@ export function decodeHuntSimFullFrame(data) {
         eventId: bytes[offset + 3],
         x: bytes[offset + 4],
         y: bytes[offset + 5],
-        hp: bytes[offset + 8] | (bytes[offset + 9] << 8),
-        maxHp: bytes[offset + 10] | (bytes[offset + 11] << 8),
+        hp: uint16be(bytes, offset + 8),
+        maxHp: uint16be(bytes, offset + 10),
         level: bytes[offset + 13],
         isShiny: (bytes[offset + 14] & 1) === 1,
         speciesId
@@ -204,7 +208,10 @@ export function createProtocolAdapter() {
       eventId: entity?.eventId ?? null,
       speciesId: queued?.speciesId ?? entity?.speciesId ?? null,
       level: queued?.level ?? entity?.level ?? null,
-      isShiny: entity?.isShiny ?? null,
+      // Full frames are periodic while map slots respawn. Their shiny bit is
+      // useful diagnostically but can be stale for a later individual in the
+      // same slot; capture.failed/success is the terminal authority.
+      isShiny: null,
       mapId: sessionContext.mapId,
       zoneId: sessionContext.zoneId,
       startedAtMs:
