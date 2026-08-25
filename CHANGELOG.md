@@ -167,7 +167,9 @@ The project follows Semantic Versioning.
 
 ## [1.0.0] - 2026-08-10
 
-Initial stable release of the PokePixel Hunt Analyzer.
+All 15 acceptance criteria in `docs/DEVELOPMENT.md §8` verified passing
+(Phase 5, step 5 — final release checklist). This release folds in
+everything accumulated below since the `v0.3.0` baseline.
 
 ## [0.3.0]
 
