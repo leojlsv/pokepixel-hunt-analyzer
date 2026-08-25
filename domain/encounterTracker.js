@@ -380,12 +380,11 @@ function applyCaptureResult(state, envelope, resultType) {
 
   if (!existing) {
     const orphanId = crypto.randomUUID();
-    // Keep the legacy invariant for orphan successes: a captured creature can
-    // be level-rebased and is not a substitute for a missing target snapshot.
-    // HuntSim's normal path creates a synthetic encounter before terminal data.
-    const enrichment = resultType === "failed"
-      ? captureEnrichment(null, data, resultType)
-      : {};
+    // A terminal capture is still authoritative for capture-time metadata even
+    // when HuntSim correlation misses the synthetic target. Keep the target
+    // level unknown for orphan successes because creature.level is rebased,
+    // but preserve rarity/Shiny/IV/nature/gender/quality data for analytics.
+    const enrichment = captureEnrichment(null, data, resultType);
 
     const row = orphanRow({
       encounterId: orphanId,
