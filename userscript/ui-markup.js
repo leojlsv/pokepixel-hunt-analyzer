@@ -161,6 +161,26 @@ function createHistoryMarkup() {
 export function createUiMarkup() {
   return `
     <style>${HISTORY_STYLES}</style>
+    <style>
+      .live-card.hunt-collapsed {
+        display:grid;
+        grid-template-columns:minmax(0,1fr) auto;
+        grid-template-areas:"status actions";
+        align-items:center;
+        gap:8px;
+        padding:7px 9px;
+      }
+      .live-card.hunt-collapsed .status-row { display:flex; }
+      .live-card.hunt-collapsed .metric-cards { display:none; }
+      .live-card.hunt-collapsed .actions { justify-content:flex-end; }
+      #failed-section table { table-layout:fixed; }
+      #failed-section th:nth-child(1), #failed-section td:nth-child(1) { width:28%; }
+      #failed-section th:nth-child(2), #failed-section td:nth-child(2) { width:12%; text-align:right; }
+      #failed-section th:nth-child(3), #failed-section td:nth-child(3) { width:24%; }
+      #failed-section th:nth-child(4), #failed-section td:nth-child(4) { width:36%; }
+      #failed-section .failed-static-row { cursor:default; }
+      #failed-section .timestamp-cell { font-variant-numeric:tabular-nums; }
+    </style>
     <button id="pha-toggle" class="launcher" type="button" aria-label="PokePixel Hunt Analyzer" style="min-width:220px;width:max-content;max-width:calc(100vw - 32px)">
       <span class="hud-mark">PX</span>
       <span class="hud-content" style="min-width:160px;width:max-content">
