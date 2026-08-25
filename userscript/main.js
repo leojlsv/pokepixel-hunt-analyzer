@@ -2,7 +2,10 @@ import { openDatabase } from "../data/db.js";
 import { createSessionsRepository } from "../data/sessionsRepository.js";
 import { createEncountersRepository } from "../data/encountersRepository.js";
 import { createEventPipeline } from "../services/eventPipeline.js";
-import { deleteHuntData } from "../services/huntDeletion.js";
+import {
+  canDeleteHunt,
+  deleteHuntData
+} from "../services/huntDeletion.js";
 import {
   computeSessionMetrics,
   refreshSessionMetrics
@@ -249,12 +252,19 @@ async function handleSessionAction(action) {
 
       if (currentLoadPromise) await currentLoadPromise;
       await loadCurrent();
+      historyDeleteControl?.refresh();
     })
     .catch((error) => {
       console.error("PokePixel Hunt Analyzer (session action):", error);
     });
 
   await updateQueue;
+}
+
+async function canDeleteHistorySession(sessionId) {
+  await ready;
+  const currentSession = await sessionsRepository.getCurrentReadOnly();
+  return canDeleteHunt({ sessionId, currentSession });
 }
 
 async function handleHistorySessionDelete(sessionId) {
@@ -266,10 +276,7 @@ async function handleHistorySessionDelete(sessionId) {
     await ready;
     if (currentLoadPromise) await currentLoadPromise;
 
-    const current = await sessionsRepository.getCurrentReadOnly();
-    const deletingCurrent = current?.sessionId === sessionId;
-
-    await deleteHuntData({
+    const { deletingCurrent } = await deleteHuntData({
       sessionId,
       sessionsRepository,
       encountersRepository
@@ -352,7 +359,8 @@ async function initialize() {
       encountersRepository.getRecentCaptureTickets(CATCH_GALLERY_LOAD_LIMIT)
   });
   historyDeleteControl = createHistoryDeleteControl({
-    onDeleteSession: handleHistorySessionDelete
+    onDeleteSession: handleHistorySessionDelete,
+    canDeleteSession: canDeleteHistorySession
   });
   await pipeline.recoverOnStartup();
 
