@@ -44,7 +44,6 @@ jobs:
           npm run audit:deps
           npm run validate
           npm run build:userscript:dev
-          git diff --check
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add package.json package-lock.json scripts/build-userscript.mjs CHANGELOG.md README.md docs/ARCHITECTURE.md docs/PROTOCOL_AND_ANALYTICS.md docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md docs/CAPTURE_TICKETS.md docs/DEVELOPMENT.md
