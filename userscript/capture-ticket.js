@@ -15,7 +15,7 @@ import mythicFrame from "./capture-ticket-assets/mythic_ticket_frame.png";
 
 export const TICKET_LAYOUT = Object.freeze({
   canvas: { width: 303, height: 500 },
-  sprite: { x: 151.5, y: 251.5, width: 192, height: 192 },
+  sprite: { x: 151.5, y: 251.5, width: 192, height: 192, zoom: 1 },
   pokemonName: {
     x: 151.5,
     y: 103.5,
@@ -225,13 +225,17 @@ function drawPokemonSprite(ctx, image, layout) {
     throw new Error("Capture ticket Pokémon sprite has invalid dimensions");
   }
 
-  const scale = Math.min(layout.width / sourceWidth, layout.height / sourceHeight);
-  const width = Math.max(1, Math.round(sourceWidth * scale));
-  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const zoom = Number.isFinite(layout.zoom) ? layout.zoom : 1;
+  const width = Math.max(1, Math.round(sourceWidth * zoom));
+  const height = Math.max(1, Math.round(sourceHeight * zoom));
+  const areaLeft = Math.round(layout.x - layout.width / 2);
+  const areaTop = Math.round(layout.y - layout.height / 2);
 
   ctx.save();
-  ctx.imageSmoothingEnabled = true;
-  if ("imageSmoothingQuality" in ctx) ctx.imageSmoothingQuality = "high";
+  ctx.beginPath();
+  ctx.rect(areaLeft, areaTop, layout.width, layout.height);
+  ctx.clip();
+  ctx.imageSmoothingEnabled = false;
   ctx.drawImage(
     image,
     Math.round(layout.x - width / 2),
