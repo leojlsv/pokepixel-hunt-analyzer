@@ -2,110 +2,170 @@
 
 Analytics de Hunt em tempo real para **PokePixel**, direto dentro do jogo.
 
-O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** que acompanha suas Hunts, calcula métricas de eficiência e mantém os dados localmente no navegador.
+O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** que observa passivamente eventos do jogo, organiza Hunts e calcula métricas de eficiência sem automatizar gameplay.
 
-**Versão atual:** `v1.7.0`  
-**Status:** estável  
-**Execução:** 100% local  
+**Versão:** `v1.8.0`  
+**Core Analyzer:** estável  
+**Capture Ticket:** BETA  
+**Dados e analytics:** locais  
 **Automação de gameplay:** nenhuma
 
 > Projeto não oficial da comunidade. Não possui vínculo com PokePixel, Nintendo, Game Freak ou The Pokémon Company.
 
-### **[⬇️ Baixar a versão mais recente](https://github.com/leojlsv/pokepixel-hunt-analyzer/releases/latest)**
+### [⬇️ Baixar a versão mais recente](https://github.com/leojlsv/pokepixel-hunt-analyzer/releases/latest)
 
 ---
 
-## O que ele faz
-
-Enquanto você joga normalmente, o Analyzer observa passivamente os eventos necessários do PokePixel e transforma a Hunt em métricas úteis.
-
-### HUD compacto
-
-Quando minimizado, o Analyzer continua mostrando rapidamente:
-
-- total de Pokémon vistos e `Seen/h`;
-- capturas por raridade;
-- cores correspondentes às raridades do Analyzer.
-
-O HUD possui largura mínima para manter os contadores legíveis e cresce dinamicamente conforme os valores aumentam.
-
-<img width="155" height="47" alt="Captura de tela 2026-08-19 154111" src="https://github.com/user-attachments/assets/ec47b02b-1099-4ce0-b884-877cd84d5c35" />
+## Principais recursos
 
 ### Current
 
-A tela principal acompanha a Hunt atual em tempo real:
+Acompanha a Hunt atual em tempo real:
 
-- tempo ativo da Hunt;
+- tempo ativo;
 - `XP/h You` e XP total;
 - `XP/h Poké` e XP total;
 - Dollar total e `$/h`;
-- Profit e Expenses, com Profit verde quando positivo e vermelho quando negativo;
+- Profit e Expenses;
 - Seen, Captured, Failed e Capture Rate;
-- distribuição completa por raridade;
-- Pokémon capturados;
-- tentativas de captura que falharam;
+- distribuição por raridade e Shiny;
+- listas de Captured e Failed;
 - filtros por Rarity, Shiny, Quality e IV;
-- ordenação por timestamp através de Pokémon, por Quality (`Qlt`) e por IV.
+- detalhes de captura/tentativa, Capsule, timestamp e Chance quando disponível.
 
-As listas de Captured e Failed exibem Pokémon, gênero, Nature, Quality e IVs disponíveis no evento observado. Clique em uma linha para expandir os detalhes com `Captured at` e Capsule; em Captured também é exibida a Chance de captura.
+O Current usa cache de snapshots e agregados reutilizáveis para evitar reprocessamento excessivo em Hunts longas.
 
-O Current utiliza cache de snapshots, agregados reutilizáveis e carregamento progressivo das listas para evitar reprocessamento e DOM excessivo durante Hunts longas.
+### History
 
-<img width="411" height="869" alt="Captura de tela 2026-08-19 154225" src="https://github.com/user-attachments/assets/36295356-d8fa-464e-884a-22e0aed6b6de" />
+Substitui o antigo Compare e organiza o histórico em três visões:
 
-### Compare
+- **Hunts** — sessões recentes com duração, Seen, Captured e capturas notáveis;
+- **Pokémon** — agregação por Pokémon + nível;
+- **Attempts** — Captured/Fled em ordem cronológica.
 
-Use os dados acumulados para comparar Hunts e encontrar cenários mais eficientes.
+Filtros disponíveis incluem período, Pokémon, raridade, resultado, Capsule, Element e Shiny.
 
-O Compare possui:
+Hunts podem ser expandidas para detalhes de XP/h, $/h, Profit, Expenses, Failed e notables.
 
-- `By Cycle` — comparação por Pokémon, nível e configuração de captura;
-- `By Rarity` — comparação consolidada por raridade;
-- filtros por Pokémon;
-- filtro por Capsule;
-- filtro por Element;
-- ordenação pelas métricas da tabela.
+#### DELETE Hunt
 
-`By Cycle`
+Uma Hunt encerrada pode ser removida pelo botão **DELETE** no detalhe expandido.
 
-<img width="413" height="248" alt="Captura de tela 2026-08-19 154244" src="https://github.com/user-attachments/assets/4762accf-c306-4740-81a8-451087872afa" />
+- exige confirmação explícita;
+- remove a sessão e seus encounters persistidos;
+- atualiza History imediatamente;
+- remove capturas correspondentes da Catch Gallery;
+- a **Current Hunt não pode ser apagada enquanto estiver Running ou Paused** — use **End Hunt** primeiro.
 
-`By Rarity`
+### Misc — Sound Alerts
 
-<img width="417" height="315" alt="image" src="https://github.com/user-attachments/assets/1bf82dfd-11d7-4d2c-be37-d526d2aba7c7" />
+Alertas configuráveis para:
+
+- Epic;
+- Legendary;
+- Mythical;
+- Shiny;
+
+com eventos independentes para **Captured** e **Fled**.
+
+Cada combinação pode usar:
+
+- Sound 1;
+- Sound 2;
+- Custom Audio.
+
+Custom Audio:
+
+- MP3 / WAV / OGG / Opus quando o browser consegue decodificar;
+- até 2 MB;
+- até 10 segundos;
+- armazenado localmente em um IndexedDB separado;
+- nunca enviado para servidor externo.
+
+### Misc — Catch Gallery / Capture Ticket BETA
+
+Capturas novas elegíveis aparecem na **Catch Gallery**:
+
+- Legendary;
+- Mythical;
+- Shiny.
+
+A galeria permite:
+
+- filtrar Pokémon e raridade;
+- ordenar por Captured, Quality e IV;
+- navegar em páginas de até 5 capturas;
+- **Generate** — abrir preview/download do Capture Ticket;
+- **Copy** — copiar o PNG para o clipboard quando suportado pelo browser.
+
+O Capture Ticket está marcado como **BETA** porque ainda depende de validação comunitária em diferentes navegadores/Tampermonkey.
+
+Para gerar o ticket, o userscript pode carregar:
+
+- sprite público de `img.pokemondb.net`;
+- fonte Silkscreen via Google Fonts.
+
+Esses requests são usados apenas para renderização do ticket; os dados de Hunt não são enviados a um backend do Analyzer.
+
+Mais detalhes: [`docs/CAPTURE_TICKETS.md`](docs/CAPTURE_TICKETS.md).
+
+### HUD compacto
+
+Quando minimizado, o Analyzer mantém um resumo rápido da Hunt sem fechar o processamento.
 
 ### Interface ajustável
 
 O painel pode ser:
 
-- arrastado pela tela;
+- arrastado;
 - redimensionado;
-- minimizado para HUD;
+- minimizado;
 - parcialmente transparente pelo controle `α`;
 - recolhido por seção.
 
-Posição, tamanho, transparência e estado da interface são preservados localmente.
+Posição, tamanho, transparência e estado visual são preservados localmente.
 
 ---
 
 ## Privacidade e segurança
 
-O Analyzer foi projetado para ser **passivo**.
+O Analyzer é projetado para permanecer **passivo**.
 
 Ele não:
 
-- envia comandos para o jogo;
+- envia comandos de gameplay;
 - automatiza batalha, movimento ou captura;
 - altera mensagens enviadas pelo PokePixel;
-- armazena senha, token, cookie ou Authorization header;
+- persiste senha, token, cookie ou Authorization header;
 - persiste frames WebSocket brutos;
-- envia seus dados para servidor externo.
+- possui backend próprio para armazenar Hunts.
 
-Os dados de Hunt são armazenados no **IndexedDB do próprio navegador**.
+### Persistência local
 
-O userscript intercepta apenas o necessário para produzir as métricas e deixa o gameplay sob controle do jogador.
+Analytics ficam no IndexedDB:
 
-> Mesmo sendo uma ferramenta passiva, este é um projeto comunitário não oficial. O jogador continua responsável por seguir as regras do PokePixel.
+```text
+pokepixel_hunt_analyzer
+```
+
+O banco armazena sessões, encounters, snapshots de configuração e metadados necessários às métricas.
+
+Custom Audio usa outro banco local:
+
+```text
+pokepixel_hunt_analyzer_assets
+```
+
+Fechar o navegador ou reiniciar o computador não apaga automaticamente o histórico.
+
+### Permissões do userscript
+
+A v1.8.0 usa permissões Tampermonkey para manter duas necessidades separadas:
+
+- `unsafeWindow` — instalar o observer no `WebSocket` real da página;
+- `GM_xmlhttpRequest` + `@connect img.pokemondb.net` — buscar sprites públicos para Capture Ticket sem contaminar o Canvas por CORS.
+
+O namespace histórico do userscript é preservado para manter compatibilidade de atualização.
 
 ---
 
@@ -113,166 +173,57 @@ O userscript intercepta apenas o necessário para produzir as métricas e deixa 
 
 ## 1. Instale o Tampermonkey
 
-Acesse o site oficial do Tampermonkey e instale a extensão correspondente ao seu navegador:
-
-**https://www.tampermonkey.net/**
+Use a extensão oficial do Tampermonkey para seu navegador.
 
 O Analyzer é desenvolvido principalmente em **Microsoft Edge / Chromium desktop**.
 
-### Chrome / Edge: permitir userscripts
-
-Versões atuais de navegadores baseados em Chromium podem exigir uma permissão adicional para executar userscripts.
-
-Se o script estiver instalado mas não executar:
-
-1. abra `edge://extensions` ou `chrome://extensions`;
-2. abra os detalhes do Tampermonkey;
-3. habilite **Allow User Scripts / Permitir scripts de usuário**, quando disponível;
-4. se essa opção não aparecer, habilite o **Developer Mode / Modo do desenvolvedor** na página de extensões.
-
-Referência oficial: [Tampermonkey — Permission to execute userscripts](https://www.tampermonkey.net/faq.php?q=Q209)
-
----
+Chrome/Edge atuais podem exigir **Allow User Scripts / Permitir scripts de usuário** nas configurações da extensão.
 
 ## 2. Baixe o userscript
 
-Baixe o arquivo:
+Na release mais recente, baixe:
 
 ```text
 pokepixel-hunt-analyzer.user.js
 ```
 
-na versão mais recente do projeto.
+### [⬇️ Releases](https://github.com/leojlsv/pokepixel-hunt-analyzer/releases/latest)
 
-### **[⬇️ Baixar a versão mais recente](https://github.com/leojlsv/pokepixel-hunt-analyzer/releases/latest)**
+## 3. Instale no Tampermonkey
 
-O `.user.js` fica disponível nos **Assets** da release. Desenvolvedores também podem gerar o arquivo localmente seguindo a seção de desenvolvimento deste README.
+1. Abra o Dashboard do Tampermonkey.
+2. Crie um novo userscript.
+3. Substitua o conteúdo padrão pelo conteúdo completo de `pokepixel-hunt-analyzer.user.js`.
+4. Salve.
+5. Recarregue `https://pokepixel.nietore.com/`.
 
----
-
-## 3. Adicione o JavaScript ao Tampermonkey
-
-1. Clique no ícone do **Tampermonkey** no navegador.
-2. Abra o **Dashboard**.
-3. Clique em **Add a new script / Create a new script** (`+`).
-4. Apague o conteúdo padrão do editor.
-5. Abra `pokepixel-hunt-analyzer.user.js` em um editor de texto.
-6. Copie **todo** o conteúdo do arquivo.
-7. Cole no editor do Tampermonkey.
-8. Salve com `Ctrl + S`.
-
-O script deverá aparecer na lista de Installed Userscripts como:
-
-```text
-PokePixel Hunt Analyzer
-```
-
-<img width="371" height="45" alt="image" src="https://github.com/user-attachments/assets/b0174b9a-d601-4e49-b9b5-b8c0a2935e2b" />
+O HUD `PX` deve aparecer na interface do jogo.
 
 ---
 
-## 4. Ative o userscript
+# Uso básico
 
-No Dashboard do Tampermonkey, confirme que o botão ao lado de **PokePixel Hunt Analyzer** está habilitado.
-
-O userscript é configurado para executar em:
-
-```text
-https://pokepixel.nietore.com/*
-```
-
-Abra ou recarregue o PokePixel com `F5`.
-
-Se tudo estiver correto, o HUD `PX` aparecerá sobre a interface do jogo.
-
-<img width="156" height="42" alt="Captura de tela 2026-08-19 154545" src="https://github.com/user-attachments/assets/d915598a-c188-44d1-9618-bd23cffa7de2" />
-
----
-
-# Como usar
-
-## Iniciando uma Hunt
-
-O HUD `PX` funciona como um toggle: clique para abrir o Analyzer e clique novamente na badge para fechar a janela.
-
-O painel possui as ações:
+### Hunt
 
 - **New Hunt** — encerra o contexto atual e inicia uma nova Hunt local;
 - **Pause** — pausa manualmente o tempo ativo;
 - **Resume** — continua a Hunt pausada;
 - **End Hunt** — encerra a Hunt atual.
 
-O Analyzer também acompanha o contexto do jogo para manter as sessões organizadas.
-
-## Minimizando
-
-Clique em `−` no canto superior do painel.
-
-O Analyzer vira um HUD compacto contendo:
+### Navegação
 
 ```text
-TOTAL SEEN (SEEN/H)
-CAPTURAS POR RARIDADE
+Current | History | Misc
 ```
 
-Clique novamente no HUD para abrir o painel completo.
+### Múltiplas abas
 
-## Comparando resultados
+Somente uma aba processa analytics por vez:
 
-Abra a aba **Compare** e escolha:
+- `ACTIVE` — dona do lease local e responsável pelos eventos;
+- `STANDBY` — aguarda a aba ativa liberar/expirar o lease.
 
-- `By Cycle`, para analisar Pokémon/configurações específicas;
-- `By Rarity`, para comparar o desempenho agregado das raridades.
-
-Use os filtros para reduzir o conjunto analisado.
-
----
-
-# Raridades
-
-O Analyzer utiliza as seguintes categorias:
-
-| Rarity | Uso |
-|---|---|
-| Weak | encontros Weak |
-| Common | encontros Common |
-| Uncommon | encontros Uncommon |
-| Rare | encontros Rare |
-| Epic | encontros Epic |
-| Legendary | encontros Legendary |
-| Mythical | encontros Mythical |
-
-Shinies continuam incluídos na contagem normal da raridade e recebem indicação adicional quando aplicável.
-
----
-
-# Onde os dados ficam?
-
-Tudo é armazenado localmente usando **IndexedDB**.
-
-O banco mantém informações normalizadas de:
-
-- Hunts/sessions;
-- encounters;
-- configurações de captura necessárias para comparação;
-- métricas derivadas do uso local.
-
-Fechar o navegador ou reiniciar o computador não apaga automaticamente o histórico.
-
-Nenhum backend, login extra ou conta externa é necessário.
-
----
-
-# Múltiplas abas
-
-Para evitar duplicar eventos quando o PokePixel está aberto em mais de uma aba, o Analyzer possui liderança local entre abas.
-
-Na interface você verá:
-
-- `ACTIVE` — esta aba processa os eventos;
-- `STANDBY` — outra aba é a responsável naquele momento.
-
-Isso evita contar a mesma Hunt duas vezes.
+Isso evita contagem duplicada.
 
 ---
 
@@ -282,27 +233,22 @@ Isso evita contar a mesma Hunt duas vezes.
 |---|---|
 | Microsoft Edge desktop | ✅ Validado |
 | Google Chrome / Chromium desktop | ✅ Alvo suportado |
-| Firefox 128+ | 🟡 Build compatível, ainda requer validação comunitária |
-| Outros navegadores com Tampermonkey | 🟡 Não testados oficialmente |
+| Firefox 128+ | 🟡 Build compatível; requer mais validação comunitária |
+| Outros navegadores + Tampermonkey | 🟡 Não testados oficialmente |
 | Mobile | ⚪ Fora do escopo atual |
 
-Se encontrar um problema específico de navegador, abra uma Issue informando navegador, versão do navegador, versão do Tampermonkey e versão do Analyzer.
+`Copy` do Capture Ticket também depende de suporte a `navigator.clipboard.write()` / `ClipboardItem`.
 
 ---
 
-# Atualizando o Analyzer
+# Atualizando
 
-Quando uma nova versão for publicada:
+1. baixe o `.user.js` da nova release;
+2. substitua o conteúdo do script no Tampermonkey;
+3. salve;
+4. recarregue o PokePixel.
 
-1. baixe o novo `pokepixel-hunt-analyzer.user.js`;
-2. abra o script no Dashboard do Tampermonkey;
-3. substitua o conteúdo pelo arquivo novo;
-4. salve;
-5. recarregue o PokePixel.
-
-Os dados persistidos em IndexedDB são mantidos entre atualizações compatíveis.
-
-Consulte o [CHANGELOG.md](CHANGELOG.md) para acompanhar as mudanças.
+Migrations compatíveis preservam os dados existentes no IndexedDB.
 
 ---
 
@@ -313,59 +259,49 @@ Consulte o [CHANGELOG.md](CHANGELOG.md) para acompanhar as mudanças.
 - Git;
 - Node.js 24+;
 - npm;
-- navegador com Tampermonkey para o smoke test final.
-
-## Clonar
+- Tampermonkey para smoke test ao vivo.
 
 ```bash
 git clone https://github.com/leojlsv/pokepixel-hunt-analyzer.git
 cd pokepixel-hunt-analyzer
 npm ci
-```
-
-## Testar e gerar o userscript
-
-```bash
 npm run validate
 ```
 
-Esse comando executa os testes automatizados e depois gera:
+`npm run validate` executa os testes e gera:
 
 ```text
 dist/pokepixel-hunt-analyzer.user.js
 ```
 
-Para executar separadamente:
+O `dist/` não é versionado; o artefato é gerado para teste/release.
 
-```bash
-npm test
-npm run build:userscript
-```
-
-O arquivo em `dist/` é o artefato que deve ser instalado no Tampermonkey.
-
----
-
-# Estrutura do projeto
+## Estrutura principal
 
 ```text
 userscript/
-├── main.js                # inicialização e orquestração do runtime
-├── websocket-observer.js  # observação passiva e decoding do WebSocket
-├── tab-leadership.js      # coordenação ACTIVE / STANDBY entre abas
-├── ui.js                  # ciclo de vida e interação do painel
-├── ui-markup.js           # markup estático da interface
-├── current-view.js        # Current, Captured, Failed e HUD
-├── compare-view.js        # Compare, filtros e ordenação
-├── ui-utils.js            # formatadores e helpers
-└── styles.js              # interface visual
+├── main.js
+├── websocket-observer.js
+├── tab-leadership.js
+├── ui.js
+├── ui-markup.js
+├── current-view.js
+├── history-view.js
+├── history-delete.js
+├── audio-alerts.js
+├── custom-audio-repository.js
+├── catch-gallery.js
+├── capture-ticket.js
+├── remote-image-loader.js
+├── png-metadata.js
+└── styles.js
 
-domain/                    # regras e métricas puras
-data/                      # IndexedDB e repositories
-services/                  # coordenação/pipeline de eventos
-scripts/                   # build do userscript
-tests/                     # testes automatizados
-docs/                      # documentação técnica
+domain/
+data/
+services/
+tests/
+docs/
+scripts/
 ```
 
 Fluxo simplificado:
@@ -373,90 +309,66 @@ Fluxo simplificado:
 ```text
 PokePixel WebSocket
         ↓
-userscript/websocket-observer.js
+websocket-observer.js
         ↓
-userscript/main.js
+main.js
         ↓
-services/eventPipeline.js
+eventPipeline.js
         ↓
 domain + IndexedDB
         ↓
-Current / HUD / Compare
+Current / History / Misc
 ```
 
----
+Documentação técnica:
 
-# Contribuindo
-
-Contribuições são bem-vindas. O fluxo completo está em [CONTRIBUTING.md](CONTRIBUTING.md).
-
-Antes de abrir um Pull Request:
-
-1. crie uma branch para a alteração;
-2. mantenha mudanças pequenas e focadas;
-3. não introduza automação de gameplay;
-4. não persista dados sensíveis ou frames brutos;
-5. adicione/atualize testes quando necessário;
-6. execute:
-
-```bash
-npm run validate
-```
-
-7. registre mudanças relevantes no `CHANGELOG.md` — não dentro do código-fonte.
-
-Para decisões internas e regras técnicas, consulte:
-
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- [PROTOCOL_AND_ANALYTICS.md](docs/PROTOCOL_AND_ANALYTICS.md)
-- [DEVELOPMENT.md](docs/DEVELOPMENT.md)
-- [SECURITY.md](SECURITY.md)
-- [CHANGELOG.md](CHANGELOG.md)
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- [`docs/PROTOCOL_AND_ANALYTICS.md`](docs/PROTOCOL_AND_ANALYTICS.md)
+- [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
+- [`docs/CAPTURE_TICKETS.md`](docs/CAPTURE_TICKETS.md)
+- [`SECURITY.md`](SECURITY.md)
+- [`CHANGELOG.md`](CHANGELOG.md)
 
 ---
 
 # Problemas comuns
 
-### O HUD não apareceu
+### O Analyzer abre, mas tudo fica zerado
 
-Verifique:
+No Console da página, verifique:
 
-- Tampermonkey instalado e habilitado;
-- PokePixel Hunt Analyzer habilitado no Dashboard;
-- permissão para executar userscripts no navegador;
-- página aberta em `pokepixel.nietore.com`;
-- página recarregada após instalar ou atualizar o script.
+```javascript
+window.__POKEPIXEL_HUNT_ANALYZER_USERSCRIPT_HOOKED__
+```
+
+O esperado é:
+
+```text
+true
+```
+
+Se estiver `undefined`, informe versão do browser, Tampermonkey e Analyzer ao abrir uma Issue.
 
 ### O jogo deixou de carregar após uma atualização
 
-Desabilite temporariamente o userscript e confirme se o jogo volta a funcionar.
-
-Se o problema estiver relacionado ao Analyzer, abra uma Issue informando:
+Desabilite temporariamente o userscript e confirme se o jogo volta a funcionar. Se o problema estiver relacionado ao Analyzer, abra uma Issue com:
 
 - versão do Analyzer;
 - navegador e versão;
 - versão do Tampermonkey;
 - erro do Console, se houver.
 
-**Não publique cookies, tokens, URLs autenticadas ou dados da sua conta.**
-
-### Meus dados são enviados para algum lugar?
-
-Não. O Analyzer atual não possui backend e trabalha com persistência local no navegador.
+**Nunca publique cookies, tokens, URLs autenticadas ou dados privados da conta.**
 
 ---
 
 # Licença
 
-Distribuído sob a **MIT License**. Consulte [LICENSE](LICENSE).
+Distribuído sob a **MIT License**. Consulte [`LICENSE`](LICENSE).
 
 Copyright (c) 2026 Rhyxus.
-
----
 
 # Autor
 
 **Rhyxus**  
 PokePixel Ref Code: `Q4BSZJD`
-
-Desenvolvido como ferramenta comunitária para transformar Hunts em dados úteis para comparação e theorycraft.

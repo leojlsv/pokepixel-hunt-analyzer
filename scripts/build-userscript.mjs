@@ -13,13 +13,15 @@ const metadata = `// ==UserScript==
 // @name         PokePixel Hunt Analyzer
 // @namespace    https://github.com/leojlsv/pokepixel-analyzer-sidepanel
 // @version      ${pkg.version}
-// @description  Passive local Hunt analytics for PokePixel. Current + Compare.
+// @description  Passive Hunt analytics for PokePixel. Current, History and local tools.
 // @author       Rhyxus
 // @license      MIT
 // @match        https://pokepixel.nietore.com/*
 // @run-at       document-start
 // @sandbox      raw
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @grant        unsafeWindow
+// @connect      img.pokemondb.net
 // ==/UserScript==`;
 
 await mkdir(fileURLToPath(distDirUrl), { recursive: true });
@@ -34,6 +36,9 @@ await build({
   legalComments: "none",
   minify: false,
   sourcemap: false,
+  loader: {
+    ".png": "dataurl"
+  },
   banner: { js: metadata },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),

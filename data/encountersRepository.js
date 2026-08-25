@@ -54,6 +54,52 @@ export function createEncountersRepository(db) {
   }
 
   /**
+   * Returns at most `limit` ticket-eligible captures, newest first.
+   *
+   * `captureTicketAtMs` is a sparse v3 index: only encounters that satisfy
+   * the Capture Ticket contract receive this derived field. Catch Gallery
+   * therefore reads only relevant rows and never materializes the complete
+   * encounters store.
+   */
+  function getRecentCaptureTickets(limit = 500) {
+    if (!Number.isInteger(limit) || limit < 1) {
+      return Promise.reject(
+        new RangeError(
+          "encountersRepository.getRecentCaptureTickets: limit must be >= 1"
+        )
+      );
+    }
+
+    return new Promise((resolve, reject) => {
+      const rows = [];
+      const store = db
+        .transaction(STORE_NAMES.ENCOUNTERS, "readonly")
+        .objectStore(STORE_NAMES.ENCOUNTERS);
+      const request = store.index("captureTicketAtMs").openCursor(null, "prev");
+
+      request.onsuccess = () => {
+        const cursor = request.result;
+
+        if (!cursor) {
+          resolve(rows);
+          return;
+        }
+
+        rows.push(cursor.value);
+
+        if (rows.length >= limit) {
+          resolve(rows);
+          return;
+        }
+
+        cursor.continue();
+      };
+
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  /**
    * Deletes every encounter belonging to one session (History's delete
    * control, Fase 4). Callers must run this BEFORE
    * sessionsRepository.deleteSession(sessionId) — see that module's
@@ -84,5 +130,13 @@ export function createEncountersRepository(db) {
     });
   }
 
-  return { create, update, get, getAll, getBySessionId, deleteBySessionId };
+  return {
+    create,
+    update,
+    get,
+    getAll,
+    getBySessionId,
+    getRecentCaptureTickets,
+    deleteBySessionId
+  };
 }

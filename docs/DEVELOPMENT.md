@@ -6,15 +6,16 @@
 - npm
 - Tampermonkey for live smoke testing
 
-Install dependencies:
+Install exactly the dependencies recorded in the lockfile:
 
 ```bash
-npm install
+npm ci
 ```
 
 Validate the project:
 
 ```bash
+npm run audit:deps
 npm run validate
 ```
 
@@ -40,7 +41,7 @@ Start from an up-to-date `main`:
 
 ```bash
 git switch main
-git pull
+git pull --ff-only
 git switch -c feat/my-change
 ```
 
@@ -51,6 +52,7 @@ feat/
 fix/
 refactor/
 docs/
+release/
 ```
 
 Keep changes focused. A refactor should not quietly change formulas or product behavior.
@@ -58,6 +60,8 @@ Keep changes focused. A refactor should not quietly change formulas or product b
 Before opening a PR:
 
 ```bash
+npm ci
+npm run audit:deps
 npm run validate
 ```
 
@@ -75,6 +79,27 @@ For runtime/UI changes, also perform the manual smoke test in section 8.
 
 Avoid bypassing these boundaries for convenience.
 
+### Tampermonkey runtime boundary
+
+The production userscript currently uses:
+
+```text
+@sandbox raw
+@grant GM_xmlhttpRequest
+@grant unsafeWindow
+@connect img.pokemondb.net
+```
+
+Do not assume the userscript's `window` is the page's JavaScript global when privileged grants are present.
+
+Any integration with page-owned runtime objects, especially `WebSocket`, must resolve and use the page window explicitly. DOM, IndexedDB, localStorage and Web Audio remain normal userscript/browser responsibilities.
+
+Adding or removing `@grant`, `@sandbox` or `@connect` is a runtime/security change and requires:
+
+1. explicit justification;
+2. automated coverage where possible;
+3. a live WebSocket smoke test before merge.
+
 ### Side effects
 
 Keep side effects at runtime and persistence boundaries. Prefer pure functions for calculations, normalization and grouping.
@@ -89,7 +114,7 @@ Do not duplicate:
 - render pipelines;
 - application version constants.
 
-`package.json` is the authoritative application version.
+`package.json` is the authoritative application version. `package-lock.json` must be synchronized before release.
 
 ### File organization
 
@@ -126,11 +151,13 @@ Do not infer fields that have not been observed.
 
 ## 6. IndexedDB changes
 
-Current database:
+Current analytics database:
 
 ```text
 pokepixel_hunt_analyzer
 ```
+
+Current schema version: `3`.
 
 Schema migrations live in `data/migrations.js`.
 
@@ -140,7 +167,16 @@ Rules:
 - add a new numbered migration for store/index changes;
 - keep migrations forward-only;
 - test upgrades from older schema versions;
-- ordinary new object properties do not require a migration unless an index/store changes.
+- ordinary new object properties do not require a migration unless an index/store changes;
+- managed connections must remain safe on `versionchange`.
+
+Schema v3 adds the sparse `encounters.captureTicketAtMs` index used by Catch Gallery. It must not backfill or invent historical Capture Ticket eligibility.
+
+Custom Audio is intentionally isolated from the analytics database in:
+
+```text
+pokepixel_hunt_analyzer_assets
+```
 
 ## 7. Automated tests
 
@@ -155,6 +191,10 @@ Coverage areas include:
 - IndexedDB migrations/repositories;
 - event-pipeline integration;
 - sanitized fixture regression;
+- Sound Alert policy and custom audio persistence;
+- Capture Ticket eligibility, PNG metadata and remote image loader behavior;
+- Catch Gallery filtering/sorting/pagination;
+- Hunt deletion ordering and deletion policy;
 - runtime helpers that can be tested without a browser.
 
 Add tests for new behavior or bug fixes whenever the behavior is deterministic outside the live game.
@@ -164,19 +204,25 @@ Add tests for new behavior or bug fixes whenever the behavior is deterministic o
 Required after UI/runtime/WebSocket changes:
 
 1. PokePixel connects normally with the userscript enabled.
-2. HUD appears and opens the analyzer.
-3. Current updates during a Hunt.
-4. New Hunt works.
-5. Pause / Resume works.
-6. End Hunt works.
-7. Seen / Captured / Failed / Capture are correct.
-8. By Rarity updates.
-9. Captured/Failed filters work.
-10. HUD minimized values update.
-11. Drag, resize, wheel scroll and alpha work.
-12. Compare loads, filters and sorts.
-13. F5 preserves IndexedDB data and UI state.
-14. With two game tabs, only one is ACTIVE and the other is STANDBY.
+2. `window.__POKEPIXEL_HUNT_ANALYZER_USERSCRIPT_HOOKED__` returns `true` in the page Console.
+3. HUD appears and opens/closes the Analyzer.
+4. Current updates Seen / XP / Dollar during a Hunt.
+5. New Hunt works.
+6. Pause / Resume works.
+7. End Hunt works.
+8. Captured / Failed lists, filters and detail expansion work.
+9. HUD minimized values update.
+10. Drag, resize, wheel scroll and alpha work.
+11. History loads Hunts / Pokémon / Attempts and its filters/drill-downs work.
+12. DELETE is unavailable for the Running/Paused Current Hunt.
+13. After End Hunt, DELETE removes the Hunt and its encounters; it remains absent after History refresh and F5.
+14. Sound 1 / Sound 2 previews and per-event exclusivity work.
+15. Custom Audio import / replace / remove / persistence work.
+16. Catch Gallery collapse, filters, sorting and pagination work.
+17. Capture Ticket BETA Generate works for Legend / Mythic / Shiny fixtures or eligible real captures.
+18. Capture Ticket Copy can be pasted into a compatible target when the browser supports image clipboard writes.
+19. F5 preserves IndexedDB data and UI state.
+20. With two game tabs, only one is ACTIVE and the other is STANDBY.
 
 A clean automated suite does not replace this smoke test for browser behavior.
 
@@ -194,17 +240,24 @@ Output:
 dist/pokepixel-hunt-analyzer.user.js
 ```
 
+`dist/` is generated and must not be committed under the current release strategy.
+
 Release process:
 
-1. validate automated tests/build;
-2. complete live smoke test;
-3. update `package.json` using SemVer;
-4. update `CHANGELOG.md`;
-5. rebuild the userscript;
-6. commit/tag the validated version;
-7. attach the generated `.user.js` to the GitHub Release.
+1. create `release/vX.Y.Z` from the fully validated feature stack;
+2. apply release-only cleanup and remove temporary harness/debug code;
+3. update `package.json` and synchronize `package-lock.json`;
+4. update README, CHANGELOG and affected technical docs;
+5. run `npm ci`;
+6. run `npm run audit:deps`;
+7. run `npm run validate`;
+8. build/install the userscript from that exact release branch and complete section 8;
+9. open the release PR against `main` and require green CI;
+10. merge the validated release PR;
+11. tag the merged commit as `vX.Y.Z`;
+12. publish the GitHub Release with the generated `pokepixel-hunt-analyzer.user.js` asset.
 
-Generated `dist/` output should not be committed to the repository unless the project explicitly changes its release strategy.
+Do not release from a temporary test/harness branch.
 
 ## 10. Security
 
@@ -222,3 +275,5 @@ local debug logs
 ```
 
 The userscript is intentionally passive. Any feature that sends or modifies gameplay traffic is outside the current architecture and requires an explicit product decision.
+
+Capture Ticket's external requests are limited to public render assets. Do not attach Hunt payloads, account identifiers or credentials to those requests.

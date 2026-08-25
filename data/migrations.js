@@ -41,9 +41,19 @@ function applyV2(_db, transaction) {
     .createIndex("startedAtMs", "startedAtMs", { unique: false });
 }
 
+function applyV3(_db, transaction) {
+  // Sparse index: only future rows with a numeric captureTicketAtMs
+  // participate. Eligibility remains a domain/service concern; migrations do
+  // not duplicate ticket business rules or scan/rewrite historical rows.
+  transaction
+    .objectStore(STORE_NAMES.ENCOUNTERS)
+    .createIndex("captureTicketAtMs", "captureTicketAtMs", { unique: false });
+}
+
 const MIGRATIONS = new Map([
   [1, applyV1],
-  [2, applyV2]
+  [2, applyV2],
+  [3, applyV3]
 ]);
 
 export const SCHEMA_VERSION = Math.max(...MIGRATIONS.keys());

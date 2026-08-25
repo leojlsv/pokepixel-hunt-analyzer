@@ -1,0 +1,165 @@
+# Capture Tickets — BETA
+
+Specification for manually generated Capture Tickets and the `Misc > Catch Gallery` surface.
+
+> **Status: BETA.** Visuals and the primary Edge/Chromium flow are validated, but community behavior across different browsers, Tampermonkey versions, clipboard implementations and external asset availability is still being observed.
+
+## Eligibility
+
+A ticket is available only for a persisted `capture.success` encounter with complete current-format data and one of:
+
+- `isShiny === true`
+- `quality === "legendary"`
+- `quality === "mythical"`
+
+Theme priority is `Shiny > Mythic > Legend`.
+
+Historical encounters that predate `captured_by_name` remain intentionally ineligible. Schema v3 does not invent or backfill missing Capture Ticket data.
+
+## Data source
+
+The renderer consumes one persisted encounter:
+
+- Pokémon: `speciesName`
+- rarity: `quality`
+- numeric quality: `qualityMultiplier`
+- total IV: `ivTotal`
+- Shiny: `isShiny`
+- player: `capturedByName`, normalized from `capture.success.captured_by_name`
+- timestamp: `captureAtMs`
+
+For persistence lookup only, newly finalized eligible rows also receive the derived field `captureTicketAtMs = captureAtMs`.
+
+Schema v3 adds the sparse IndexedDB index `encounters.captureTicketAtMs`. The migration creates the index only; it does not scan/rewrite historical encounters or duplicate ticket eligibility rules inside the persistence layer. Eligibility remains owned by the domain/service pipeline.
+
+## Catch Gallery
+
+The user surface is `Misc > Catch Gallery`, directly below Sound Alerts. The section is visibly marked `BETA`.
+
+The gallery is a compact collapsible table with columns:
+
+- Pokémon
+- Captured
+- Quality
+- IV
+- actions
+
+Legendary and Mythical names use the analyzer's established rarity colors. Shiny overrides the rarity color: the Pokémon name is silver and receives a `★` marker.
+
+Controls:
+
+- Pokémon text filter
+- rarity filter: All / Legendary / Mythical / Shiny
+- sortable Captured, Quality and IV headers; clicking the active header toggles ascending/descending
+- pagination capped at 5 captures per page
+- `Generate` opens the Capture Ticket preview/download flow
+- `Copy` generates the same PNG and writes it to the browser image clipboard so it can be pasted into compatible targets such as Discord
+
+The image clipboard path uses `navigator.clipboard.write()` with a PNG `ClipboardItem`. Browsers that do not support image clipboard writes can still use `Generate`.
+
+When no eligible captures exist, only the table column headers remain; no blank rows or empty-state card are rendered.
+
+The gallery no longer performs a whole-store encounter read. When it needs data, it walks the sparse `captureTicketAtMs` index newest-first and loads at most 500 ticket-eligible captures. It reloads only when Misc/Gallery needs a dirty refresh; it is not part of Current's one-second refresh loop. Filtering, sorting and five-row pagination run in memory over that bounded set.
+
+## External render assets
+
+Capture Ticket generation intentionally depends on public render assets; Hunt analytics themselves do not.
+
+Sprites use PokémonDB Black/White assets:
+
+```text
+https://img.pokemondb.net/sprites/black-white/normal/{pokemon}.png
+https://img.pokemondb.net/sprites/black-white/shiny/{pokemon}.png
+```
+
+Tampermonkey fetches the sprite with `GM_xmlhttpRequest` and `@connect img.pokemondb.net`, avoiding page-origin CORS and tainted-canvas export failures.
+
+The Silkscreen font is loaded through Google Fonts and fully awaited before Canvas rendering. No Hunt payload, authentication data or Analyzer database content is intentionally attached to these asset requests.
+
+The userscript also uses `unsafeWindow` so the core WebSocket observer can keep targeting the page-owned WebSocket after privileged Tampermonkey grants are enabled. Capture Ticket code must not change that runtime boundary without a full WebSocket smoke test.
+
+Remote request protection lives in `userscript/remote-image-loader.js`:
+
+- decoded sprites are cached by exact URL in a bounded 32-entry LRU cache;
+- simultaneous requests for the same URL share one in-flight Promise, preventing duplicate GETs;
+- only cache misses may reach PokémonDB;
+- starts of new remote requests are globally spaced by at least 2 seconds;
+- cached `Generate` and `Copy` operations have no artificial cooldown and produce no additional PokémonDB request;
+- failed requests are not cached and are removed from the in-flight registry.
+
+This rate limit is a client-side courtesy guard against accidental request bursts, not an anti-abuse security boundary; the userscript is open source and can be modified by a determined user.
+
+The 96×96 source is drawn at 192×192 with image smoothing disabled.
+
+## Layer order
+
+```text
+backpaper
+Pokémon sprite
+frame
+text
+```
+
+Canvas size is 303×500.
+
+## Text
+
+Font: Silkscreen.
+
+```text
+POKÉMON NAME
+QUALITY {qualityMultiplier} · IV {ivTotal}
+CAPTURED BY {capturedByName}
+{YYYY-MM-DD HH:mm:ss}
+```
+
+The Google Fonts stylesheet and Silkscreen face are fully awaited before Canvas rendering, including the first generation after page reload.
+
+Final visually validated layout values live in `userscript/capture-ticket.js` as `TICKET_LAYOUT`.
+
+## PNG export and metadata
+
+PNG chunk encoding is isolated in `userscript/png-metadata.js`; the renderer only supplies the Canvas and metadata payload.
+
+Downloaded PNGs receive non-visible PNG text metadata before export:
+
+- `Author=Rhyxus`
+- `Artwork=Capture ticket frame designed by Rhyxus`
+- `FrameFingerprint=rhyxus.pp-prize-ticket.v1`
+- `FrameAssetSHA256=<theme frame hash>`
+- `Software=PokePixel Hunt Analyzer`
+- `Theme=<legend|mythic|shiny>`
+
+This is attribution/fingerprinting, not DRM; PNG metadata can be removed by image re-encoding.
+
+The Legend, Mythic and Shiny validation exports were confirmed to contain these PNG `tEXt` chunks with valid CRCs. Automated tests also validate generated `tEXt` CRCs and reject malformed PNG signatures/chunk lengths.
+
+## Build and dependency gate
+
+The build tool is pinned to the reviewed esbuild `0.28.2` line in `package-lock.json`. The reviewed esbuild install script is declared in `package.json`, and CI runs `npm audit --audit-level=high` before test/build validation.
+
+## Validation
+
+Manual smoke tests approved on the primary validation environment:
+
+- Silkscreen on first generation after reload
+- Legend / Mythic / Shiny visuals
+- PNG metadata/fingerprint
+- Catch Gallery collapse / expand
+- five-row pagination
+- Pokémon filter
+- rarity filters
+- Captured / Quality / IV sorting in both directions
+- Generate preview/download
+- Copy image and paste into Discord
+
+Automated coverage includes:
+
+- sparse Capture Ticket index migration with no historical row rewrite;
+- bounded newest-first Gallery persistence query;
+- future eligible capture persistence;
+- remote sprite cache hits, in-flight dedupe, 2-second rate limit, LRU eviction and failure recovery;
+- PNG metadata validation and CRCs;
+- the full fixture regression and userscript build.
+
+The temporary Catch Gallery harness used for manual validation is not part of the release branch. Production behavior uses only persisted real captures.

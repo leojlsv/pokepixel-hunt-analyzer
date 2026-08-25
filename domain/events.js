@@ -150,6 +150,7 @@ function normalizeCaptureSuccess(data) {
     wild_monster_id: str(data.wild_monster_id),
     species_id: str(data.species_id),
     species_name: str(data.species_name),
+    captured_by_name: str(data.captured_by_name),
     capsule_item_id: str(data.capsule_item_id),
     capsule_name: str(data.capsule_name),
     chance: num(data.chance),

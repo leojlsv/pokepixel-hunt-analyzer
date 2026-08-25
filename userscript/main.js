@@ -3,18 +3,32 @@ import { createSessionsRepository } from "../data/sessionsRepository.js";
 import { createEncountersRepository } from "../data/encountersRepository.js";
 import { createEventPipeline } from "../services/eventPipeline.js";
 import {
+  canDeleteHunt,
+  deleteHuntData
+} from "../services/huntDeletion.js";
+import {
   computeSessionMetrics,
   refreshSessionMetrics
 } from "../domain/sessionMetrics.js";
 import { EVENT_TYPES } from "../domain/events.js";
 import { createTabLeadership } from "./tab-leadership.js";
-import { installWebSocketObserver } from "./websocket-observer.js";
+import {
+  installWebSocketObserver,
+  resolvePageWindow
+} from "./websocket-observer.js";
 import { createUi } from "./ui.js";
+import { createAudioAlerts } from "./audio-alerts.js";
+import { createCatchGallery } from "./catch-gallery.js";
+import { createHistoryDeleteControl } from "./history-delete.js";
 
 const APP_VERSION = __APP_VERSION__;
 const TAB_LOCK_REFRESH_MS = 2_000;
 const CURRENT_REFRESH_MS = 1_000;
 const STANDBY_RECONCILE_MS = 10_000;
+const CATCH_GALLERY_LOAD_LIMIT = 500;
+const ROOT_ID = "pokepixel-hunt-analyzer-root";
+const CATCH_GALLERY_SECTION_ID = "catch-gallery";
+const CATCH_GALLERY_BETA_STYLE_ID = "pha-catch-gallery-beta-style";
 const OBSERVED_EVENT_TYPES = new Set(EVENT_TYPES);
 const METRIC_DATA_EVENTS = new Set([
   "loot.received",
@@ -29,6 +43,9 @@ const TERMINAL_LIST_EVENTS = new Set([
 let pipeline;
 let sessionsRepository;
 let encountersRepository;
+let audioAlerts;
+let catchGallery;
+let historyDeleteControl;
 let ui;
 let updateQueue = Promise.resolve();
 let currentLoadPromise = null;
@@ -65,12 +82,47 @@ function invalidateEncounterCache() {
   markEncounterListDirty();
 }
 
+function markCatchGalleryBeta() {
+  const shadow = document.getElementById(ROOT_ID)?.shadowRoot;
+  const heading = shadow?.querySelector(
+    `#${CATCH_GALLERY_SECTION_ID} .section-head h3`
+  );
+  if (!shadow || !heading || heading.querySelector(".catch-gallery-beta-badge")) return;
+
+  if (!shadow.getElementById(CATCH_GALLERY_BETA_STYLE_ID)) {
+    const style = document.createElement("style");
+    style.id = CATCH_GALLERY_BETA_STYLE_ID;
+    style.textContent = `
+      .catch-gallery-beta-badge {
+        display:inline-flex;
+        align-items:center;
+        height:14px;
+        margin-left:5px;
+        padding:0 4px;
+        border:1px solid #8a7741;
+        border-radius:3px;
+        background:#3b3422;
+        color:#d8c071;
+        font-size:7px;
+        font-weight:800;
+        letter-spacing:.08em;
+        line-height:12px;
+        vertical-align:1px;
+      }
+    `;
+    shadow.appendChild(style);
+  }
+
+  const badge = document.createElement("span");
+  badge.className = "catch-gallery-beta-badge";
+  badge.textContent = "BETA";
+  badge.title = "Capture Ticket is in beta";
+  heading.appendChild(badge);
+}
+
 const leadership = createTabLeadership({
   onChange: (isActive) => {
     ui?.setActive(isActive);
-    // A tab can become ACTIVE after another tab wrote encounters that this
-    // runtime never processed. Force one full reconciliation on leadership
-    // change, including Captured/Failed.
     markEncounterListDirty();
   }
 });
@@ -87,7 +139,7 @@ function enqueueProtocolEvent(payload, socketId) {
   updateQueue = updateQueue
     .then(async () => {
       await ready;
-      await pipeline.handle({
+      const eventResult = await pipeline.handle({
         type: payload.type,
         seq: finiteOrNull(payload.seq),
         ts: finiteOrNull(payload.ts),
@@ -95,17 +147,19 @@ function enqueueProtocolEvent(payload, socketId) {
         data: payload.data
       });
 
+      if (eventResult?.terminalAlert) {
+        void audioAlerts?.handleTerminalAlert(eventResult.terminalAlert);
+      }
+
+      if (payload.type === "capture.success") {
+        catchGallery?.markDirty();
+      }
+
       if (TERMINAL_LIST_EVENTS.has(payload.type)) {
         markEncounterListDirty();
       } else if (METRIC_DATA_EVENTS.has(payload.type)) {
         markMetricDataDirty();
       }
-
-      // Current is intentionally NOT reloaded here. A busy Hunt can emit
-      // multiple protocol events per encounter; re-reading the whole current
-      // session and rebuilding the UI after every event caused work to grow
-      // with Hunt length. The 1s Current refresh below is the single render
-      // cadence now.
     })
     .catch((error) => {
       console.error("PokePixel Hunt Analyzer (event pipeline):", error);
@@ -145,9 +199,6 @@ async function performCurrentLoad() {
     if (listSnapshotChanged) encounterListSnapshotVersion += 1;
     lastEncounterSyncAt = now;
 
-    // The expensive O(n) encounter aggregation is tied to the IndexedDB
-    // snapshot, not the 1s UI timer. The timer below only refreshes elapsed
-    // time/status and per-hour rates from this cached aggregate.
     cachedAggregateMetrics = computeSessionMetrics({
       session,
       encounters: cachedEncounters,
@@ -199,11 +250,9 @@ async function handleSessionAction(action) {
           return;
       }
 
-      // If the periodic refresh is already reading, let it finish and then
-      // render the post-action state instead of starting an overlapping IDB
-      // transaction over a large session.
       if (currentLoadPromise) await currentLoadPromise;
       await loadCurrent();
+      historyDeleteControl?.refresh();
     })
     .catch((error) => {
       console.error("PokePixel Hunt Analyzer (session action):", error);
@@ -212,12 +261,55 @@ async function handleSessionAction(action) {
   await updateQueue;
 }
 
+async function canDeleteHistorySession(sessionId) {
+  await ready;
+  const currentSession = await sessionsRepository.getCurrentReadOnly();
+  return canDeleteHunt({ sessionId, currentSession });
+}
+
+async function handleHistorySessionDelete(sessionId) {
+  if (!leadership.isActive()) {
+    throw new Error("Hunt deletion is available only on the ACTIVE tab");
+  }
+
+  const task = updateQueue.then(async () => {
+    await ready;
+    if (currentLoadPromise) await currentLoadPromise;
+
+    const { deletingCurrent } = await deleteHuntData({
+      sessionId,
+      sessionsRepository,
+      encountersRepository
+    });
+
+    catchGallery?.markDirty();
+    if (deletingCurrent) {
+      invalidateEncounterCache();
+      await loadCurrent();
+    }
+  });
+
+  updateQueue = task.catch((error) => {
+    console.error("PokePixel Hunt Analyzer (History delete):", error);
+  });
+
+  return task;
+}
+
 function mountUiWhenReady() {
   const mount = () => {
+    catchGallery?.dispose();
+    historyDeleteControl?.dispose();
     ui = createUi({
       onSessionAction: (action) => void handleSessionAction(action),
-      onLoadCompare: () => encountersRepository.getAll()
+      onLoadHistorySessions: (options) => sessionsRepository.getPage(options),
+      onLoadHistorySessionEncounters: (sessionId) =>
+        encountersRepository.getBySessionId(sessionId)
     });
+    audioAlerts?.mountControls();
+    catchGallery?.mountControls();
+    markCatchGalleryBeta();
+    historyDeleteControl?.mount();
     ui.setActive(leadership.isActive());
   };
 
@@ -245,13 +337,31 @@ function scheduleRefreshes() {
 }
 
 async function initialize() {
-  installWebSocketObserver({ onPayload: enqueueProtocolEvent });
+  const pageWindow = resolvePageWindow({
+    unsafeWindowObject:
+      typeof unsafeWindow !== "undefined" ? unsafeWindow : null,
+    windowObject: window
+  });
+
+  installWebSocketObserver({
+    onPayload: enqueueProtocolEvent,
+    windowObject: pageWindow
+  });
   leadership.refresh();
 
   const database = await openDatabase();
   sessionsRepository = createSessionsRepository(database);
   encountersRepository = createEncountersRepository(database);
   pipeline = createEventPipeline(database, { appVersion: APP_VERSION });
+  audioAlerts = createAudioAlerts();
+  catchGallery = createCatchGallery({
+    loadEncounters: () =>
+      encountersRepository.getRecentCaptureTickets(CATCH_GALLERY_LOAD_LIMIT)
+  });
+  historyDeleteControl = createHistoryDeleteControl({
+    onDeleteSession: handleHistorySessionDelete,
+    canDeleteSession: canDeleteHistorySession
+  });
   await pipeline.recoverOnStartup();
 
   mountUiWhenReady();
@@ -261,7 +371,11 @@ async function initialize() {
   scheduleRefreshes();
 }
 
-window.addEventListener("beforeunload", () => leadership.release());
+window.addEventListener("beforeunload", () => {
+  catchGallery?.dispose();
+  historyDeleteControl?.dispose();
+  leadership.release();
+});
 
 initialize().catch((error) => {
   console.error("PokePixel Hunt Analyzer userscript:", error);

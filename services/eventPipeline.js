@@ -15,6 +15,8 @@ import {
 import { buildCanonicalConfig } from "../domain/config.js";
 import { buildGroupKey } from "../domain/groupKey.js";
 import { decideSessionTransition } from "../domain/huntLifecycle.js";
+import { buildTerminalAlert } from "../domain/terminalAlert.js";
+import { canGenerateCaptureTicket } from "../domain/captureTicket.js";
 import { createConfigsRepository } from "../data/configsRepository.js";
 import { createEncountersRepository } from "../data/encountersRepository.js";
 import { createSessionsRepository } from "../data/sessionsRepository.js";
@@ -120,6 +122,24 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
     });
   }
 
+  async function persistFinalizedEncounter(effect) {
+    const updated = await encountersRepo.update(effect.encounterId, effect.patch);
+
+    // `captureTicketAtMs` is deliberately derived here, after the complete
+    // persisted row exists. The sparse v3 index then contains only encounters
+    // that can actually generate a ticket; ordinary successes never enter it.
+    if (
+      canGenerateCaptureTicket(updated) &&
+      updated.captureTicketAtMs !== updated.captureAtMs
+    ) {
+      return encountersRepo.update(effect.encounterId, {
+        captureTicketAtMs: updated.captureAtMs
+      });
+    }
+
+    return updated;
+  }
+
   async function applyEffects(effects) {
     let sessionId;
 
@@ -166,8 +186,11 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
         }
 
         case "encounter.update":
-        case "encounter.finalize":
           await encountersRepo.update(effect.encounterId, effect.patch);
+          break;
+
+        case "encounter.finalize":
+          await persistFinalizedEncounter(effect);
           break;
 
         default:
@@ -221,6 +244,7 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
     trackerState = swept.state;
     await applyEffects(swept.effects);
 
+    const terminalAlert = buildTerminalAlert(envelope, trackerState);
     const result = applyEvent(trackerState, envelope);
     trackerState = { ...result.state, seenKeys: new Set() };
     await applyEffects(result.effects);
@@ -233,7 +257,7 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
       await bumpDiagnostics({ orphanEvents: orphansCreated });
     }
 
-    return { ok: true };
+    return { ok: true, terminalAlert };
   }
 
   async function getDiagnosticsSnapshot() {

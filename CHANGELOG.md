@@ -3,6 +3,51 @@
 All notable project changes should be recorded here.
 The project follows Semantic Versioning.
 
+## [1.8.0] - 2026-08-24
+
+### History
+- Replaced the retired Compare surface with `Hunts | Pokémon | Attempts`.
+- Added session-first History loading, filters, Hunt drill-downs and notable encounter views.
+- Added destructive Hunt deletion from expanded History rows with confirmation.
+- Current Hunt deletion is blocked while Running/Paused; `End Hunt` is required before deleting it.
+
+### Sound Alerts
+- Added Epic / Legendary / Mythical / Shiny alerts for both Captured and Fled outcomes.
+- Added built-in Sound 1 / Sound 2 selection per event.
+- Added Custom Audio import per event, stored locally in a separate IndexedDB asset database.
+- Shiny alert priority is preserved when both Shiny and rarity alerts are enabled.
+- Only the ACTIVE analyzer tab plays alerts.
+
+### Capture Ticket / Catch Gallery — BETA
+- Added Capture Tickets for eligible new Legendary, Mythical and Shiny captures.
+- Added `Misc > Catch Gallery` with Pokémon/rarity filters, Captured/Quality/IV sorting and five-row pagination.
+- Added `Generate` preview/download and `Copy` image clipboard actions.
+- Added themed Legend / Mythic / Shiny ticket artwork, Silkscreen rendering and PokémonDB Black/White sprites.
+- Added non-visible PNG attribution/fingerprint metadata.
+- Added a visible `BETA` marker while broader player/browser behavior is still being validated.
+
+### Runtime / persistence
+- Added IndexedDB schema v3 with sparse `captureTicketAtMs` index for bounded newest-first Gallery reads.
+- Managed IndexedDB connections now close on `versionchange` so upgrades are not unnecessarily blocked by older tabs.
+- Added bounded remote image LRU cache, in-flight request dedupe, request pacing and timeout.
+- Added `GM_xmlhttpRequest` / `@connect img.pokemondb.net` for remote Capture Ticket sprite loading.
+- Added explicit `unsafeWindow` page-window resolution so privileged Tampermonkey grants do not break the WebSocket observer.
+- Removed retired `userscript/compare-view.js`.
+
+### Documentation / release hygiene
+- Bumped application version to `1.8.0` in `package.json` and `package-lock.json`.
+- Updated userscript description for Current / History / local tools.
+- Reworked README for the v1.8 product surface and clarified that analytics data stays local while Capture Ticket may fetch public PokémonDB/Google Fonts assets.
+- Updated Architecture, Development, Contributing and Capture Ticket documentation.
+- Temporary Catch Gallery DEV harness remains outside the release branch.
+
+### Validation
+- 248 automated tests passing with zero failures.
+- Dependency audit reports 0 vulnerabilities.
+- Full 4000+ event fixture replay preserves 4,128 persisted encounter rows.
+- Production userscript v1.8.0 build validated by CI.
+- Final live smoke approved on the exact release build: WebSocket hook, live metrics, ACTIVE/STANDBY, F5 persistence, Sound Alerts, Custom Audio, Capture Ticket Generate/Copy, Current Hunt DELETE guard, End Hunt unlock and deletion persistence.
+
 ## [1.7.0] - 2026-08-22
 
 ### Performance — Long Hunt stability

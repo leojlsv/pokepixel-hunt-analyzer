@@ -93,6 +93,7 @@ function draftRow({ encounterId, wildMonsterId, socketId, envelope, enemy, sessi
     capsuleItemId: null,
     capsuleName: null,
     captureChance: null,
+    capturedByName: null,
     supplyCost: null,
     autoSold: null,
     autoSellValue: null,
@@ -134,6 +135,7 @@ function orphanRow({ encounterId, wildMonsterId, socketId, envelope, patch }) {
     capsuleItemId: null,
     capsuleName: null,
     captureChance: null,
+    capturedByName: null,
     supplyCost: null,
     autoSold: null,
     autoSellValue: null,
@@ -330,6 +332,7 @@ function applyCaptureResult(state, envelope, resultType) {
   };
 
   if (resultType === "success") {
+    shared.capturedByName = data.captured_by_name;
     shared.autoSold = data.auto_sold;
     shared.autoSellValue = data.auto_sell_value;
     // Deliberately NOT copying creature.level/quality/ivs/elements/gender/

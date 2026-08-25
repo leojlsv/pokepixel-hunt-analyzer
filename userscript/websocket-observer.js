@@ -26,6 +26,13 @@ export async function parseProtocolPayload(data) {
   }
 }
 
+export function resolvePageWindow({
+  unsafeWindowObject = null,
+  windowObject = null
+} = {}) {
+  return unsafeWindowObject || windowObject;
+}
+
 export function installWebSocketObserver({
   onPayload,
   windowObject = window

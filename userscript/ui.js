@@ -1,6 +1,6 @@
 import { STYLES } from "./styles.js";
-import { createCompareView } from "./compare-view.js";
 import { createCurrentView } from "./current-view.js";
+import { createHistoryView } from "./history-view.js";
 import { createUiMarkup, REF_CODE } from "./ui-markup.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
@@ -29,7 +29,11 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), Math.max(min, max));
 }
 
-export function createUi({ onSessionAction, onLoadCompare }) {
+export function createUi({
+  onSessionAction,
+  onLoadHistorySessions,
+  onLoadHistorySessionEncounters
+}) {
   let shadow;
   let panel;
   let launcher;
@@ -37,7 +41,7 @@ export function createUi({ onSessionAction, onLoadCompare }) {
   let activeView = "current";
   let suppressLauncherClick = false;
   let currentView;
-  let compareView;
+  let historyView;
 
   mount();
 
@@ -60,7 +64,10 @@ export function createUi({ onSessionAction, onLoadCompare }) {
     panel.style.minHeight = `${MIN_PANEL_HEIGHT_PX}px`;
     launcher = shadow.getElementById("pha-toggle");
     currentView = createCurrentView(shadow);
-    compareView = createCompareView(shadow, onLoadCompare);
+    historyView = createHistoryView(shadow, {
+      loadSessions: onLoadHistorySessions,
+      loadSessionEncounters: onLoadHistorySessionEncounters
+    });
 
     bindUiEvents();
     restoreUiState();
@@ -95,17 +102,17 @@ export function createUi({ onSessionAction, onLoadCompare }) {
   }
 
   function switchView(view) {
-    activeView = view === "compare" ? "compare" : "current";
+    activeView = view === "history" ? "history" : "current";
     shadow.getElementById("view-current").hidden = activeView !== "current";
-    shadow.getElementById("view-compare").hidden = activeView !== "compare";
+    shadow.getElementById("view-history").hidden = activeView !== "history";
     for (const tab of shadow.querySelectorAll("[data-view]")) {
       tab.classList.toggle("active", tab.dataset.view === activeView);
     }
     saveUiState({ view: activeView });
 
-    if (activeView === "compare") {
-      compareView.refresh().catch((error) => {
-        console.error("PokePixel Hunt Analyzer (Compare):", error);
+    if (activeView === "history") {
+      historyView.refresh().catch((error) => {
+        console.error("PokePixel Hunt Analyzer (History):", error);
       });
     }
   }
@@ -182,7 +189,7 @@ export function createUi({ onSessionAction, onLoadCompare }) {
     }
 
     fitToViewport(launcher);
-    switchView(state.view === "compare" ? "compare" : "current");
+    switchView(state.view === "history" ? "history" : "current");
     setPanelOpen(state.open === true);
   }
 
