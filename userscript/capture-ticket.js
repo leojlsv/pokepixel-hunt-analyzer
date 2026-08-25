@@ -276,6 +276,8 @@ export async function generateCaptureTicket(encounter) {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Capture ticket canvas is unavailable");
 
+  // Pixel art contract: smoothing stays disabled for the entire raster pass.
+  ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(backpaperImage, 0, 0, canvas.width, canvas.height);
   drawPokemonSprite(ctx, pokemonSpriteImage, TICKET_LAYOUT.sprite);
@@ -330,7 +332,7 @@ export async function openCaptureTicketPreview(encounter) {
       :host{all:initial;position:fixed;inset:0;display:block;width:100vw;height:100vh;z-index:2147483647;pointer-events:auto}
       .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px;font-family:Arial,sans-serif;box-sizing:border-box}
       .box{background:#1f201d;border:1px solid #4b4c45;padding:10px;box-shadow:0 12px 36px rgba(0,0,0,.55);max-height:calc(100vh - 36px);overflow:auto;box-sizing:border-box}
-      img{display:block;width:303px;height:500px;image-rendering:auto;background:transparent}
+      img{display:block;width:303px;height:500px;image-rendering:pixelated;background:transparent}
       .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:9px}
       button{background:#2c2d29;color:#ddd;border:1px solid #5a5b53;border-radius:3px;padding:5px 9px;font:11px Arial,sans-serif;cursor:pointer}
       button:hover{background:#373832}
