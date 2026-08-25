@@ -35,7 +35,7 @@ function genderInfo(value) {
 
 function ivValues(ivs) {
   if (!ivs || typeof ivs !== "object") return null;
-  const values = [ivs.hp, ivs.atk, ivs.def, ivs.spa, ivs.spd, ivs.spe];
+  const values = [ivs.hp, ivs.atk, ivs.spa, ivs.def, ivs.spd, ivs.spe];
   return values.some(Number.isFinite) ? values : null;
 }
 
