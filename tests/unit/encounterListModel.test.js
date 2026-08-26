@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   compareEncounters,
+  formatCaptureTime,
   formatCaptureTimestamp,
   passesEncounterFilters,
   sortEncounters
@@ -106,8 +107,10 @@ test("compareEncounters has a deterministic capture-time tie-breaker", () => {
   assert.ok(compareEncounters(newer, older, { key: "quality", direction: "desc" }) < 0);
 });
 
-test("formatCaptureTimestamp renders local YYYY-MM-DD HH:mm:ss", () => {
+test("capture time/timestamp render local time consistently", () => {
   const local = new Date(2026, 7, 22, 13, 45, 12).getTime();
+  assert.equal(formatCaptureTime(local), "13:45:12");
   assert.equal(formatCaptureTimestamp(local), "2026-08-22 13:45:12");
+  assert.equal(formatCaptureTime(null), "—");
   assert.equal(formatCaptureTimestamp(null), "—");
 });
