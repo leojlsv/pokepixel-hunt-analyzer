@@ -4,7 +4,7 @@ Analytics de Hunt em tempo real para **PokePixel**, direto dentro do jogo.
 
 O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** que observa passivamente eventos do jogo, organiza Hunts e calcula métricas de eficiência sem automatizar gameplay.
 
-**Versão:** `v1.9.1`  
+**Versão:** `v1.10.0`  
 **Core Analyzer:** estável  
 **Capture Ticket:** BETA  
 **Dados e analytics:** locais  
@@ -31,7 +31,9 @@ Acompanha a Hunt atual em tempo real:
 - distribuição por raridade e Shiny;
 - listas de Captured e Failed;
 - Captured com filtros por Rarity, Shiny, Quality e IV;
-- Failed com filtros por Rarity, Shiny e IV e colunas diretas `Pokémon | IV | Pokéball | Fled at`;
+- Captured/Failed permitem combinar múltiplas Rarities no mesmo filtro, com `All (*)` selecionando todas;
+- Failed com filtros por Rarity, Shiny e IV e colunas diretas `Pokémon | IV | Pokéball | Chance | Fled at`;
+- `Fled at` mostra `HH:mm:ss` no dia inicial da Hunt e acrescenta `+Nd` quando a Hunt atravessa um ou mais dias locais; o hover preserva o timestamp completo;
 - Captured mostra o breakdown de IVs em `HP · Atk · sAtk · Def · sDef · SpD`;
 - detalhes de Captured incluem Capsule, timestamp e Chance quando disponível.
 
@@ -40,7 +42,7 @@ O Current usa cache de snapshots e agregados reutilizáveis para evitar reproces
 
 ### Compatibilidade de protocolo
 
-A v1.9 mantém uma fronteira explícita entre o protocolo observado do jogo e o domínio de analytics:
+Desde a v1.9, o Analyzer mantém uma fronteira explícita entre o protocolo observado do jogo e o domínio de analytics:
 
 ```text
 PokePixel WebSocket
@@ -183,7 +185,7 @@ Fechar o navegador ou reiniciar o computador não apaga automaticamente o histó
 
 ### Permissões do userscript
 
-A v1.9.0 usa permissões Tampermonkey para manter duas necessidades separadas:
+O userscript usa permissões Tampermonkey para manter duas necessidades separadas:
 
 - `unsafeWindow` — instalar o observer no `WebSocket` real da página;
 - `GM_xmlhttpRequest` + `@connect img.pokemondb.net` — buscar sprites públicos para Capture Ticket sem contaminar o Canvas por CORS.
