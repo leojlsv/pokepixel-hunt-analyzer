@@ -25,7 +25,7 @@ The renderer consumes one persisted encounter:
 - numeric quality: `qualityMultiplier`
 - total IV: `ivTotal`
 - Shiny: `isShiny`
-- player: `capturedByName`, normalized from `capture.success.captured_by_name`
+- player: `capturedByName`, normalized from `capture.success.captured_by_name` with `capture.success.creature.captured_by_name` fallback
 - timestamp: `captureAtMs`
 
 For persistence lookup only, newly finalized eligible rows also receive the derived field `captureTicketAtMs = captureAtMs`.
@@ -89,7 +89,7 @@ Remote request protection lives in `userscript/remote-image-loader.js`:
 
 This rate limit is a client-side courtesy guard against accidental request bursts, not an anti-abuse security boundary; the userscript is open source and can be modified by a determined user.
 
-The 96×96 source is drawn at 192×192 with image smoothing disabled.
+The sprite has a fixed 192×192 useful area in the ticket. At `1x`, the complete source PNG canvas (including transparent padding) is fitted proportionally inside that area, centered and clipped to it. Canvas smoothing remains disabled for the raster pass and the preview uses pixelated rendering; no bilinear/high-quality smoothing is applied to the Pokémon sprite.
 
 ## Layer order
 
@@ -150,7 +150,8 @@ Manual smoke tests approved on the primary validation environment:
 - Pokémon filter
 - rarity filters
 - Captured / Quality / IV sorting in both directions
-- Generate preview/download
+- Generate preview/download, including top-level modal mounting and Escape/close behavior
+- Pokémon sprite 192×192 useful-area fit with 1x baseline and nearest-neighbor/pixelated rendering
 - Copy image and paste into Discord
 
 Automated coverage includes:

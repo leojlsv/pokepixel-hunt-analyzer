@@ -1,3 +1,5 @@
+import { createProtocolAdapter } from "./protocol-adapter.js";
+
 const HOOK_FLAG = "__POKEPIXEL_HUNT_ANALYZER_USERSCRIPT_HOOKED__";
 const textDecoder = new TextDecoder();
 
@@ -35,10 +37,15 @@ export function resolvePageWindow({
 
 export function installWebSocketObserver({
   onPayload,
-  windowObject = window
+  windowObject = window,
+  protocolAdapter = createProtocolAdapter()
 }) {
   if (typeof onPayload !== "function") {
     throw new TypeError("installWebSocketObserver requires onPayload");
+  }
+
+  if (!protocolAdapter || typeof protocolAdapter.adapt !== "function") {
+    throw new TypeError("installWebSocketObserver requires a protocol adapter");
   }
 
   if (windowObject[HOOK_FLAG]) return false;
@@ -62,7 +69,11 @@ export function installWebSocketObserver({
 
       socket.addEventListener("message", (event) => {
         void parseProtocolPayload(event.data).then((payload) => {
-          if (payload) onPayload(payload, socketId);
+          if (!payload) return;
+          const canonicalPayloads = protocolAdapter.adapt(payload);
+          for (const canonicalPayload of canonicalPayloads) {
+            onPayload(canonicalPayload, socketId);
+          }
         });
       });
 

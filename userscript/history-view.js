@@ -459,7 +459,7 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     const table = document.createElement("table");
     const head = document.createElement("thead");
     const headRow = document.createElement("tr");
-    ["At", "Pokémon", "Result", "Qlt", "IV"].forEach((label) => {
+    ["At", "Pokémon", "Result", "Ball", "IV"].forEach((label) => {
       const cell = document.createElement("th");
       cell.textContent = label;
       headRow.appendChild(cell);
@@ -474,7 +474,7 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
         formatAttemptTime(encounter.captureAtMs),
         `${speciesLabel(encounter)}${encounter.isShiny ? " *" : ""}`,
         encounter.captureResult === "success" ? "Cap." : "Fled",
-        Number.isFinite(encounter.qualityMultiplier) ? encounter.qualityMultiplier.toFixed(2) : "—",
+        encounter.capsuleName || "—",
         ivTotal(encounter) ?? "—"
       ];
       values.forEach((value, index) => {
@@ -633,7 +633,7 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
         `${speciesLabel(encounter)}${encounter.isShiny ? " *" : ""}`,
         RARITY_SHORT.get(encounter.quality) || "—",
         result,
-        Number.isFinite(encounter.qualityMultiplier) ? encounter.qualityMultiplier.toFixed(2) : "—",
+        encounter.capsuleName || "—",
         ivTotal(encounter) ?? "—"
       ];
       values.forEach((value, index) => {
@@ -662,8 +662,7 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
         const detailCell = document.createElement("td");
         detailCell.colSpan = 6;
         const parts = [
-          `${encounter.captureResult === "success" ? "Captured at" : "Fled at"}: ${formatClock(encounter.captureAtMs)}`,
-          `Capsule: ${encounter.capsuleName || "—"}`
+          `${encounter.captureResult === "success" ? "Captured at" : "Fled at"}: ${formatClock(encounter.captureAtMs)}`
         ];
         if (encounter.captureResult === "success") {
           parts.push(`Chance: ${formatRate(encounter.captureChance)}`);

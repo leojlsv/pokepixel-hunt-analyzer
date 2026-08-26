@@ -3,12 +3,7 @@ import assert from "node:assert/strict";
 
 import { EVENT_TYPES, normalizeEvent } from "../../domain/events.js";
 
-// Sample payloads below are taken verbatim from
-// tests/fixtures/rhyxus_hunting2.regression.json (real, sanitized protocol
-// data) so the normalizer is proven against the actual wire shape, not an
-// assumption of it.
-
-test("EVENT_TYPES lists exactly the 6 documented inbound events", () => {
+test("EVENT_TYPES lists the canonical inbound events", () => {
   assert.deepEqual(
     [...EVENT_TYPES].sort(),
     [
@@ -16,6 +11,7 @@ test("EVENT_TYPES lists exactly the 6 documented inbound events", () => {
       "capture.success",
       "combat.started",
       "hunt.analyzer_reset",
+      "hunt.kill_closed",
       "hunt.stopped",
       "loot.received"
     ].sort()
@@ -46,7 +42,8 @@ test("combat.started extracts enemy and session.auto_capture (raw)", () => {
       elements: ["normal"],
       gender: "female",
       nature: "brave",
-      quality_multiplier: 1.0233982388954947
+      quality_multiplier: 1.0233982388954947,
+      started_at_ms: 990
     },
     session: {
       id: "server_session_0001",
@@ -83,11 +80,12 @@ test("combat.started extracts enemy and session.auto_capture (raw)", () => {
   assert.equal(normalized.enemy.gender, "female");
   assert.equal(normalized.enemy.nature, "brave");
   assert.equal(normalized.enemy.quality_multiplier, 1.0233982388954947);
+  assert.equal(normalized.enemy.started_at_ms, 990);
   assert.equal(normalized.session.id, "server_session_0001");
   assert.equal(normalized.session.auto_capture.min_quality, "common");
 });
 
-test("combat.started defaults elements/gender/nature to null when absent", () => {
+test("combat.started defaults optional individual fields to null when absent", () => {
   const normalized = normalizeEvent("combat.started", {
     enemy: { id: "wild_0001", species_id: "chansey" }
   });
@@ -95,15 +93,10 @@ test("combat.started defaults elements/gender/nature to null when absent", () =>
   assert.equal(normalized.enemy.elements, null);
   assert.equal(normalized.enemy.gender, null);
   assert.equal(normalized.enemy.nature, null);
-});
-
-test("combat.started defaults ivs/quality_multiplier to null when absent", () => {
-  const normalized = normalizeEvent("combat.started", {
-    enemy: { id: "wild_0001", species_id: "chansey" }
-  });
-
   assert.equal(normalized.enemy.ivs, null);
   assert.equal(normalized.enemy.quality_multiplier, null);
+  assert.equal(normalized.enemy.is_shiny, null);
+  assert.equal(normalized.enemy.started_at_ms, null);
 });
 
 test("combat.started normalizes ivs per-stat, defaulting a missing individual stat to null", () => {
@@ -111,7 +104,6 @@ test("combat.started normalizes ivs per-stat, defaulting a missing individual st
     enemy: {
       id: "wild_0001",
       species_id: "chansey",
-      // spd missing entirely; spe non-numeric.
       ivs: { atk: 3, def: 1, hp: 1, spa: 27, spe: "not-a-number" }
     }
   });
@@ -153,7 +145,7 @@ test("loot.received extracts the documented reward fields", () => {
   const normalized = normalizeEvent("loot.received", {
     wild_monster_id: "wild_0002",
     species_id: "chansey",
-    creature_id: "creature_0001", // present on the wire, not documented — ignored
+    creature_id: "creature_0001",
     exp: 2870,
     trainer_exp: 4305,
     pokemon_exp: 4305,
@@ -173,7 +165,7 @@ test("loot.received extracts the documented reward fields", () => {
 test("loot.received also extracts the auto-potion-used variant (no wild_monster_id)", () => {
   const normalized = normalizeEvent("loot.received", {
     auto_potion_used: "potion_ultra",
-    new_hp: 745, // present on the wire, not documented — ignored
+    new_hp: 745,
     supply_cost: 22
   });
 
@@ -204,7 +196,7 @@ test("capture.failed extracts the documented fields including iv_total", () => {
   assert.equal(normalized.chance, 0.033936651583710405);
 });
 
-test("capture.success extracts creature.quality/is_shiny/ivs but not creature.level", () => {
+test("capture.success enriches DEV creature details but never extracts creature.level", () => {
   const normalized = normalizeEvent("capture.success", {
     wild_monster_id: "wild_0029",
     species_id: "chansey",
@@ -220,13 +212,24 @@ test("capture.success extracts creature.quality/is_shiny/ivs but not creature.le
       level: 1,
       quality: "uncommon",
       is_shiny: false,
+      captured_by_name: "Rhyxus",
+      elements: ["normal"],
+      gender: "female",
+      nature: "bold",
+      quality_multiplier: 1.42,
       ivs: { atk: 8, def: 11, hp: 15, spa: 24, spd: 8, spe: 16 }
     }
   });
 
   assert.equal(normalized.auto_sold, true);
+  assert.equal(normalized.captured_by_name, "Rhyxus");
+  assert.equal(normalized.creature.species_id, "chansey");
   assert.equal(normalized.creature.quality, "uncommon");
   assert.equal(normalized.creature.is_shiny, false);
+  assert.deepEqual(normalized.creature.elements, ["normal"]);
+  assert.equal(normalized.creature.gender, "female");
+  assert.equal(normalized.creature.nature, "bold");
+  assert.equal(normalized.creature.quality_multiplier, 1.42);
   assert.deepEqual(normalized.creature.ivs, {
     atk: 8,
     def: 11,
@@ -235,11 +238,20 @@ test("capture.success extracts creature.quality/is_shiny/ivs but not creature.le
     spd: 8,
     spe: 16
   });
-  // The documented rule: never extract creature.level as target level.
   assert.equal(normalized.creature.level, undefined);
 });
 
-test("hunt.stopped and hunt.analyzer_reset normalize to an empty signal object", () => {
+test("top-level captured_by_name remains supported", () => {
+  const normalized = normalizeEvent("capture.success", {
+    wild_monster_id: "wild_1",
+    captured_by_name: "LegacyName",
+    creature: { captured_by_name: "NestedName" }
+  });
+
+  assert.equal(normalized.captured_by_name, "LegacyName");
+});
+
+test("hunt signals and internal HuntSim kill close normalize safely", () => {
   assert.deepEqual(
     normalizeEvent("hunt.stopped", {
       paused: true,
@@ -256,5 +268,10 @@ test("hunt.stopped and hunt.analyzer_reset normalize to an empty signal object",
       zone_id: "zone_0001"
     }),
     {}
+  );
+
+  assert.deepEqual(
+    normalizeEvent("hunt.kill_closed", { wild_monster_id: "huntsim:s:10" }),
+    { wild_monster_id: "huntsim:s:10" }
   );
 });

@@ -15,7 +15,7 @@ import mythicFrame from "./capture-ticket-assets/mythic_ticket_frame.png";
 
 export const TICKET_LAYOUT = Object.freeze({
   canvas: { width: 303, height: 500 },
-  sprite: { x: 151.5, y: 251.5, width: 192, height: 192 },
+  sprite: { x: 151.5, y: 251.5, width: 192, height: 192, zoom: 1 },
   pokemonName: {
     x: 151.5,
     y: 103.5,
@@ -218,6 +218,39 @@ function drawText(ctx, text, config, { fill, stroke = null } = {}) {
   ctx.restore();
 }
 
+function drawPokemonSprite(ctx, image, layout) {
+  const sourceWidth = Number(image.naturalWidth || image.width);
+  const sourceHeight = Number(image.naturalHeight || image.height);
+  if (!(sourceWidth > 0) || !(sourceHeight > 0)) {
+    throw new Error("Capture ticket Pokémon sprite has invalid dimensions");
+  }
+
+  // 1x means: fit the complete source PNG canvas inside the 192x192 sprite area.
+  // Additional zoom is relative to that fitted baseline, never to the visible
+  // Pokémon silhouette. This preserves transparent padding from the source PNG.
+  const fitScale = Math.min(layout.width / sourceWidth, layout.height / sourceHeight);
+  const zoom = Number.isFinite(layout.zoom) ? layout.zoom : 1;
+  const scale = fitScale * zoom;
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const areaLeft = Math.round(layout.x - layout.width / 2);
+  const areaTop = Math.round(layout.y - layout.height / 2);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(areaLeft, areaTop, layout.width, layout.height);
+  ctx.clip();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(
+    image,
+    Math.round(layout.x - width / 2),
+    Math.round(layout.y - height / 2),
+    width,
+    height
+  );
+  ctx.restore();
+}
+
 function safeFilename(value) {
   return String(value || "pokemon")
     .trim()
@@ -248,20 +281,11 @@ export async function generateCaptureTicket(encounter) {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Capture ticket canvas is unavailable");
 
+  // Pixel art contract: smoothing stays disabled for the entire raster pass.
+  ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(backpaperImage, 0, 0, canvas.width, canvas.height);
-
-  const spriteLayout = TICKET_LAYOUT.sprite;
-  ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(
-    pokemonSpriteImage,
-    spriteLayout.x - spriteLayout.width / 2,
-    spriteLayout.y - spriteLayout.height / 2,
-    spriteLayout.width,
-    spriteLayout.height
-  );
-  ctx.imageSmoothingEnabled = true;
-
+  drawPokemonSprite(ctx, pokemonSpriteImage, TICKET_LAYOUT.sprite);
   ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
 
   drawText(ctx, data.pokemonName, TICKET_LAYOUT.pokemonName, {
@@ -306,13 +330,13 @@ export async function openCaptureTicketPreview(encounter) {
 
   const host = document.createElement("div");
   host.id = PREVIEW_HOST_ID;
-  host.style.cssText = "position:fixed;inset:0;z-index:2147483647;pointer-events:auto;";
+  host.style.cssText = "all:initial;position:fixed;inset:0;display:block;width:100vw;height:100vh;z-index:2147483647;pointer-events:auto;";
   const shadow = host.attachShadow({ mode: "open" });
   shadow.innerHTML = `
     <style>
-      :host{all:initial}
-      .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px;font-family:Arial,sans-serif}
-      .box{background:#1f201d;border:1px solid #4b4c45;padding:10px;box-shadow:0 12px 36px rgba(0,0,0,.55);max-height:calc(100vh - 36px);overflow:auto}
+      :host{all:initial;position:fixed;inset:0;display:block;width:100vw;height:100vh;z-index:2147483647;pointer-events:auto}
+      .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:18px;font-family:Arial,sans-serif;box-sizing:border-box}
+      .box{background:#1f201d;border:1px solid #4b4c45;padding:10px;box-shadow:0 12px 36px rgba(0,0,0,.55);max-height:calc(100vh - 36px);overflow:auto;box-sizing:border-box}
       img{display:block;width:303px;height:500px;image-rendering:pixelated;background:transparent}
       .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:9px}
       button{background:#2c2d29;color:#ddd;border:1px solid #5a5b53;border-radius:3px;padding:5px 9px;font:11px Arial,sans-serif;cursor:pointer}
@@ -331,9 +355,14 @@ export async function openCaptureTicketPreview(encounter) {
 
   shadow.querySelector("img").src = result.url;
   const close = () => {
+    document.removeEventListener("keydown", onKeydown, true);
     URL.revokeObjectURL(result.url);
     host.remove();
   };
+  const onKeydown = (event) => {
+    if (event.key === "Escape") close();
+  };
+
   shadow.querySelector(".close").addEventListener("click", close);
   shadow.querySelector(".download").addEventListener(
     "click",
@@ -342,6 +371,9 @@ export async function openCaptureTicketPreview(encounter) {
   shadow.querySelector(".backdrop").addEventListener("click", (event) => {
     if (event.target === event.currentTarget) close();
   });
+  document.addEventListener("keydown", onKeydown, true);
 
-  document.documentElement.appendChild(host);
+  const mountTarget = document.body || document.documentElement;
+  mountTarget.appendChild(host);
+  shadow.querySelector(".close")?.focus();
 }

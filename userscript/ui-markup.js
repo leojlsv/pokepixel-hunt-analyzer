@@ -38,6 +38,22 @@ function sortableHeader(prefix, key, label, title = "") {
 
 function createEncounterSectionMarkup(prefix, title) {
   const filterStyle = "min-width:0";
+  const isFailed = prefix === "failed";
+  const filters = isFailed
+    ? `
+        <label style="${filterStyle}">Rarity<select id="${prefix}-rarity"></select></label>
+        <label style="${filterStyle}">Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+        <label style="${filterStyle}">IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>`
+    : `
+        <label style="${filterStyle}">Rarity<select id="${prefix}-rarity"></select></label>
+        <label style="${filterStyle}">Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+        <label style="${filterStyle}">Quality &gt;<input id="${prefix}-quality" type="number" step="0.01"></label>
+        <label style="${filterStyle}">IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>`;
+  const headers = isFailed
+    ? `<th>Pokémon</th>${sortableHeader(prefix, "iv", "IV", "Order by IV Total")}<th>Pokéball</th>${sortableHeader(prefix, "capturedAt", "Fled at", "Order by fail timestamp")}`
+    : `${sortableHeader(prefix, "capturedAt", "Pokémon", "Order by capture timestamp")}<th title="Gender">G</th><th>Nat</th>${sortableHeader(prefix, "quality", "Qlt", "Order by Quality")}${sortableHeader(prefix, "iv", "HP · Atk · sAtk · Def · sDef · SpD", "Order by IV Total")}`;
+  const columns = isFailed ? 3 : 4;
+
   return `
     <section id="${prefix}-section" class="section encounter-section">
       <div class="section-head">
@@ -47,21 +63,12 @@ function createEncounterSectionMarkup(prefix, title) {
           <button class="collapse-button" data-collapse="${prefix}" type="button" title="Collapse">▾</button>
         </div>
       </div>
-      <div class="filters" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:end">
-        <label style="${filterStyle}">Rarity<select id="${prefix}-rarity"></select></label>
-        <label style="${filterStyle}">Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
-        <label style="${filterStyle}">Quality &gt;<input id="${prefix}-quality" type="number" step="0.01"></label>
-        <label style="${filterStyle}">IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>
+      <div class="filters" style="display:grid;grid-template-columns:repeat(${columns},minmax(0,1fr));align-items:end">
+        ${filters}
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr>
-            ${sortableHeader(prefix, "capturedAt", "Pokémon", "Order by capture/fail timestamp")}
-            <th title="Gender">G</th>
-            <th>Nat</th>
-            ${sortableHeader(prefix, "quality", "Qlt", "Order by Quality")}
-            ${sortableHeader(prefix, "iv", "IV", "Order by IV Total")}
-          </tr></thead>
+          <thead><tr>${headers}</tr></thead>
           <tbody id="${prefix}-body"></tbody>
         </table>
       </div>
@@ -142,7 +149,7 @@ function createHistoryMarkup() {
         <div id="history-attempts-wrap" class="table-wrap history-table-wrap">
           <table class="history-attempts-table">
             <thead><tr>
-              <th>At</th><th>Pokémon</th><th>Rar.</th><th>Result</th><th>Qlt</th><th>IV</th>
+              <th>At</th><th>Pokémon</th><th>Rar.</th><th>Result</th><th>Ball</th><th>IV</th>
             </tr></thead>
             <tbody id="history-attempts-body"></tbody>
           </table>
@@ -154,6 +161,26 @@ function createHistoryMarkup() {
 export function createUiMarkup() {
   return `
     <style>${HISTORY_STYLES}</style>
+    <style>
+      .live-card.hunt-collapsed {
+        display:grid;
+        grid-template-columns:minmax(0,1fr) auto;
+        grid-template-areas:"status actions";
+        align-items:center;
+        gap:8px;
+        padding:7px 9px;
+      }
+      .live-card.hunt-collapsed .status-row { display:flex; }
+      .live-card.hunt-collapsed .metric-cards { display:none; }
+      .live-card.hunt-collapsed .actions { justify-content:flex-end; }
+      #failed-section table { table-layout:fixed; }
+      #failed-section th:nth-child(1), #failed-section td:nth-child(1) { width:28%; }
+      #failed-section th:nth-child(2), #failed-section td:nth-child(2) { width:12%; text-align:right; }
+      #failed-section th:nth-child(3), #failed-section td:nth-child(3) { width:24%; }
+      #failed-section th:nth-child(4), #failed-section td:nth-child(4) { width:36%; }
+      #failed-section .failed-static-row { cursor:default; }
+      #failed-section .timestamp-cell { font-variant-numeric:tabular-nums; }
+    </style>
     <button id="pha-toggle" class="launcher" type="button" aria-label="PokePixel Hunt Analyzer" style="min-width:220px;width:max-content;max-width:calc(100vw - 32px)">
       <span class="hud-mark">PX</span>
       <span class="hud-content" style="min-width:160px;width:max-content">

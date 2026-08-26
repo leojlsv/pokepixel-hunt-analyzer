@@ -286,11 +286,11 @@ export const HISTORY_STYLES = String.raw`
 .history-notable-list th:nth-child(1),
 .history-notable-list td:nth-child(1) { width: 62px; }
 .history-notable-list th:nth-child(2),
-.history-notable-list td:nth-child(2) { width: 118px; }
+.history-notable-list td:nth-child(2) { width: 112px; }
 .history-notable-list th:nth-child(3),
 .history-notable-list td:nth-child(3) { width: 52px; }
 .history-notable-list th:nth-child(4),
-.history-notable-list td:nth-child(4),
+.history-notable-list td:nth-child(4) { width: 88px; text-align: left; }
 .history-notable-list th:nth-child(5),
 .history-notable-list td:nth-child(5) { text-align: right; }
 
@@ -333,7 +333,7 @@ export const HISTORY_STYLES = String.raw`
 .history-attempts-table th:nth-child(4),
 .history-attempts-table td:nth-child(4) { width: 52px; }
 .history-attempts-table th:nth-child(5),
-.history-attempts-table td:nth-child(5),
+.history-attempts-table td:nth-child(5) { width: 96px; text-align: left; }
 .history-attempts-table th:nth-child(6),
 .history-attempts-table td:nth-child(6) { text-align: right; }
 

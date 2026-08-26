@@ -35,7 +35,7 @@ function genderInfo(value) {
 
 function ivValues(ivs) {
   if (!ivs || typeof ivs !== "object") return null;
-  const values = [ivs.hp, ivs.atk, ivs.def, ivs.spa, ivs.spd, ivs.spe];
+  const values = [ivs.hp, ivs.atk, ivs.spa, ivs.def, ivs.spd, ivs.spe];
   return values.some(Number.isFinite) ? values : null;
 }
 
@@ -53,12 +53,16 @@ function ivDisplay(encounter) {
   return `${total} (${breakdown})`;
 }
 
+function failedIvDisplay(encounter) {
+  return Number.isFinite(encounter.ivTotal) ? String(encounter.ivTotal) : "—";
+}
+
 function pokemonLabel(count) {
   return `${count} ${count === 1 ? "Pokémon" : "Pokémons"}`;
 }
 
 function parseFilterNumber(input) {
-  if (!input.value) return null;
+  if (!input?.value) return null;
   const value = Number(input.value);
   return Number.isFinite(value) ? value : null;
 }
@@ -124,7 +128,7 @@ export function createCurrentView(shadow) {
       state.filters.shiny = event.target.value;
       rebuildEncounterList(prefix);
     });
-    shadow.getElementById(`${prefix}-quality`).addEventListener("input", (event) => {
+    shadow.getElementById(`${prefix}-quality`)?.addEventListener("input", (event) => {
       state.filters.qualityMin = parseFilterNumber(event.target);
       rebuildEncounterList(prefix);
     });
@@ -171,9 +175,6 @@ export function createCurrentView(shadow) {
     renderMetrics(metrics);
     renderRarities(metrics);
 
-    // The 1s Current cadence still updates time/per-hour metrics, but avoid
-    // scanning thousands of encounters unless IndexedDB produced a new
-    // snapshot. This keeps long Hunts cheap while preserving live timers.
     if (!encounterSnapshotChanged) return;
 
     const latestTarget = latestSpeciesEncounter(encounters);
@@ -380,7 +381,7 @@ export function createCurrentView(shadow) {
         state.rows.set(encounter.encounterId, rowState);
         fragment.appendChild(main);
 
-        if (state.expandedIds.has(encounter.encounterId)) {
+        if (prefix === "captured" && state.expandedIds.has(encounter.encounterId)) {
           const detail = createDetailRow(prefix, encounter);
           rowState.detail = detail;
           main.setAttribute("aria-expanded", "true");
@@ -413,9 +414,6 @@ export function createCurrentView(shadow) {
     const state = lists[prefix];
     const existingIndex = state.visible.findIndex((item) => item.encounterId === encounter.encounterId);
 
-    // Terminal encounter rows normally never change after being added. If a
-    // persisted terminal row does change, rebuilding the lazy prefix is safer
-    // than trying to reconcile a possible filter/sort move in-place.
     if (existingIndex >= 0) {
       rebuildEncounterList(prefix, { resetScroll: false });
       return;
@@ -458,7 +456,7 @@ export function createCurrentView(shadow) {
     if (nextRow) body.insertBefore(main, nextRow);
     else body.appendChild(main);
 
-    if (state.expandedIds.has(encounter.encounterId)) {
+    if (prefix === "captured" && state.expandedIds.has(encounter.encounterId)) {
       const detail = createDetailRow(prefix, encounter);
       rowState.detail = detail;
       main.setAttribute("aria-expanded", "true");
@@ -479,17 +477,37 @@ export function createCurrentView(shadow) {
   function createEncounterRow(prefix, encounter) {
     const row = document.createElement("tr");
     row.dataset.encounterId = encounter.encounterId;
-    row.tabIndex = 0;
-    row.setAttribute("aria-expanded", "false");
-    row.title = "Click to show encounter details";
-    row.style.cursor = "pointer";
     if (encounter.isShiny) row.classList.add("encounter-row-shiny");
-
-    const gender = genderInfo(encounter.gender);
 
     const pokemonCell = document.createElement("td");
     pokemonCell.className = rarityClass(encounter.quality);
     pokemonCell.textContent = `${speciesLabel(encounter)}${encounter.isShiny ? " *" : ""}`;
+
+    if (prefix === "failed") {
+      row.classList.add("failed-static-row");
+
+      const ivCell = document.createElement("td");
+      ivCell.className = "iv-cell";
+      ivCell.textContent = failedIvDisplay(encounter);
+
+      const capsuleCell = document.createElement("td");
+      capsuleCell.textContent = encounter.capsuleName || "—";
+      capsuleCell.title = encounter.capsuleName || "Unknown Pokéball";
+
+      const timestampCell = document.createElement("td");
+      timestampCell.className = "timestamp-cell";
+      timestampCell.textContent = formatCaptureTimestamp(encounter.captureAtMs);
+
+      row.append(pokemonCell, ivCell, capsuleCell, timestampCell);
+      return row;
+    }
+
+    row.tabIndex = 0;
+    row.setAttribute("aria-expanded", "false");
+    row.title = "Click to show encounter details";
+    row.style.cursor = "pointer";
+
+    const gender = genderInfo(encounter.gender);
 
     const genderCell = document.createElement("td");
     genderCell.className = `gender ${gender.className}`.trim();
@@ -553,6 +571,7 @@ export function createCurrentView(shadow) {
   }
 
   function toggleEncounterDetail(prefix, encounterId) {
+    if (prefix !== "captured") return;
     const state = lists[prefix];
     const rowState = state.rows.get(encounterId);
     const encounter = state.byId.get(encounterId);

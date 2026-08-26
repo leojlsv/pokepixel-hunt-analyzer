@@ -3,6 +3,48 @@
 All notable project changes should be recorded here.
 The project follows Semantic Versioning.
 
+## [1.9.0] - 2026-08-25
+
+### HuntSim protocol compatibility
+- Added a protocol adapter between the passive WebSocket observer and the existing canonical event pipeline.
+- Added HuntSim full-frame entity decoding and kill-sequence correlation across `hunt.frame`, `hunt.capture_queue`, `hunt.events`, terminal `capture.*` events and aggregated `loot.received.per_kill[]` rewards.
+- Added synthetic HuntSim correlation ids while preserving legacy `wild_monster_id` behavior and the existing IndexedDB/domain model.
+- Added support for HuntSim terminal-before-loot ordering so late rewards patch the same persisted encounter instead of creating duplicates.
+- Explicitly ignores duplicate HuntSim reward/capture projections (`hunt.kill_reward`, `hunt.rewards`, capture projections inside `hunt.events`) to prevent double counting.
+- Legacy PROD event flow remains supported unchanged.
+
+### Capture data correctness
+- Successful HuntSim captures now preserve authoritative `creature` metadata: Rarity, Shiny, IV breakdown/total, Gender, Nature, Elements, Quality Multiplier and Captured By.
+- Unmatched `capture.success` events retain terminal creature metadata instead of persisting mostly-empty orphan rows.
+- `capture.success.creature.level` remains intentionally excluded as target level because the captured creature can be rebased independently from the hunted target.
+- Failed HuntSim captures preserve the fields actually exposed by the protocol: Rarity, Shiny, IV Total, Capsule, Chance and target Level; unavailable Gender/Nature/full IV breakdown/Elements/Quality Multiplier remain null rather than inferred.
+- Aggregated HuntSim loot is split into one canonical reward event per kill while preserving global XP/Gold totals.
+- Added nested `creature.captured_by_name` fallback used by Capture Ticket eligibility.
+
+### Current / History UI
+- Simplified Current > Failed to `Pokémon | IV | Pokéball | Fled at` with values visible directly in the table; removed the Failed Quality filter and row detail expansion.
+- Reordered Captured IV breakdown to `HP · Atk · sAtk · Def · sDef · SpD` and exposed that order in the column header for visual validation.
+- Replaced History Attempts/Notables `Qlt` with `Ball`, which is authoritative for both successful and failed attempts under HuntSim.
+- Collapsing Hunt XP metrics now keeps the current Pokémon label and Hunt status visible.
+
+### Capture Ticket / Catch Gallery
+- Fixed `Generate` preview mounting so the dialog owns the viewport/z-index and opens reliably from Catch Gallery.
+- Standardized Pokémon sprite rendering on a 192×192 useful area: the complete source PNG canvas is fitted as the `1x` baseline, centered/clipped to the area, rendered with Canvas smoothing disabled and previewed with pixelated image rendering.
+- Preserved `Generate`, PNG download and `Copy` behavior with the existing metadata/fingerprint pipeline.
+
+### Build / release hygiene
+- Bumped application version to `1.9.0` in `package.json` and `package-lock.json`.
+- Restored the default userscript build to the production identity/domain and preserved the historical production namespace for Tampermonkey update continuity.
+- Added `npm run build:userscript:dev` as an explicit DEV-only build targeting `dev.pokepixel.nietore.com`, so future protocol smoke tests no longer require mutating release metadata.
+- Updated README and technical documentation for the dual legacy/HuntSim protocol boundary and the v1.9 UI/runtime behavior.
+
+### Validation
+- 255 automated tests passing with zero failures.
+- Dependency audit reports 0 vulnerabilities.
+- Legacy 4000+ fixture replay preserves 4,128 persisted encounter rows.
+- HuntSim unit/integration coverage validates correlation, successful/failed terminal events, late loot and unmatched-success persistence.
+- Manual DEV smoke validated Hunt metrics, rarity counts, capture details, Catch Gallery Generate/Copy, Capture Ticket pixel rendering and the Current/History UI refinements.
+
 ## [1.8.0] - 2026-08-24
 
 ### History
