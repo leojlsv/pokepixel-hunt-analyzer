@@ -11,7 +11,7 @@ import {
 import {
   DEFAULT_ENCOUNTER_SORT,
   compareEncounters,
-  formatCaptureTime,
+  formatCurrentHuntTimestamp,
   formatCaptureTimestamp,
   passesEncounterFilters,
   sortEncounters
@@ -108,6 +108,7 @@ function encounterChanged(previous, next) {
 
 export function createCurrentView(shadow) {
   let currentSessionId;
+  let currentHuntStartedAtMs = null;
   let lastEncounterSnapshotVersion = -1;
   const lists = {
     captured: createListState("captured"),
@@ -209,6 +210,7 @@ export function createCurrentView(shadow) {
     const encounterSnapshotChanged =
       sessionChanged || lastEncounterSnapshotVersion !== encounterSnapshotVersion;
     currentSessionId = sessionId;
+    currentHuntStartedAtMs = Number.isFinite(metrics?.startedAtMs) ? metrics.startedAtMs : null;
     lastEncounterSnapshotVersion = encounterSnapshotVersion;
 
     renderMetrics(metrics);
@@ -526,7 +528,10 @@ export function createCurrentView(shadow) {
 
       const timestampCell = document.createElement("td");
       timestampCell.className = "timestamp-cell";
-      timestampCell.textContent = formatCaptureTime(encounter.captureAtMs);
+      timestampCell.textContent = formatCurrentHuntTimestamp(
+        encounter.captureAtMs,
+        currentHuntStartedAtMs
+      );
       timestampCell.title = formatCaptureTimestamp(encounter.captureAtMs);
 
       row.append(pokemonCell, ivCell, capsuleCell, chanceCell, timestampCell);
