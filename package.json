@@ -1,6 +1,6 @@
 {
   "name": "pokepixel-hunt-analyzer",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "private": true,
   "description": "Local domain/persistence modules and Tampermonkey build for the PokePixel Hunt Analyzer.",
   "type": "module",
@@ -11,8 +11,9 @@
     "test": "node --test",
     "build:userscript": "node scripts/build-userscript.mjs",
     "build:userscript:dev": "node scripts/build-userscript.mjs --dev",
+    "verify:userscript": "node scripts/verify-userscript-build.mjs",
     "audit:deps": "npm audit --audit-level=high",
-    "validate": "npm test && npm run build:userscript"
+    "validate": "npm test && npm run build:userscript && npm run verify:userscript"
   },
   "repository": {
     "type": "git",
