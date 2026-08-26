@@ -4,7 +4,7 @@ Analytics de Hunt em tempo real para **PokePixel**, direto dentro do jogo.
 
 O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** que observa passivamente eventos do jogo, organiza Hunts e calcula métricas de eficiência sem automatizar gameplay.
 
-**Versão:** `v1.10.0`  
+**Versão:** `v1.11.0`  
 **Core Analyzer:** estável  
 **Capture Ticket:** BETA  
 **Dados e analytics:** locais  
@@ -204,9 +204,9 @@ O Analyzer é desenvolvido principalmente em **Microsoft Edge / Chromium desktop
 
 Chrome/Edge atuais podem exigir **Allow User Scripts / Permitir scripts de usuário** nas configurações da extensão.
 
-## 2. Baixe o userscript
+## 2. Instale o userscript
 
-Na release mais recente, baixe:
+Na release mais recente, use o asset:
 
 ```text
 pokepixel-hunt-analyzer.user.js
@@ -214,15 +214,22 @@ pokepixel-hunt-analyzer.user.js
 
 ### [⬇️ Releases](https://github.com/leojlsv/pokepixel-hunt-analyzer/releases/latest)
 
-## 3. Instale no Tampermonkey
+Ao abrir o `.user.js`, o Tampermonkey deve oferecer a instalação. Como fallback, ainda é possível criar um userscript manualmente, colar o conteúdo completo do arquivo e salvar.
 
-1. Abra o Dashboard do Tampermonkey.
-2. Crie um novo userscript.
-3. Substitua o conteúdo padrão pelo conteúdo completo de `pokepixel-hunt-analyzer.user.js`.
-4. Salve.
-5. Recarregue `https://pokepixel.nietore.com/`.
+## 3. Atualizações pelo Tampermonkey
 
-O HUD `PX` deve aparecer na interface do jogo.
+A partir da **v1.11.0**, o userscript PROD inclui o canal nativo de atualização do Tampermonkey.
+
+- o Tampermonkey consulta `pokepixel-hunt-analyzer.meta.js`, um manifest leve usado para comparar versões;
+- quando uma atualização é aceita, o Tampermonkey obtém `pokepixel-hunt-analyzer.user.js`;
+- aviso, frequência de verificação e instalação automática continuam sob controle das configurações do próprio Tampermonkey;
+- o Analyzer não consulta GitHub em runtime e não possui popup/banner próprio de atualização.
+
+Quem estiver em **v1.10.0 ou anterior precisa instalar a v1.11.0 manualmente uma última vez**. Depois disso, o canal nativo fica registrado no Tampermonkey para releases futuras.
+
+Recarregue `https://pokepixel.nietore.com/` após instalar/atualizar. O HUD `PX` deve aparecer normalmente.
+
+Contrato completo: [`docs/TAMPERMONKEY_UPDATES.md`](docs/TAMPERMONKEY_UPDATES.md).
 
 ---
 
@@ -268,12 +275,11 @@ Isso evita contagem duplicada.
 
 # Atualizando
 
-1. baixe o `.user.js` da nova release;
-2. substitua o conteúdo do script no Tampermonkey;
-3. salve;
-4. recarregue o PokePixel.
+**v1.10.0 ou anterior:** faça a atualização para v1.11.0 manualmente pelo asset `.user.js` da release. Essa é a última atualização obrigatoriamente manual para habilitar o canal nativo.
 
-Migrations compatíveis preservam os dados existentes no IndexedDB.
+**v1.11.0 em diante:** use o mecanismo de atualização do Tampermonkey. O script declara `@updateURL` para o metadata leve e `@downloadURL` para o userscript completo; o Tampermonkey decide quando avisar, verificar ou instalar conforme as preferências do usuário.
+
+Migrations compatíveis preservam os dados existentes no IndexedDB. O mecanismo de update não adiciona backend, telemetry ou permissões de runtime ao Analyzer.
 
 ---
 
@@ -293,9 +299,10 @@ npm ci
 npm run validate
 ```
 
-`npm run validate` executa os testes e gera o build **PROD**:
+`npm run validate` executa os testes, gera o build **PROD** e valida o contrato de metadata:
 
 ```text
+dist/pokepixel-hunt-analyzer.meta.js
 dist/pokepixel-hunt-analyzer.user.js
 ```
 
@@ -361,6 +368,7 @@ Documentação técnica:
 - [`docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md`](docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md)
 - [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
 - [`docs/CAPTURE_TICKETS.md`](docs/CAPTURE_TICKETS.md)
+- [`docs/TAMPERMONKEY_UPDATES.md`](docs/TAMPERMONKEY_UPDATES.md)
 - [`SECURITY.md`](SECURITY.md)
 - [`CHANGELOG.md`](CHANGELOG.md)
 

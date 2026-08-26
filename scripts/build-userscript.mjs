@@ -1,31 +1,27 @@
 import { build } from "esbuild";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { createUserscriptMetadata } from "./userscript-metadata.mjs";
 
 const packageUrl = new URL("../package.json", import.meta.url);
 const entryUrl = new URL("../userscript/main.js", import.meta.url);
 const distDirUrl = new URL("../dist/", import.meta.url);
 const outputUrl = new URL("../dist/pokepixel-hunt-analyzer.user.js", import.meta.url);
+const metadataOutputUrl = new URL("../dist/pokepixel-hunt-analyzer.meta.js", import.meta.url);
 
 const pkg = JSON.parse(await readFile(packageUrl, "utf8"));
 const isDevBuild = process.argv.includes("--dev");
 const appVersion = isDevBuild ? `${pkg.version}-dev` : pkg.version;
-const metadata = `// ==UserScript==
-// @name         ${isDevBuild ? "PokePixel Hunt Analyzer DEV" : "PokePixel Hunt Analyzer"}
-// @namespace    ${isDevBuild ? "https://github.com/leojlsv/pokepixel-hunt-analyzer/dev" : "https://github.com/leojlsv/pokepixel-analyzer-sidepanel"}
-// @version      ${appVersion}
-// @description  ${isDevBuild ? "DEV-only HuntSim compatibility build for PokePixel Hunt Analyzer." : "Passive Hunt analytics for PokePixel. Current, History and local tools."}
-// @author       Rhyxus
-// @license      MIT
-// @match        ${isDevBuild ? "https://dev.pokepixel.nietore.com/*" : "https://pokepixel.nietore.com/*"}
-// @run-at       document-start
-// @sandbox      raw
-// @grant        GM_xmlhttpRequest
-// @grant        unsafeWindow
-// @connect      img.pokemondb.net
-// ==/UserScript==`;
+const metadata = createUserscriptMetadata({ appVersion, isDevBuild });
 
 await mkdir(fileURLToPath(distDirUrl), { recursive: true });
+
+if (isDevBuild) {
+  // DEV builds must never leave behind a publishable PROD update manifest.
+  await rm(fileURLToPath(metadataOutputUrl), { force: true });
+} else {
+  await writeFile(fileURLToPath(metadataOutputUrl), metadata, "utf8");
+}
 
 await build({
   entryPoints: [fileURLToPath(entryUrl)],
@@ -47,4 +43,10 @@ await build({
   }
 });
 
-console.log(`Built dist/pokepixel-hunt-analyzer.user.js v${appVersion} (${isDevBuild ? "DEV" : "PROD"})`);
+if (isDevBuild) {
+  console.log(`Built dist/pokepixel-hunt-analyzer.user.js v${appVersion} (DEV)`);
+} else {
+  console.log(
+    `Built dist/pokepixel-hunt-analyzer.user.js and dist/pokepixel-hunt-analyzer.meta.js v${appVersion} (PROD)`
+  );
+}

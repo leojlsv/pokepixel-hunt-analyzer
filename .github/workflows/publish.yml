@@ -1,0 +1,98 @@
+# Normative release/update contract: docs/TAMPERMONKEY_UPDATES.md
+name: Publish Release
+
+on:
+  push:
+    branches:
+      - "publish/v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Validate and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout publish commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Verify publish branch and main commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH="${GITHUB_REF_NAME}"
+          VERSION="${BRANCH#publish/v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+
+          if [[ "$BRANCH" != publish/v* || -z "$VERSION" ]]; then
+            echo "Invalid publish branch: $BRANCH" >&2
+            exit 1
+          fi
+
+          if [[ "$VERSION" != "$PACKAGE_VERSION" ]]; then
+            echo "Branch version $VERSION does not match package.json $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+
+          git fetch origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+
+          if [[ "$HEAD_SHA" != "$MAIN_SHA" ]]; then
+            echo "Publish branch must point to current origin/main." >&2
+            echo "HEAD: $HEAD_SHA" >&2
+            echo "main: $MAIN_SHA" >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Audit dependencies
+        run: npm run audit:deps
+
+      - name: Test, build and verify release artifacts
+        run: npm run validate
+
+      - name: Create tag and GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="v${VERSION}"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists; refusing to overwrite an existing release version." >&2
+            exit 1
+          fi
+
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"
+
+          gh release create "$TAG" \
+            dist/pokepixel-hunt-analyzer.meta.js \
+            dist/pokepixel-hunt-analyzer.user.js \
+            --verify-tag \
+            --title "PokePixel Hunt Analyzer $TAG" \
+            --generate-notes
+
+      - name: Remove temporary publish branch
+        if: success()
+        shell: bash
+        run: git push origin --delete "$GITHUB_REF_NAME"

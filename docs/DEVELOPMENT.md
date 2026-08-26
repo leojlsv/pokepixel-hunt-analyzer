@@ -19,7 +19,7 @@ npm run audit:deps
 npm run validate
 ```
 
-`validate` runs the complete Node test suite and builds the production userscript.
+`validate` runs the complete Node test suite, builds the production userscript + metadata manifest and verifies their update contract.
 
 ## 2. Source layout
 
@@ -91,6 +91,15 @@ The production userscript currently uses:
 @connect img.pokemondb.net
 ```
 
+Production builds also declare Tampermonkey-native update metadata:
+
+```text
+@updateURL   .../releases/latest/download/pokepixel-hunt-analyzer.meta.js
+@downloadURL .../releases/latest/download/pokepixel-hunt-analyzer.user.js
+```
+
+These URLs are Tampermonkey metadata, not Analyzer runtime requests. They do not require a new `@grant` or `@connect` entry. DEV builds intentionally omit both update directives so a development userscript can never replace or join the production update channel.
+
 Do not assume the userscript's `window` is the page's JavaScript global when privileged grants are present.
 
 Any integration with page-owned runtime objects, especially `WebSocket`, must resolve and use the page window explicitly. DOM, IndexedDB, localStorage and Web Audio remain normal userscript/browser responsibilities.
@@ -115,7 +124,7 @@ Do not duplicate:
 - render pipelines;
 - application version constants.
 
-`package.json` is the authoritative application version. `package-lock.json` must be synchronized before release.
+`package.json` is the authoritative application version. `package-lock.json` must be synchronized before release. Production `.user.js` and `.meta.js` metadata are generated from that same version by `scripts/build-userscript.mjs`.
 
 ### File organization
 
@@ -197,6 +206,7 @@ Coverage areas include:
 - Capture Ticket eligibility, PNG metadata and remote image loader behavior;
 - Catch Gallery filtering/sorting/pagination;
 - Hunt deletion ordering and deletion policy;
+- userscript metadata/update-channel generation;
 - runtime helpers that can be tested without a browser.
 
 Add tests for new behavior or bug fixes whenever the behavior is deterministic outside the live game.
@@ -212,7 +222,7 @@ Required after UI/runtime/WebSocket changes:
 5. New Hunt works.
 6. Pause / Resume works.
 7. End Hunt works.
-8. Captured filters/details work; Failed shows Pokémon / IV / Pokéball / Fled at directly with Rarity/Shiny/IV filters.
+8. Captured filters/details work; Failed shows Pokémon / IV / Pokéball / Chance / Fled at directly with Rarity/Shiny/IV filters.
 9. HUD minimized values update.
 10. Drag, resize, wheel scroll and alpha work.
 11. History loads Hunts / Pokémon / Attempts and its filters/drill-downs work.
@@ -242,30 +252,43 @@ Isolated DEV protocol build:
 npm run build:userscript:dev
 ```
 
-Output:
+Production output:
 
 ```text
 dist/pokepixel-hunt-analyzer.user.js
+dist/pokepixel-hunt-analyzer.meta.js
 ```
+
+The `.meta.js` file contains only the userscript metadata block and is the lightweight endpoint Tampermonkey checks for a newer `@version`. The `.user.js` remains the install/update payload. A DEV build produces only `pokepixel-hunt-analyzer.user.js` and removes any stale production `.meta.js` from `dist/`.
 
 `dist/` is generated and must not be committed under the current release strategy.
 
 Release process:
 
-1. create `release/vX.Y.Z` from the fully validated feature stack;
-2. apply release-only cleanup and remove temporary harness/debug code;
-3. update `package.json` and synchronize `package-lock.json`;
-4. update README, CHANGELOG and affected technical docs;
-5. run `npm ci`;
-6. run `npm run audit:deps`;
-7. run `npm run validate`;
-8. build/install the **production** userscript from that exact release branch and complete section 8; for a protocol transition, also validate the isolated DEV build before the game update reaches production;
-9. open the release PR against `main` and require green CI;
-10. merge the validated release PR;
-11. tag the merged commit as `vX.Y.Z`;
-12. publish the GitHub Release with the generated `pokepixel-hunt-analyzer.user.js` asset.
+1. prepare the release version on the validated feature/release branch;
+2. update `package.json` and synchronize `package-lock.json`;
+3. update README, CHANGELOG and affected technical docs;
+4. run `npm ci`, `npm run audit:deps` and `npm run validate`;
+5. install/smoke the **production** userscript from that exact branch when runtime behavior changed;
+6. open/update the release PR against `main` and require green CI;
+7. merge the validated release PR;
+8. require green CI on the resulting `main` commit;
+9. create `publish/vX.Y.Z` from that exact merged `main` commit and push it;
+10. `.github/workflows/publish.yml` verifies version/main alignment, re-runs audit + validation, creates tag `vX.Y.Z`, publishes both update assets and removes the temporary publish branch;
+11. verify the release, both assets and the stable `releases/latest/download/...` routes before announcing it.
 
-Do not release from a temporary test/harness branch.
+The two mandatory production release assets are:
+
+```text
+pokepixel-hunt-analyzer.meta.js
+pokepixel-hunt-analyzer.user.js
+```
+
+Their filenames are a compatibility contract with already-installed Tampermonkey scripts and must not be renamed.
+
+The complete update/release contract, bootstrap behavior, invariants, smoke procedure, hotfix policy and post-release checklist live in [`TAMPERMONKEY_UPDATES.md`](TAMPERMONKEY_UPDATES.md). Treat that document as normative for every release from v1.11.0 onward.
+
+Do not release from a temporary test/harness branch. The only publication branch pattern is `publish/vX.Y.Z`, created after merge from the current `main` commit.
 
 ## 10. Security
 

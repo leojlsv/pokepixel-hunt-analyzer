@@ -3,6 +3,20 @@
 All notable project changes should be recorded here.
 The project follows Semantic Versioning.
 
+
+## [1.11.0] - 2026-08-26
+
+### Native Tampermonkey updates
+- Production builds now declare stable `@updateURL` and `@downloadURL` metadata so update discovery and installation are controlled by Tampermonkey rather than by Analyzer runtime code.
+- Production builds now generate a lightweight `pokepixel-hunt-analyzer.meta.js` alongside the full `.user.js`; DEV builds remain isolated and publish no update metadata.
+- Added automated checks that the package version, production metadata, userscript header and canonical update URLs remain consistent.
+- Added a guarded `publish/vX.Y.Z` release workflow that only publishes from the current merged `main` commit and uploads both stable update assets.
+- Added `docs/TAMPERMONKEY_UPDATES.md` as the normative release/update contract, including bootstrap, invariants, smoke testing, hotfixes and post-release verification.
+
+### Bootstrap note
+- v1.11.0 is the first release carrying the native update channel. Users on v1.10.0 or older must install v1.11.0 manually once; subsequent releases can be detected by Tampermonkey.
+- No Analyzer UI update notification, GitHub runtime polling, IndexedDB migration, new dependency, grant or `@connect` permission was added.
+
 ## [1.10.0] - 2026-08-26
 
 ### Current capture analytics
