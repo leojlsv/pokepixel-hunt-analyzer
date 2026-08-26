@@ -37,6 +37,7 @@ function sessionStatus(session) {
 function emptyMetrics() {
   return {
     status: "waiting",
+    startedAtMs: null,
     activeMs: 0,
     trainerExp: 0,
     trainerExpPerHour: null,
@@ -79,6 +80,7 @@ export function refreshSessionMetrics(metrics, session, now = Date.now()) {
   return {
     ...base,
     status: sessionStatus(session),
+    startedAtMs: Number.isFinite(session.startedAtMs) ? session.startedAtMs : null,
     activeMs: elapsedMs,
     trainerExpPerHour: perHour(base.trainerExp || 0, elapsedMs),
     pokemonExpPerHour: perHour(base.pokemonExp || 0, elapsedMs),

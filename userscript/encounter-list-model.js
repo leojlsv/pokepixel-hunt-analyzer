@@ -3,6 +3,8 @@ export const DEFAULT_ENCOUNTER_SORT = Object.freeze({
   direction: "desc"
 });
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function finiteOrNull(value) {
   if (value == null || value === "") return null;
   const number = Number(value);
@@ -21,8 +23,20 @@ function compareNullableNumbers(a, b, direction) {
   return direction === "asc" ? result : -result;
 }
 
+function passesRarityFilter(encounter, filters) {
+  if (filters.rarities instanceof Set) {
+    return filters.rarities.has(encounter.quality);
+  }
+
+  // Backward-compatible fallback for callers/tests using the old single-value
+  // shape. `rarities: null` is the new explicit "All (*)" state.
+  return filters.rarity === undefined ||
+    filters.rarity === "*" ||
+    encounter.quality === filters.rarity;
+}
+
 export function passesEncounterFilters(encounter, filters) {
-  if (filters.rarity !== "*" && encounter.quality !== filters.rarity) return false;
+  if (!passesRarityFilter(encounter, filters)) return false;
 
   if (filters.qualityMin != null && !(
     Number.isFinite(encounter.qualityMultiplier) &&
@@ -68,14 +82,45 @@ export function sortEncounters(encounters, sort = DEFAULT_ENCOUNTER_SORT) {
   return [...encounters].sort((a, b) => compareEncounters(a, b, sort));
 }
 
-export function formatCaptureTimestamp(value) {
+function captureDate(value) {
   const milliseconds = finiteOrNull(value);
-  if (milliseconds == null) return "—";
+  if (milliseconds == null) return null;
 
   const date = new Date(milliseconds);
-  if (Number.isNaN(date.getTime())) return "—";
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
-  const pad = (part) => String(part).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
-    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+function padTimePart(part) {
+  return String(part).padStart(2, "0");
+}
+
+function localCalendarDay(date) {
+  return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY_MS);
+}
+
+export function formatCaptureTime(value) {
+  const date = captureDate(value);
+  if (!date) return "—";
+
+  return `${padTimePart(date.getHours())}:${padTimePart(date.getMinutes())}:${padTimePart(date.getSeconds())}`;
+}
+
+export function formatCurrentHuntTimestamp(value, huntStartedAtMs) {
+  const date = captureDate(value);
+  if (!date) return "—";
+
+  const time = formatCaptureTime(value);
+  const huntDate = captureDate(huntStartedAtMs);
+  if (!huntDate) return time;
+
+  const dayOffset = Math.max(0, localCalendarDay(date) - localCalendarDay(huntDate));
+  return dayOffset > 0 ? `+${dayOffset}d ${time}` : time;
+}
+
+export function formatCaptureTimestamp(value) {
+  const date = captureDate(value);
+  if (!date) return "—";
+
+  return `${date.getFullYear()}-${padTimePart(date.getMonth() + 1)}-${padTimePart(date.getDate())} ` +
+    formatCaptureTime(value);
 }

@@ -4,7 +4,6 @@ import {
   formatDuration,
   formatNumber,
   formatRate,
-  populateSelect,
   rarityClass,
   renderShinyCount,
   speciesLabel
@@ -12,6 +11,7 @@ import {
 import {
   DEFAULT_ENCOUNTER_SORT,
   compareEncounters,
+  formatCurrentHuntTimestamp,
   formatCaptureTimestamp,
   passesEncounterFilters,
   sortEncounters
@@ -19,6 +19,7 @@ import {
 import { latestSpeciesEncounter } from "./hunt-view-model.js";
 
 const RARE_PLUS_KEYS = new Set(["rare", "epic", "legendary", "mythical"]);
+const RARITY_LABELS = new Map(RARITIES);
 const LIST_RENDER_BATCH = 100;
 const LIST_LOAD_THRESHOLD_PX = 48;
 
@@ -78,13 +79,13 @@ function scheduleFrame(callback) {
 function createListState(prefix) {
   return {
     prefix,
-    filters: { rarity: "*", qualityMin: null, ivMin: null, shiny: "*" },
+    // `null` means All (*), including an unexpected future/unknown rarity.
+    filters: { rarities: null, qualityMin: null, ivMin: null, shiny: "*" },
     sort: { ...DEFAULT_ENCOUNTER_SORT },
     byId: new Map(),
     visible: [],
     rows: new Map(),
     expandedIds: new Set(),
-    raritySignature: "",
     renderToken: 0,
     rendering: false,
     renderedCount: 0
@@ -107,6 +108,7 @@ function encounterChanged(previous, next) {
 
 export function createCurrentView(shadow) {
   let currentSessionId;
+  let currentHuntStartedAtMs = null;
   let lastEncounterSnapshotVersion = -1;
   const lists = {
     captured: createListState("captured"),
@@ -117,13 +119,51 @@ export function createCurrentView(shadow) {
   bindListControls("failed");
   renderHudSummary({ seen: 0, seenPerHour: null });
 
+  function bindRarityFilter(prefix, state) {
+    const root = shadow.getElementById(`${prefix}-rarity`);
+    const all = root.querySelector("[data-rarity-all]");
+    const options = [...root.querySelectorAll("[data-rarity-value]")];
+    const label = shadow.getElementById(`${prefix}-rarity-label`);
+
+    const sync = () => {
+      const selected = options
+        .filter((input) => input.checked)
+        .map((input) => input.dataset.rarityValue);
+      const allSelected = selected.length === options.length;
+
+      all.checked = allSelected;
+      state.filters.rarities = allSelected ? null : new Set(selected);
+
+      if (allSelected) {
+        label.textContent = "All (*)";
+      } else if (selected.length === 0) {
+        label.textContent = "None";
+      } else if (selected.length === 1) {
+        label.textContent = RARITY_LABELS.get(selected[0]) || selected[0];
+      } else {
+        label.textContent = `${selected.length} selected`;
+      }
+    };
+
+    root.addEventListener("change", (event) => {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement)) return;
+
+      if (input.hasAttribute("data-rarity-all")) {
+        for (const option of options) option.checked = input.checked;
+      }
+
+      sync();
+      rebuildEncounterList(prefix);
+    });
+
+    sync();
+  }
+
   function bindListControls(prefix) {
     const state = lists[prefix];
 
-    shadow.getElementById(`${prefix}-rarity`).addEventListener("change", (event) => {
-      state.filters.rarity = event.target.value;
-      rebuildEncounterList(prefix);
-    });
+    bindRarityFilter(prefix, state);
     shadow.getElementById(`${prefix}-shiny`).addEventListener("change", (event) => {
       state.filters.shiny = event.target.value;
       rebuildEncounterList(prefix);
@@ -170,6 +210,7 @@ export function createCurrentView(shadow) {
     const encounterSnapshotChanged =
       sessionChanged || lastEncounterSnapshotVersion !== encounterSnapshotVersion;
     currentSessionId = sessionId;
+    currentHuntStartedAtMs = Number.isFinite(metrics?.startedAtMs) ? metrics.startedAtMs : null;
     lastEncounterSnapshotVersion = encounterSnapshotVersion;
 
     renderMetrics(metrics);
@@ -213,6 +254,8 @@ export function createCurrentView(shadow) {
       ? "—" : formatCompact(metrics.goldPerHour);
     shadow.getElementById("expenses-total").textContent = formatCompact(metrics.expenses);
 
+    // metrics.gold already includes realized capture auto-sell proceeds
+    // (`capture.success.auto_sell_value`) in addition to kill gold.
     const profit = metrics.gold - metrics.expenses;
     const profitTotal = shadow.getElementById("profit-total");
     profitTotal.textContent = formatCompact(profit);
@@ -291,7 +334,6 @@ export function createCurrentView(shadow) {
     for (const expandedId of [...state.expandedIds]) {
       if (!state.byId.has(expandedId)) state.expandedIds.delete(expandedId);
     }
-    syncRarityOptions(prefix);
 
     if (reset || removed || state.rendering) {
       if (reset) state.expandedIds.clear();
@@ -304,20 +346,6 @@ export function createCurrentView(shadow) {
     }
 
     updateCount(prefix);
-  }
-
-  function syncRarityOptions(prefix) {
-    const state = lists[prefix];
-    const values = [...new Set(
-      [...state.byId.values()].map((encounter) => encounter.quality).filter(Boolean)
-    )].sort();
-    const signature = values.join("|");
-    if (signature === state.raritySignature) return;
-
-    state.raritySignature = signature;
-    const select = shadow.getElementById(`${prefix}-rarity`);
-    populateSelect(select, values);
-    state.filters.rarity = select.value;
   }
 
   function updateSortIndicators(prefix) {
@@ -494,11 +522,19 @@ export function createCurrentView(shadow) {
       capsuleCell.textContent = encounter.capsuleName || "—";
       capsuleCell.title = encounter.capsuleName || "Unknown Pokéball";
 
+      const chanceCell = document.createElement("td");
+      chanceCell.className = "chance-cell";
+      chanceCell.textContent = formatRate(encounter.captureChance);
+
       const timestampCell = document.createElement("td");
       timestampCell.className = "timestamp-cell";
-      timestampCell.textContent = formatCaptureTimestamp(encounter.captureAtMs);
+      timestampCell.textContent = formatCurrentHuntTimestamp(
+        encounter.captureAtMs,
+        currentHuntStartedAtMs
+      );
+      timestampCell.title = formatCaptureTimestamp(encounter.captureAtMs);
 
-      row.append(pokemonCell, ivCell, capsuleCell, timestampCell);
+      row.append(pokemonCell, ivCell, capsuleCell, chanceCell, timestampCell);
       return row;
     }
 

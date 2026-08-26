@@ -3,6 +3,20 @@
 All notable project changes should be recorded here.
 The project follows Semantic Versioning.
 
+## [1.10.0] - 2026-08-26
+
+### Current capture analytics
+- Captured and Failed Rarity filters now support checkbox multi-select instead of a single rarity at a time; `All (*)` selects every known rarity and preserves the explicit unfiltered state.
+- Current > Failed now exposes the protocol-reported capture `Chance` directly in the table alongside `Pokémon | IV | Pokéball | Fled at`.
+- `Fled at` now disambiguates Hunts that cross local calendar days: same-day rows remain `HH:mm:ss`, while later dates render as `+1d HH:mm:ss`, `+2d HH:mm:ss`, and so on; the full local timestamp remains available in the hover title.
+- Hunt start time is included in Current session metrics so day-offset rendering stays deterministic without changing persisted encounter data.
+- Profit behavior remains unchanged and verified: realized capture auto-sell proceeds are already included in Dollar before Expenses are subtracted.
+
+### Validation
+- Added unit coverage for multi-rarity filtering, explicit `All (*)`, empty selections and cross-day `Fled at` formatting.
+- Manual in-game validation approved before merge.
+- No IndexedDB migration, dependency change or new external permission is required.
+
 ## [1.9.1] - 2026-08-26
 
 ### Hunt lifecycle UX

@@ -22,6 +22,29 @@ function createRarityOptionsMarkup() {
   ].join("");
 }
 
+function createCurrentRarityFilterMarkup(prefix) {
+  const options = RARITIES.map(([key, label]) => `
+          <label class="rarity-check-option">
+            <input type="checkbox" data-rarity-value="${key}" checked>
+            <span class="rarity-${key}">${label}</span>
+          </label>`).join("");
+
+  return `
+      <div class="filter-field" style="min-width:0">
+        <span>Rarity</span>
+        <details id="${prefix}-rarity" class="rarity-multiselect">
+          <summary><span id="${prefix}-rarity-label">All (*)</span></summary>
+          <div class="rarity-check-menu">
+            <label class="rarity-check-option rarity-check-all">
+              <input type="checkbox" data-rarity-all checked>
+              <span>All (*)</span>
+            </label>
+            ${options}
+          </div>
+        </details>
+      </div>`;
+}
+
 function createHudRarityMarkup() {
   return RARITIES.map(([key, label], index) => {
     const separator = index < RARITIES.length - 1
@@ -39,18 +62,19 @@ function sortableHeader(prefix, key, label, title = "") {
 function createEncounterSectionMarkup(prefix, title) {
   const filterStyle = "min-width:0";
   const isFailed = prefix === "failed";
+  const rarityFilter = createCurrentRarityFilterMarkup(prefix);
   const filters = isFailed
     ? `
-        <label style="${filterStyle}">Rarity<select id="${prefix}-rarity"></select></label>
+        ${rarityFilter}
         <label style="${filterStyle}">Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
         <label style="${filterStyle}">IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>`
     : `
-        <label style="${filterStyle}">Rarity<select id="${prefix}-rarity"></select></label>
+        ${rarityFilter}
         <label style="${filterStyle}">Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
         <label style="${filterStyle}">Quality &gt;<input id="${prefix}-quality" type="number" step="0.01"></label>
         <label style="${filterStyle}">IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>`;
   const headers = isFailed
-    ? `<th>Pokémon</th>${sortableHeader(prefix, "iv", "IV", "Order by IV Total")}<th>Pokéball</th>${sortableHeader(prefix, "capturedAt", "Fled at", "Order by fail timestamp")}`
+    ? `<th>Pokémon</th>${sortableHeader(prefix, "iv", "IV", "Order by IV Total")}<th>Pokéball</th><th>Chance</th>${sortableHeader(prefix, "capturedAt", "Fled at", "Order by fail timestamp")}`
     : `${sortableHeader(prefix, "capturedAt", "Pokémon", "Order by capture timestamp")}<th title="Gender">G</th><th>Nat</th>${sortableHeader(prefix, "quality", "Qlt", "Order by Quality")}${sortableHeader(prefix, "iv", "HP · Atk · sAtk · Def · sDef · SpD", "Order by IV Total")}`;
   const columns = isFailed ? 3 : 4;
 
@@ -173,12 +197,108 @@ export function createUiMarkup() {
       .live-card.hunt-collapsed .status-row { display:flex; }
       .live-card.hunt-collapsed .metric-cards { display:none; }
       .live-card.hunt-collapsed .actions { justify-content:flex-end; }
+
+      .encounter-section { overflow:visible; }
+      .filters .filter-field {
+        min-width:90px;
+        display:flex;
+        flex-direction:column;
+        gap:3px;
+      }
+      .filters .filter-field > span {
+        color:#c0ad72;
+        font-size:9px;
+        letter-spacing:.025em;
+        text-transform:uppercase;
+      }
+      .rarity-multiselect {
+        position:relative;
+        min-width:0;
+        color:var(--text);
+        font-size:10px;
+      }
+      .rarity-multiselect summary {
+        height:27px;
+        padding:5px 22px 5px 5px;
+        display:flex;
+        align-items:center;
+        overflow:hidden;
+        border:1px solid var(--border);
+        border-radius:3px;
+        background:var(--bg);
+        color:var(--text);
+        cursor:pointer;
+        list-style:none;
+        user-select:none;
+        white-space:nowrap;
+      }
+      .rarity-multiselect summary::-webkit-details-marker { display:none; }
+      .rarity-multiselect summary::after {
+        content:"▾";
+        position:absolute;
+        right:7px;
+        color:var(--muted);
+        line-height:1;
+      }
+      .rarity-multiselect[open] summary {
+        border-color:var(--gold-soft);
+      }
+      .rarity-check-menu {
+        position:absolute;
+        z-index:30;
+        top:30px;
+        left:0;
+        min-width:140px;
+        max-height:220px;
+        padding:4px;
+        overflow:auto;
+        border:1px solid var(--border);
+        border-radius:3px;
+        background:#22231f;
+        box-shadow:0 6px 18px rgba(0,0,0,.38);
+      }
+      .filters .rarity-check-option {
+        min-width:0;
+        min-height:24px;
+        padding:3px 5px;
+        display:flex;
+        flex:none;
+        flex-direction:row;
+        align-items:center;
+        gap:6px;
+        color:var(--text);
+        font-size:10px;
+        letter-spacing:0;
+        text-transform:none;
+        cursor:pointer;
+      }
+      .filters .rarity-check-option:hover { background:#30312c; }
+      .filters .rarity-check-option input {
+        width:12px;
+        min-width:12px;
+        height:12px;
+        margin:0;
+        padding:0;
+        accent-color:#c0ad72;
+      }
+      .filters .rarity-check-all {
+        margin-bottom:3px;
+        padding-bottom:5px;
+        border-bottom:1px solid #383934;
+        color:var(--gold);
+      }
+
+      #failed-section .table-wrap { overflow-x:hidden; }
       #failed-section table { table-layout:fixed; }
-      #failed-section th:nth-child(1), #failed-section td:nth-child(1) { width:28%; }
-      #failed-section th:nth-child(2), #failed-section td:nth-child(2) { width:12%; text-align:right; }
+      #failed-section th:nth-child(1), #failed-section td:nth-child(1) { width:24%; }
+      #failed-section th:nth-child(2), #failed-section td:nth-child(2) { width:10%; text-align:right; }
       #failed-section th:nth-child(3), #failed-section td:nth-child(3) { width:24%; }
-      #failed-section th:nth-child(4), #failed-section td:nth-child(4) { width:36%; }
+      #failed-section th:nth-child(4), #failed-section td:nth-child(4) { width:14%; text-align:right; }
+      #failed-section th:nth-child(5), #failed-section td:nth-child(5) { width:28%; }
+      #failed-section td:nth-child(1),
+      #failed-section td:nth-child(3) { overflow:hidden; text-overflow:ellipsis; }
       #failed-section .failed-static-row { cursor:default; }
+      #failed-section .chance-cell,
       #failed-section .timestamp-cell { font-variant-numeric:tabular-nums; }
     </style>
     <button id="pha-toggle" class="launcher" type="button" aria-label="PokePixel Hunt Analyzer" style="min-width:220px;width:max-content;max-width:calc(100vw - 32px)">
