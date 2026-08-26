@@ -30,13 +30,13 @@ test("confirmed new serverSessionId -> new_hunt, regardless of zoneId", () => {
   assert.deepEqual(result, { action: "new_hunt" });
 });
 
-test("isolated zoneId change (same serverSessionId) -> update_zone, not new_hunt", () => {
+test("confirmed zoneId change with same serverSessionId -> new_hunt", () => {
   const result = decideSessionTransition(
     { serverSessionId: "server_session_0001", zoneId: "zone_0001" },
     { serverSessionId: "server_session_0001", zoneId: "zone_0002" }
   );
 
-  assert.deepEqual(result, { action: "update_zone" });
+  assert.deepEqual(result, { action: "new_hunt" });
 });
 
 test("no observed serverSessionId -> none (nothing to decide)", () => {
@@ -48,7 +48,7 @@ test("no observed serverSessionId -> none (nothing to decide)", () => {
   assert.deepEqual(result, { action: "none" });
 });
 
-test("missing current zoneId does not falsely report update_zone", () => {
+test("missing current zoneId does not falsely start a new hunt", () => {
   const result = decideSessionTransition(
     { serverSessionId: "server_session_0001", zoneId: null },
     { serverSessionId: "server_session_0001", zoneId: "zone_0001" }
