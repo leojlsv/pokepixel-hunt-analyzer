@@ -11,6 +11,7 @@ import {
 import {
   DEFAULT_ENCOUNTER_SORT,
   compareEncounters,
+  formatCaptureTime,
   formatCaptureTimestamp,
   passesEncounterFilters,
   sortEncounters
@@ -525,7 +526,8 @@ export function createCurrentView(shadow) {
 
       const timestampCell = document.createElement("td");
       timestampCell.className = "timestamp-cell";
-      timestampCell.textContent = formatCaptureTimestamp(encounter.captureAtMs);
+      timestampCell.textContent = formatCaptureTime(encounter.captureAtMs);
+      timestampCell.title = formatCaptureTimestamp(encounter.captureAtMs);
 
       row.append(pokemonCell, ivCell, capsuleCell, chanceCell, timestampCell);
       return row;
