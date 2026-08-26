@@ -1,0 +1,213 @@
+name: Prepare v1.11 docs
+
+on:
+  push:
+    branches:
+      - feature/tampermonkey-native-updates
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Update release documentation
+        shell: python
+        run: |
+          from pathlib import Path
+
+          readme = Path("README.md")
+          text = readme.read_text(encoding="utf-8")
+          text = text.replace("**Versão:** `v1.10.0`", "**Versão:** `v1.11.0`")
+
+          old_install = '''## 2. Baixe o userscript
+
+          Na release mais recente, baixe:
+
+          ```text
+          pokepixel-hunt-analyzer.user.js
+          ```
+
+          ### [⬇️ Releases](https://github.com/leojlsv/pokepixel-hunt-analyzer/releases/latest)
+
+          ## 3. Instale no Tampermonkey
+
+          1. Abra o Dashboard do Tampermonkey.
+          2. Crie um novo userscript.
+          3. Substitua o conteúdo padrão pelo conteúdo completo de `pokepixel-hunt-analyzer.user.js`.
+          4. Salve.
+          5. Recarregue `https://pokepixel.nietore.com/`.
+
+          O HUD `PX` deve aparecer na interface do jogo.
+          '''.replace("          ", "")
+
+          new_install = '''## 2. Instale o userscript
+
+          Na release mais recente, use o asset:
+
+          ```text
+          pokepixel-hunt-analyzer.user.js
+          ```
+
+          ### [⬇️ Releases](https://github.com/leojlsv/pokepixel-hunt-analyzer/releases/latest)
+
+          Ao abrir o `.user.js`, o Tampermonkey deve oferecer a instalação. Como fallback, ainda é possível criar um userscript manualmente, colar o conteúdo completo do arquivo e salvar.
+
+          ## 3. Atualizações pelo Tampermonkey
+
+          A partir da **v1.11.0**, o userscript PROD inclui o canal nativo de atualização do Tampermonkey.
+
+          - o Tampermonkey consulta um `pokepixel-hunt-analyzer.meta.js` leve para comparar versões;
+          - quando uma versão nova é aceita, o Tampermonkey baixa `pokepixel-hunt-analyzer.user.js`;
+          - aviso, frequência de verificação e instalação automática continuam sob controle das configurações do próprio Tampermonkey;
+          - o Analyzer não consulta GitHub em runtime e não possui popup/banner próprio de atualização.
+
+          Quem estiver em **v1.10.0 ou anterior precisa instalar a v1.11.0 manualmente uma última vez**. Depois disso, o canal nativo fica registrado no Tampermonkey para as versões futuras.
+
+          Recarregue `https://pokepixel.nietore.com/` após instalar/atualizar. O HUD `PX` deve aparecer normalmente.
+
+          Detalhes e contrato de release: [`docs/TAMPERMONKEY_UPDATES.md`](docs/TAMPERMONKEY_UPDATES.md).
+          '''.replace("          ", "")
+
+          if old_install not in text:
+              raise SystemExit("README installation block not found")
+          text = text.replace(old_install, new_install)
+
+          old_update = '''# Atualizando
+
+          1. baixe o `.user.js` da nova release;
+          2. substitua o conteúdo do script no Tampermonkey;
+          3. salve;
+          4. recarregue o PokePixel.
+
+          Migrations compatíveis preservam os dados existentes no IndexedDB.
+          '''.replace("          ", "")
+          new_update = '''# Atualizando
+
+          **v1.10.0 ou anterior:** faça a atualização para v1.11.0 manualmente pelo asset `.user.js` da release. Essa é a última atualização obrigatoriamente manual para habilitar o canal nativo.
+
+          **v1.11.0 em diante:** use o mecanismo de atualização do Tampermonkey. O script declara `@updateURL` para o metadata leve e `@downloadURL` para o userscript completo; o Tampermonkey decide quando avisar/verificar/instalar conforme as preferências do usuário.
+
+          Migrations compatíveis preservam os dados existentes no IndexedDB. O mecanismo de update não adiciona backend, telemetry ou permissões de runtime ao Analyzer.
+          '''.replace("          ", "")
+          if old_update not in text:
+              raise SystemExit("README update block not found")
+          text = text.replace(old_update, new_update)
+
+          old_build = '''`npm run validate` executa os testes e gera o build **PROD**:
+
+          ```text
+          dist/pokepixel-hunt-analyzer.user.js
+          ```
+          '''.replace("          ", "")
+          new_build = '''`npm run validate` executa os testes, gera o build **PROD** e valida o contrato de metadata:
+
+          ```text
+          dist/pokepixel-hunt-analyzer.meta.js
+          dist/pokepixel-hunt-analyzer.user.js
+          ```
+          '''.replace("          ", "")
+          if old_build not in text:
+              raise SystemExit("README build block not found")
+          text = text.replace(old_build, new_build)
+
+          docs_anchor = "- [`docs/CAPTURE_TICKETS.md`](docs/CAPTURE_TICKETS.md)"
+          text = text.replace(docs_anchor, docs_anchor + "\n- [`docs/TAMPERMONKEY_UPDATES.md`](docs/TAMPERMONKEY_UPDATES.md)")
+          readme.write_text(text, encoding="utf-8")
+
+          development = Path("docs/DEVELOPMENT.md")
+          text = development.read_text(encoding="utf-8")
+          text = text.replace(
+              "`validate` runs the complete Node test suite and builds the production userscript.",
+              "`validate` runs the complete Node test suite, builds the production userscript + metadata manifest and verifies their update contract."
+          )
+          text = text.replace(
+              '''Output:\n\n```text\ndist/pokepixel-hunt-analyzer.user.js\n```''',
+              '''Output:\n\n```text\ndist/pokepixel-hunt-analyzer.meta.js\ndist/pokepixel-hunt-analyzer.user.js\n```'''
+          )
+          old_release = '''Release process:
+
+          1. create `release/vX.Y.Z` from the fully validated feature stack;
+          2. apply release-only cleanup and remove temporary harness/debug code;
+          3. update `package.json` and synchronize `package-lock.json`;
+          4. update README, CHANGELOG and affected technical docs;
+          5. run `npm ci`;
+          6. run `npm run audit:deps`;
+          7. run `npm run validate`;
+          8. build/install the **production** userscript from that exact release branch and complete section 8; for a protocol transition, also validate the isolated DEV build before the game update reaches production;
+          9. open the release PR against `main` and require green CI;
+          10. merge the validated release PR;
+          11. tag the merged commit as `vX.Y.Z`;
+          12. publish the GitHub Release with the generated `pokepixel-hunt-analyzer.user.js` asset.
+
+          Do not release from a temporary test/harness branch.
+          '''.replace("          ", "")
+          new_release = '''Release process:
+
+          1. prepare the release version on the validated feature/release branch;
+          2. update `package.json` and synchronize `package-lock.json`;
+          3. update README, CHANGELOG and affected technical docs;
+          4. run `npm ci`, `npm run audit:deps` and `npm run validate`;
+          5. install/smoke the **production** userscript from that exact branch when runtime behavior changed;
+          6. open/update the release PR against `main` and require green CI;
+          7. merge the validated release PR;
+          8. require green CI on the resulting `main` commit;
+          9. create `publish/vX.Y.Z` from that exact merged `main` commit and push it;
+          10. `.github/workflows/publish.yml` verifies version/main alignment, re-runs audit + validation, creates tag `vX.Y.Z`, publishes both update assets and removes the temporary publish branch;
+          11. verify the release, both assets and the stable `releases/latest/download/...` routes before announcing it.
+
+          The two mandatory production release assets are:
+
+          ```text
+          pokepixel-hunt-analyzer.meta.js
+          pokepixel-hunt-analyzer.user.js
+          ```
+
+          Their filenames are a compatibility contract with already-installed Tampermonkey scripts and must not be renamed.
+
+          The complete update/release contract, bootstrap behavior, invariants, smoke procedure, hotfix policy and post-release checklist live in [`TAMPERMONKEY_UPDATES.md`](TAMPERMONKEY_UPDATES.md). Treat that document as normative for every release from v1.11.0 onward.
+
+          Do not release from a temporary test/harness branch. The only publication branch pattern is `publish/vX.Y.Z`, created after merge from the current `main` commit.
+          '''.replace("          ", "")
+          if old_release not in text:
+              raise SystemExit("DEVELOPMENT release block not found")
+          text = text.replace(old_release, new_release)
+          development.write_text(text, encoding="utf-8")
+
+          changelog = Path("CHANGELOG.md")
+          text = changelog.read_text(encoding="utf-8")
+          marker = "The project follows Semantic Versioning.\n"
+          entry = '''
+
+          ## [1.11.0] - 2026-08-26
+
+          ### Native Tampermonkey updates
+          - Production builds now declare stable `@updateURL` and `@downloadURL` metadata so update discovery and installation are controlled by Tampermonkey rather than by Analyzer runtime code.
+          - Production builds now generate a lightweight `pokepixel-hunt-analyzer.meta.js` alongside the full `.user.js`; DEV builds remain isolated and publish no update metadata.
+          - Added automated checks that the package version, production metadata, userscript header and canonical update URLs remain consistent.
+          - Added a guarded `publish/vX.Y.Z` release workflow that only publishes from the current merged `main` commit and uploads both stable update assets.
+          - Added `docs/TAMPERMONKEY_UPDATES.md` as the normative release/update contract, including bootstrap, invariants, smoke testing, hotfixes and post-release verification.
+
+          ### Bootstrap note
+          - v1.11.0 is the first release carrying the native update channel. Users on v1.10.0 or older must install v1.11.0 manually once; subsequent releases can be detected by Tampermonkey.
+          - No Analyzer UI update notification, GitHub runtime polling, IndexedDB migration, new dependency, grant or `@connect` permission was added.
+          '''.replace("          ", "")
+          if "## [1.11.0]" not in text:
+              text = text.replace(marker, marker + entry)
+          changelog.write_text(text, encoding="utf-8")
+
+      - name: Commit documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- README.md docs/DEVELOPMENT.md CHANGELOG.md; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md docs/DEVELOPMENT.md CHANGELOG.md
+          git commit -m "docs: finalize v1.11.0 update and release guidance"
+          git push origin HEAD:feature/tampermonkey-native-updates
