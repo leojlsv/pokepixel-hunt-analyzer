@@ -3,6 +3,8 @@ export const DEFAULT_ENCOUNTER_SORT = Object.freeze({
   direction: "desc"
 });
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 function finiteOrNull(value) {
   if (value == null || value === "") return null;
   const number = Number(value);
@@ -92,11 +94,27 @@ function padTimePart(part) {
   return String(part).padStart(2, "0");
 }
 
+function localCalendarDay(date) {
+  return Math.floor(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY_MS);
+}
+
 export function formatCaptureTime(value) {
   const date = captureDate(value);
   if (!date) return "—";
 
   return `${padTimePart(date.getHours())}:${padTimePart(date.getMinutes())}:${padTimePart(date.getSeconds())}`;
+}
+
+export function formatCurrentHuntTimestamp(value, huntStartedAtMs) {
+  const date = captureDate(value);
+  if (!date) return "—";
+
+  const time = formatCaptureTime(value);
+  const huntDate = captureDate(huntStartedAtMs);
+  if (!huntDate) return time;
+
+  const dayOffset = Math.max(0, localCalendarDay(date) - localCalendarDay(huntDate));
+  return dayOffset > 0 ? `+${dayOffset}d ${time}` : time;
 }
 
 export function formatCaptureTimestamp(value) {
