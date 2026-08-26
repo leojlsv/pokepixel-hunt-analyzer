@@ -197,6 +197,97 @@ export function createUiMarkup() {
       .live-card.hunt-collapsed .status-row { display:flex; }
       .live-card.hunt-collapsed .metric-cards { display:none; }
       .live-card.hunt-collapsed .actions { justify-content:flex-end; }
+
+      .encounter-section { overflow:visible; }
+      .filters .filter-field {
+        min-width:90px;
+        display:flex;
+        flex-direction:column;
+        gap:3px;
+      }
+      .filters .filter-field > span {
+        color:#c0ad72;
+        font-size:9px;
+        letter-spacing:.025em;
+        text-transform:uppercase;
+      }
+      .rarity-multiselect {
+        position:relative;
+        min-width:0;
+        color:var(--text);
+        font-size:10px;
+      }
+      .rarity-multiselect summary {
+        height:27px;
+        padding:5px 22px 5px 5px;
+        display:flex;
+        align-items:center;
+        overflow:hidden;
+        border:1px solid var(--border);
+        border-radius:3px;
+        background:var(--bg);
+        color:var(--text);
+        cursor:pointer;
+        list-style:none;
+        user-select:none;
+        white-space:nowrap;
+      }
+      .rarity-multiselect summary::-webkit-details-marker { display:none; }
+      .rarity-multiselect summary::after {
+        content:"▾";
+        position:absolute;
+        right:7px;
+        color:var(--muted);
+        line-height:1;
+      }
+      .rarity-multiselect[open] summary {
+        border-color:var(--gold-soft);
+      }
+      .rarity-check-menu {
+        position:absolute;
+        z-index:30;
+        top:30px;
+        left:0;
+        min-width:140px;
+        max-height:220px;
+        padding:4px;
+        overflow:auto;
+        border:1px solid var(--border);
+        border-radius:3px;
+        background:#22231f;
+        box-shadow:0 6px 18px rgba(0,0,0,.38);
+      }
+      .filters .rarity-check-option {
+        min-width:0;
+        min-height:24px;
+        padding:3px 5px;
+        display:flex;
+        flex:none;
+        flex-direction:row;
+        align-items:center;
+        gap:6px;
+        color:var(--text);
+        font-size:10px;
+        letter-spacing:0;
+        text-transform:none;
+        cursor:pointer;
+      }
+      .filters .rarity-check-option:hover { background:#30312c; }
+      .filters .rarity-check-option input {
+        width:12px;
+        min-width:12px;
+        height:12px;
+        margin:0;
+        padding:0;
+        accent-color:#c0ad72;
+      }
+      .filters .rarity-check-all {
+        margin-bottom:3px;
+        padding-bottom:5px;
+        border-bottom:1px solid #383934;
+        color:var(--gold);
+      }
+
       #failed-section table { table-layout:fixed; }
       #failed-section th:nth-child(1), #failed-section td:nth-child(1) { width:27%; }
       #failed-section th:nth-child(2), #failed-section td:nth-child(2) { width:11%; text-align:right; }
