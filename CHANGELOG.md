@@ -3,6 +3,19 @@
 All notable project changes should be recorded here.
 The project follows Semantic Versioning.
 
+## [1.9.1] - 2026-08-26
+
+### Hunt lifecycle UX
+- A confirmed encounter in a different `zoneId` now ends the previous local Hunt and starts a new one, even when the server keeps the same `serverSessionId`.
+- The first real encounter in the new zone becomes the boundary, avoiding resets from merely traversing between areas.
+- Same server session + same zone continues the current Hunt unchanged.
+- Manual Pause and End Hunt locks keep priority and still block automatic Hunt boundaries.
+
+### Validation
+- Added unit coverage for zone change => `new_hunt`.
+- Added integration coverage proving encounters are persisted into separate sessions across a zone change.
+- Manual in-game validation approved before release.
+
 ## [1.9.0] - 2026-08-25
 
 ### HuntSim protocol compatibility
