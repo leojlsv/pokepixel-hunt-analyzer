@@ -4,6 +4,8 @@ This document defines the update contract for PokePixel Hunt Analyzer releases.
 
 The goal is deliberately narrow: version discovery, update notification and installation are delegated to Tampermonkey. The Analyzer does not poll GitHub, does not show its own update banner and does not add runtime network permissions for update checks.
 
+From v1.11.0 onward, this document is **normative** for production releases. If release tooling, filenames, metadata or operator steps change, update this document in the same PR. Do not allow the implementation and this contract to drift.
+
 ## 1. Update architecture
 
 Production releases publish two stable assets:
@@ -60,6 +62,8 @@ Every production release MUST satisfy all of the following:
 10. `@name` and `@namespace` are not changed casually because they participate in userscript identity/continuity.
 
 The stable filenames are part of the update API. Renaming either asset breaks the `releases/latest/download/...` URLs already installed in users' Tampermonkey metadata.
+
+`npm run validate` enforces the package/lockfile version match, production `@version`, canonical update URLs and equality between the metadata blocks in `.meta.js` and `.user.js`. These checks are release gates, not advisory tests.
 
 ## 4. DEV isolation
 
