@@ -22,6 +22,29 @@ function createRarityOptionsMarkup() {
   ].join("");
 }
 
+function createCurrentRarityFilterMarkup(prefix) {
+  const options = RARITIES.map(([key, label]) => `
+          <label class="rarity-check-option">
+            <input type="checkbox" data-rarity-value="${key}" checked>
+            <span class="rarity-${key}">${label}</span>
+          </label>`).join("");
+
+  return `
+      <div class="filter-field" style="min-width:0">
+        <span>Rarity</span>
+        <details id="${prefix}-rarity" class="rarity-multiselect">
+          <summary><span id="${prefix}-rarity-label">All (*)</span></summary>
+          <div class="rarity-check-menu">
+            <label class="rarity-check-option rarity-check-all">
+              <input type="checkbox" data-rarity-all checked>
+              <span>All (*)</span>
+            </label>
+            ${options}
+          </div>
+        </details>
+      </div>`;
+}
+
 function createHudRarityMarkup() {
   return RARITIES.map(([key, label], index) => {
     const separator = index < RARITIES.length - 1
@@ -39,18 +62,19 @@ function sortableHeader(prefix, key, label, title = "") {
 function createEncounterSectionMarkup(prefix, title) {
   const filterStyle = "min-width:0";
   const isFailed = prefix === "failed";
+  const rarityFilter = createCurrentRarityFilterMarkup(prefix);
   const filters = isFailed
     ? `
-        <label style="${filterStyle}">Rarity<select id="${prefix}-rarity"></select></label>
+        ${rarityFilter}
         <label style="${filterStyle}">Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
         <label style="${filterStyle}">IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>`
     : `
-        <label style="${filterStyle}">Rarity<select id="${prefix}-rarity"></select></label>
+        ${rarityFilter}
         <label style="${filterStyle}">Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
         <label style="${filterStyle}">Quality &gt;<input id="${prefix}-quality" type="number" step="0.01"></label>
         <label style="${filterStyle}">IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>`;
   const headers = isFailed
-    ? `<th>Pokémon</th>${sortableHeader(prefix, "iv", "IV", "Order by IV Total")}<th>Pokéball</th>${sortableHeader(prefix, "capturedAt", "Fled at", "Order by fail timestamp")}`
+    ? `<th>Pokémon</th>${sortableHeader(prefix, "iv", "IV", "Order by IV Total")}<th>Pokéball</th><th>Chance</th>${sortableHeader(prefix, "capturedAt", "Fled at", "Order by fail timestamp")}`
     : `${sortableHeader(prefix, "capturedAt", "Pokémon", "Order by capture timestamp")}<th title="Gender">G</th><th>Nat</th>${sortableHeader(prefix, "quality", "Qlt", "Order by Quality")}${sortableHeader(prefix, "iv", "HP · Atk · sAtk · Def · sDef · SpD", "Order by IV Total")}`;
   const columns = isFailed ? 3 : 4;
 
@@ -174,11 +198,13 @@ export function createUiMarkup() {
       .live-card.hunt-collapsed .metric-cards { display:none; }
       .live-card.hunt-collapsed .actions { justify-content:flex-end; }
       #failed-section table { table-layout:fixed; }
-      #failed-section th:nth-child(1), #failed-section td:nth-child(1) { width:28%; }
-      #failed-section th:nth-child(2), #failed-section td:nth-child(2) { width:12%; text-align:right; }
-      #failed-section th:nth-child(3), #failed-section td:nth-child(3) { width:24%; }
-      #failed-section th:nth-child(4), #failed-section td:nth-child(4) { width:36%; }
+      #failed-section th:nth-child(1), #failed-section td:nth-child(1) { width:27%; }
+      #failed-section th:nth-child(2), #failed-section td:nth-child(2) { width:11%; text-align:right; }
+      #failed-section th:nth-child(3), #failed-section td:nth-child(3) { width:22%; }
+      #failed-section th:nth-child(4), #failed-section td:nth-child(4) { width:14%; text-align:right; }
+      #failed-section th:nth-child(5), #failed-section td:nth-child(5) { width:26%; }
       #failed-section .failed-static-row { cursor:default; }
+      #failed-section .chance-cell,
       #failed-section .timestamp-cell { font-variant-numeric:tabular-nums; }
     </style>
     <button id="pha-toggle" class="launcher" type="button" aria-label="PokePixel Hunt Analyzer" style="min-width:220px;width:max-content;max-width:calc(100vw - 32px)">
