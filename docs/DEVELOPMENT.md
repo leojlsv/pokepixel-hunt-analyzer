@@ -19,7 +19,7 @@ npm run audit:deps
 npm run validate
 ```
 
-`validate` runs the complete Node test suite and builds the production userscript.
+`validate` runs the complete Node test suite, builds the production userscript + metadata manifest and verifies their update contract.
 
 ## 2. Source layout
 
@@ -265,23 +265,30 @@ The `.meta.js` file contains only the userscript metadata block and is the light
 
 Release process:
 
-1. create `release/vX.Y.Z` from the fully validated feature stack;
-2. apply release-only cleanup and remove temporary harness/debug code;
-3. update `package.json` and synchronize `package-lock.json`;
-4. update README, CHANGELOG and affected technical docs;
-5. run `npm ci`;
-6. run `npm run audit:deps`;
-7. run `npm run validate`;
-8. verify that `.user.js` and `.meta.js` expose the same production `@version`, and that only the PROD metadata contains `@updateURL` / `@downloadURL`;
-9. build/install the **production** userscript from that exact release branch and complete section 8; for a protocol transition, also validate the isolated DEV build before the game update reaches production;
-10. open the release PR against `main` and require green CI;
-11. merge the validated release PR;
-12. tag the merged commit as `vX.Y.Z`;
-13. publish the GitHub Release with both generated assets: `pokepixel-hunt-analyzer.user.js` and `pokepixel-hunt-analyzer.meta.js`.
+1. prepare the release version on the validated feature/release branch;
+2. update `package.json` and synchronize `package-lock.json`;
+3. update README, CHANGELOG and affected technical docs;
+4. run `npm ci`, `npm run audit:deps` and `npm run validate`;
+5. install/smoke the **production** userscript from that exact branch when runtime behavior changed;
+6. open/update the release PR against `main` and require green CI;
+7. merge the validated release PR;
+8. require green CI on the resulting `main` commit;
+9. create `publish/vX.Y.Z` from that exact merged `main` commit and push it;
+10. `.github/workflows/publish.yml` verifies version/main alignment, re-runs audit + validation, creates tag `vX.Y.Z`, publishes both update assets and removes the temporary publish branch;
+11. verify the release, both assets and the stable `releases/latest/download/...` routes before announcing it.
 
-The release must publish both files atomically. `@updateURL` resolves the `.meta.js` from the latest non-prerelease GitHub Release, while `@downloadURL` resolves the matching `.user.js` from that same release channel.
+The two mandatory production release assets are:
 
-Do not release from a temporary test/harness branch.
+```text
+pokepixel-hunt-analyzer.meta.js
+pokepixel-hunt-analyzer.user.js
+```
+
+Their filenames are a compatibility contract with already-installed Tampermonkey scripts and must not be renamed.
+
+The complete update/release contract, bootstrap behavior, invariants, smoke procedure, hotfix policy and post-release checklist live in [`TAMPERMONKEY_UPDATES.md`](TAMPERMONKEY_UPDATES.md). Treat that document as normative for every release from v1.11.0 onward.
+
+Do not release from a temporary test/harness branch. The only publication branch pattern is `publish/vX.Y.Z`, created after merge from the current `main` commit.
 
 ## 10. Security
 
