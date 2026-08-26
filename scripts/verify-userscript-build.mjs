@@ -1,11 +1,13 @@
 import { readFile } from "node:fs/promises";
 
 const packageUrl = new URL("../package.json", import.meta.url);
+const packageLockUrl = new URL("../package-lock.json", import.meta.url);
 const userscriptUrl = new URL("../dist/pokepixel-hunt-analyzer.user.js", import.meta.url);
 const metadataUrl = new URL("../dist/pokepixel-hunt-analyzer.meta.js", import.meta.url);
 
-const pkg = JSON.parse(await readFile(packageUrl, "utf8"));
-const [userscript, metadata] = await Promise.all([
+const [pkg, lock, userscript, metadata] = await Promise.all([
+  readFile(packageUrl, "utf8").then(JSON.parse),
+  readFile(packageLockUrl, "utf8").then(JSON.parse),
   readFile(userscriptUrl, "utf8"),
   readFile(metadataUrl, "utf8")
 ]);
@@ -28,6 +30,12 @@ function assertIncludes(source, value, label) {
   }
 }
 
+if (lock.version !== expectedVersion || lock.packages?.[""]?.version !== expectedVersion) {
+  throw new Error(
+    `package-lock version mismatch: package=${expectedVersion}, lock=${lock.version}, root=${lock.packages?.[""]?.version}`
+  );
+}
+
 assertIncludes(metadata, `// @version      ${expectedVersion}`, "metadata");
 assertIncludes(userscript, `// @version      ${expectedVersion}`, "userscript");
 assertIncludes(metadata, `// @updateURL    ${expectedUpdateUrl}`, "metadata");
@@ -39,4 +47,4 @@ if (metadataBlock(metadata) !== metadataBlock(userscript)) {
   throw new Error("Production .meta.js and .user.js metadata blocks differ");
 }
 
-console.log(`Verified production userscript update metadata v${expectedVersion}`);
+console.log(`Verified release/update invariants v${expectedVersion}`);
