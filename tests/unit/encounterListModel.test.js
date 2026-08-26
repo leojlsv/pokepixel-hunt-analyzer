@@ -45,6 +45,29 @@ test("passesEncounterFilters combines rarity, quality, IV and shiny filters", ()
   }), false);
 });
 
+test("multi-rarity filter accepts every checked rarity and All preserves unknown values", () => {
+  const rare = encounter({ quality: "rare" });
+  const epic = encounter({ quality: "epic" });
+  const common = encounter({ quality: "common" });
+  const unknown = encounter({ quality: "future-rarity" });
+  const baseFilters = { qualityMin: null, ivMin: null, shiny: "*" };
+
+  const selected = new Set(["rare", "epic"]);
+  assert.equal(passesEncounterFilters(rare, { ...baseFilters, rarities: selected }), true);
+  assert.equal(passesEncounterFilters(epic, { ...baseFilters, rarities: selected }), true);
+  assert.equal(passesEncounterFilters(common, { ...baseFilters, rarities: selected }), false);
+  assert.equal(passesEncounterFilters(unknown, { ...baseFilters, rarities: selected }), false);
+
+  // `null` is the Current UI's explicit All (*) state: do not filter by rarity.
+  assert.equal(passesEncounterFilters(unknown, { ...baseFilters, rarities: null }), true);
+  assert.equal(passesEncounterFilters(common, { ...baseFilters, rarities: null }), true);
+
+  assert.equal(passesEncounterFilters(rare, {
+    ...baseFilters,
+    rarities: new Set()
+  }), false);
+});
+
 test("capture timestamp is the Pokémon-column sort key", () => {
   const old = encounter({ encounterId: "old", captureAtMs: 1_000 });
   const recent = encounter({ encounterId: "recent", captureAtMs: 2_000 });
