@@ -31,10 +31,11 @@ export function decideSessionTransition(current, observed) {
     return { action: "new_hunt" };
   }
 
-  // Same serverSessionId, different zoneId: a candidate transition, not
-  // enough alone to end the session (docs/ARCHITECTURE.md §7).
+  // A confirmed encounter in a different zone is a Hunt boundary even when
+  // the server keeps the same session id. This keeps one local Hunt aligned
+  // with one hunting zone instead of blending metrics across target areas.
   if (currentZoneId && observedZoneId && observedZoneId !== currentZoneId) {
-    return { action: "update_zone" };
+    return { action: "new_hunt" };
   }
 
   return { action: "none" };

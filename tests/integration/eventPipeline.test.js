@@ -230,7 +230,7 @@ test("a confirmed new serverSessionId starts a new local session and ends the pr
   assert.notEqual(encounters[0].sessionId, encounters[1].sessionId);
 });
 
-test("an isolated zoneId change (same serverSessionId) does not end the session", async () => {
+test("a confirmed zoneId change starts a new local Hunt even when serverSessionId stays the same", async () => {
   const { db, pipeline } = await setup();
 
   await pipeline.handle(
@@ -241,9 +241,17 @@ test("an isolated zoneId change (same serverSessionId) does not end the session"
   );
 
   const sessions = await createRepository(db, STORE_NAMES.SESSIONS).getAll();
-  assert.equal(sessions.length, 1);
-  assert.equal(sessions[0].status, "running");
-  assert.equal(sessions[0].zoneId, "zone_0002"); // candidate transition still tracked
+  assert.equal(sessions.length, 2);
+  assert.equal(sessions.filter((s) => s.status === "ended").length, 1);
+  assert.equal(sessions.filter((s) => s.status === "running").length, 1);
+
+  const current = await createSessionsRepository(db).getCurrentReadOnly();
+  assert.equal(current.zoneId, "zone_0002");
+  assert.equal(current.serverSessionId, "server_session_0001");
+
+  const encounters = await createEncountersRepository(db).getAll();
+  assert.equal(encounters.length, 2);
+  assert.notEqual(encounters[0].sessionId, encounters[1].sessionId);
 });
 
 test("a manual Pause survives the next combat.started — it does not auto-resume", async () => {
