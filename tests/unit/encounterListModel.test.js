@@ -5,6 +5,7 @@ import {
   compareEncounters,
   formatCaptureTime,
   formatCaptureTimestamp,
+  formatCurrentHuntTimestamp,
   passesEncounterFilters,
   sortEncounters
 } from "../../userscript/encounter-list-model.js";
@@ -113,4 +114,25 @@ test("capture time/timestamp render local time consistently", () => {
   assert.equal(formatCaptureTimestamp(local), "2026-08-22 13:45:12");
   assert.equal(formatCaptureTime(null), "—");
   assert.equal(formatCaptureTimestamp(null), "—");
+});
+
+test("Current Hunt timestamp adds a local calendar-day offset after midnight", () => {
+  const huntStart = new Date(2026, 7, 26, 23, 50, 0).getTime();
+
+  assert.equal(
+    formatCurrentHuntTimestamp(new Date(2026, 7, 26, 23, 58, 10).getTime(), huntStart),
+    "23:58:10"
+  );
+  assert.equal(
+    formatCurrentHuntTimestamp(new Date(2026, 7, 27, 0, 14, 32).getTime(), huntStart),
+    "+1d 00:14:32"
+  );
+  assert.equal(
+    formatCurrentHuntTimestamp(new Date(2026, 7, 28, 1, 7, 15).getTime(), huntStart),
+    "+2d 01:07:15"
+  );
+  assert.equal(
+    formatCurrentHuntTimestamp(new Date(2026, 7, 27, 0, 14, 32).getTime(), null),
+    "00:14:32"
+  );
 });
