@@ -289,11 +289,11 @@ export function createUiMarkup() {
       }
 
       #failed-section table { table-layout:fixed; }
-      #failed-section th:nth-child(1), #failed-section td:nth-child(1) { width:27%; }
+      #failed-section th:nth-child(1), #failed-section td:nth-child(1) { width:22%; }
       #failed-section th:nth-child(2), #failed-section td:nth-child(2) { width:11%; text-align:right; }
       #failed-section th:nth-child(3), #failed-section td:nth-child(3) { width:22%; }
       #failed-section th:nth-child(4), #failed-section td:nth-child(4) { width:14%; text-align:right; }
-      #failed-section th:nth-child(5), #failed-section td:nth-child(5) { width:26%; }
+      #failed-section th:nth-child(5), #failed-section td:nth-child(5) { width:31%; }
       #failed-section .failed-static-row { cursor:default; }
       #failed-section .chance-cell,
       #failed-section .timestamp-cell { font-variant-numeric:tabular-nums; }
