@@ -21,8 +21,20 @@ function compareNullableNumbers(a, b, direction) {
   return direction === "asc" ? result : -result;
 }
 
+function passesRarityFilter(encounter, filters) {
+  if (filters.rarities instanceof Set) {
+    return filters.rarities.has(encounter.quality);
+  }
+
+  // Backward-compatible fallback for callers/tests using the old single-value
+  // shape. `rarities: null` is the new explicit "All (*)" state.
+  return filters.rarity === undefined ||
+    filters.rarity === "*" ||
+    encounter.quality === filters.rarity;
+}
+
 export function passesEncounterFilters(encounter, filters) {
-  if (filters.rarity !== "*" && encounter.quality !== filters.rarity) return false;
+  if (!passesRarityFilter(encounter, filters)) return false;
 
   if (filters.qualityMin != null && !(
     Number.isFinite(encounter.qualityMultiplier) &&
