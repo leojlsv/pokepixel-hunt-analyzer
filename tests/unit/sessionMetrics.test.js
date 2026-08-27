@@ -13,6 +13,7 @@ function encounter(overrides = {}) {
     trainerExp: 0,
     pokemonExp: 0,
     gold: 0,
+    lootSellValue: null,
     autoSold: false,
     autoSellValue: null,
     supplyCost: null,
@@ -154,19 +155,30 @@ test("Seen->Capture and Attempt Rate formulas", () => {
   assert.equal(metrics.attemptRate, 1 / 3);
 });
 
-test("Dólar/h includes autoSellValue only when autoSold is true", () => {
+test("Dólar/h includes lootSellValue and autoSellValue only when autoSold is true", () => {
   const session = createSession({ sessionId: "s1", now: 0 });
 
   const encounters = [
-    encounter({ gold: 100, autoSold: true, autoSellValue: 250 }),
-    // Not auto-sold -> its autoSellValue must NOT count, even if present.
-    encounter({ gold: 50, autoSold: false, autoSellValue: 999 })
+    encounter({
+      gold: 100,
+      lootSellValue: 40,
+      autoSold: true,
+      autoSellValue: 250
+    }),
+    // Loot sell value always counts; Pokémon sell value only counts when the
+    // capture was actually auto-sold.
+    encounter({
+      gold: 50,
+      lootSellValue: 60,
+      autoSold: false,
+      autoSellValue: 999
+    })
   ];
 
   const metrics = computeSessionMetrics({ session, encounters, now: 3_600_000 });
 
-  assert.equal(metrics.gold, 100 + 250 + 50);
-  assert.equal(metrics.goldPerHour, 400);
+  assert.equal(metrics.gold, 100 + 40 + 250 + 50 + 60);
+  assert.equal(metrics.goldPerHour, 500);
 });
 
 test("Gastos/h: capsulesCost sums supplyCost across encounters (Pokébolas)", () => {

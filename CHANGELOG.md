@@ -4,6 +4,19 @@ All notable project changes should be recorded here.
 The project follows Semantic Versioning.
 
 
+## [1.11.1] - 2026-08-27
+
+### Profit accounting hotfix
+- Dollar and Profit now include `loot.received.loot_sell_value`, which was already normalized and persisted but previously omitted from financial aggregation.
+- Revenue semantics are now consistent across Current, History and grouped Pokémon analytics: kill Gold + loot sell value + realized Pokémon auto-sell.
+- Existing capsule and potion expense accounting is unchanged.
+
+### Validation
+- Added unit coverage for session/group revenue including loot sell value.
+- Added end-to-end persistence/accounting coverage proving `gold + loot_sell_value + auto_sell_value - supply_cost`.
+- Manual in-game validation approved before release.
+- No IndexedDB migration, protocol change, dependency change or permission change.
+
 ## [1.11.0] - 2026-08-26
 
 ### Native Tampermonkey updates

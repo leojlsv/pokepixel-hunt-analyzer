@@ -10,6 +10,7 @@ function encounter(overrides = {}) {
     trainerExp: 0,
     pokemonExp: 0,
     gold: 0,
+    lootSellValue: null,
     autoSold: false,
     autoSellValue: null,
     cycleMs: null,
@@ -87,16 +88,29 @@ test("Seen->Capture and Attempt Rate formulas", () => {
   assert.equal(metrics.attemptRate, 1 / 3);
 });
 
-test("Dollar/Cycle Hour includes autoSellValue only when autoSold is true", () => {
+test("Dollar/Cycle Hour includes lootSellValue and realized autoSellValue", () => {
   const encounters = [
-    encounter({ cycleMs: 1_800_000, gold: 100, autoSold: true, autoSellValue: 250 }),
-    // Not auto-sold -> its autoSellValue must NOT count, even if present.
-    encounter({ cycleMs: 1_800_000, gold: 50, autoSold: false, autoSellValue: 999 })
+    encounter({
+      cycleMs: 1_800_000,
+      gold: 100,
+      lootSellValue: 40,
+      autoSold: true,
+      autoSellValue: 250
+    }),
+    // Loot sell value always counts; Pokémon sell value only counts when the
+    // capture was actually auto-sold.
+    encounter({
+      cycleMs: 1_800_000,
+      gold: 50,
+      lootSellValue: 60,
+      autoSold: false,
+      autoSellValue: 999
+    })
   ];
   // group_cycle_ms = 3_600_000 = exactly 1 cycle hour.
 
   const metrics = computeGroupMetrics(encounters);
 
-  assert.equal(metrics.gold, 100 + 250 + 50);
-  assert.equal(metrics.dollarPerCycleHour, 400);
+  assert.equal(metrics.gold, 100 + 40 + 250 + 50 + 60);
+  assert.equal(metrics.dollarPerCycleHour, 500);
 });

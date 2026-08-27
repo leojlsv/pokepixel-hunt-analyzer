@@ -104,7 +104,11 @@ export function computeSessionMetrics({ session, encounters = [], now = Date.now
   for (const encounter of encounters) {
     trainerExp += Number(encounter.trainerExp) || 0;
     pokemonExp += Number(encounter.pokemonExp) || 0;
+
+    // Dollar/Profit treat all encounter reward value as revenue: direct
+    // monster gold, sell value of dropped loot, and realized Pokémon auto-sell.
     gold += Number(encounter.gold) || 0;
+    gold += Number(encounter.lootSellValue) || 0;
 
     if (encounter.autoSold) {
       gold += Number(encounter.autoSellValue) || 0;
