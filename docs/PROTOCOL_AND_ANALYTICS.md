@@ -274,10 +274,11 @@ Do not use Burp/export timestamps for live duration calculations.
 ```text
 Trainer EXP/h = Σ trainer_exp / active_hours
 Pokémon EXP/h = Σ pokemon_exp / active_hours
-Dollar/h      = Σ (gold + (auto_sold ? auto_sell_value : 0)) / active_hours
+Dollar/h      = Σ (gold + loot_sell_value + (auto_sold ? auto_sell_value : 0)) / active_hours
+Profit        = Dollar - Expenses
 ```
 
-`Dollar/h` counts both the wild monster's `loot.received.gold` and, when a captured Pokémon was auto-sold, `auto_sell_value`.
+`Dollar/h` counts the wild monster's direct `loot.received.gold`, the persisted `loot.received.loot_sell_value`, and, when a captured Pokémon was auto-sold, `auto_sell_value`. `loot_sell_value` is part of Hunt revenue even though it is represented separately from direct gold in the protocol.
 
 If active time is zero, display `—`.
 
@@ -319,7 +320,7 @@ Do not assign the entire session time to every `group_key`.
 ```text
 group_cycle_ms = Σ encounter.cycle_ms
 Trainer EXP / Cycle Hour = Σ trainer_exp / (group_cycle_ms / 3600000)
-Dollar / Cycle Hour      = Σ (gold + (auto_sold ? auto_sell_value : 0)) / (group_cycle_ms / 3600000)
+Dollar / Cycle Hour      = Σ (gold + loot_sell_value + (auto_sold ? auto_sell_value : 0)) / (group_cycle_ms / 3600000)
 ```
 
 UI must distinguish session rates from cycle-based group rates.

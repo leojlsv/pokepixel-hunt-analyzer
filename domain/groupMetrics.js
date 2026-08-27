@@ -33,9 +33,11 @@ export function computeGroupMetrics(encounters = []) {
 
     trainerExp += Number(encounter.trainerExp) || 0;
     pokemonExp += Number(encounter.pokemonExp) || 0;
+
+    // Group Dollar mirrors Current Dollar: direct gold + dropped-loot sell
+    // value + realized Pokémon auto-sell value.
     gold += Number(encounter.gold) || 0;
-    // A captured Pokémon the game auto-sold is realized income too, not
-    // just the wild monster's own loot.received drop.
+    gold += Number(encounter.lootSellValue) || 0;
     if (encounter.autoSold) gold += Number(encounter.autoSellValue) || 0;
 
     if (Number.isFinite(encounter.cycleMs)) {

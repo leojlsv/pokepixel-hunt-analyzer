@@ -4,7 +4,7 @@ Analytics de Hunt em tempo real para **PokePixel**, direto dentro do jogo.
 
 O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** que observa passivamente eventos do jogo, organiza Hunts e calcula métricas de eficiência sem automatizar gameplay.
 
-**Versão:** `v1.11.0`  
+**Versão:** `v1.11.1`  
 **Core Analyzer:** estável  
 **Capture Ticket:** BETA  
 **Dados e analytics:** locais  
@@ -25,7 +25,7 @@ Acompanha a Hunt atual em tempo real:
 - tempo ativo;
 - `XP/h You` e XP total;
 - `XP/h Poké` e XP total;
-- Dollar total e `$/h`;
+- Dollar total e `$/h`, incluindo Gold, valor de venda dos loots e Pokémon auto-sold;
 - Profit e Expenses;
 - Seen, Captured, Failed e Capture Rate;
 - distribuição por raridade e Shiny;
