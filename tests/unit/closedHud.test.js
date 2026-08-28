@@ -44,11 +44,11 @@ test("legacy Captured Rarities config migrates to Rarity Tracker", () => {
   assert.equal(config.slots[3].widget, "empty");
 });
 
-test("legacy Shiny Captured config migrates to Shiny Tracker captured mode", () => {
+test("legacy Shiny Captured config migrates to combined Shiny Tracker", () => {
   const config = normalizeClosedHudConfig({
     preset: "custom",
     slots: [
-      { widget: "shinyCaptured" },
+      { widget: "shinyCaptured", shinyMode: "captured" },
       { widget: "seen" },
       { widget: "captured" },
       { widget: "failed" }
@@ -56,7 +56,7 @@ test("legacy Shiny Captured config migrates to Shiny Tracker captured mode", () 
   });
 
   assert.equal(config.slots[0].widget, "shinyTracker");
-  assert.equal(config.slots[0].shinyMode, "captured");
+  assert.equal(config.slots[0].shinyMode, undefined);
 });
 
 test("closed HUD config falls back from unknown widgets without breaking four-slot shape", () => {
@@ -125,7 +125,19 @@ test("adaptive HUD quantity formatting remains available for non-inventory metri
   assert.equal(formatHudQuantity(3_480_000), "3.5M");
 });
 
-test("deriveClosedHudState computes financial rate, ball usage and captured/failed rarity maps", () => {
+test("Seen is abbreviated while Captured remains exact", () => {
+  const derived = deriveClosedHudState({ metrics: { seen: 12_345, captured: 12_345 } });
+
+  const seen = closedHudDisplay({ widget: "seen" }, derived, null);
+  const captured = closedHudDisplay({ widget: "captured" }, derived, null);
+
+  assert.equal(seen.value, "12K");
+  assert.equal(seen.compactValue, undefined);
+  assert.equal(captured.value, "12.345");
+  assert.equal(captured.compactValue, undefined);
+});
+
+test("deriveClosedHudState computes financial rate, ball usage and rarity seen/captured/failed maps", () => {
   const state = deriveClosedHudState({
     metrics: {
       seen: 100,
@@ -140,11 +152,11 @@ test("deriveClosedHudState computes financial rate, ball usage and captured/fail
       expenses: 5_000,
       activeMs: 30 * 60 * 1000,
       rarities: {
-        rare: { captured: 1, failed: 2, shinyCaptured: 0 },
-        epic: { captured: 0, failed: 1, shinyCaptured: 0 },
-        legendary: { captured: 0, failed: 0, shinyCaptured: 0 },
-        mythical: { captured: 0, failed: 0, shinyCaptured: 0 },
-        common: { captured: 1, failed: 90, shinyCaptured: 1 }
+        rare: { seen: 33, captured: 1, failed: 2, shinyCaptured: 0 },
+        epic: { seen: 9, captured: 0, failed: 1, shinyCaptured: 0 },
+        legendary: { seen: 2, captured: 0, failed: 0, shinyCaptured: 0 },
+        mythical: { seen: 1, captured: 0, failed: 0, shinyCaptured: 0 },
+        common: { seen: 55, captured: 1, failed: 90, shinyCaptured: 1 }
       }
     },
     encounters: [
@@ -159,52 +171,39 @@ test("deriveClosedHudState computes financial rate, ball usage and captured/fail
   assert.equal(state.totalBallsUsed, 3);
   assert.equal(state.ballUsage.get("capsule_ultra"), 2);
   assert.equal(state.ballUsage.get("capsule_super"), 1);
+  assert.equal(state.raritySeen.rare, 33);
   assert.equal(state.rarityCaptured.rare, 1);
   assert.equal(state.rarityFailed.rare, 2);
   assert.equal(state.rarePlusFailed, 3);
   assert.equal(state.shinyCaptured, 1);
 });
 
-test("Shiny Tracker exposes Seen or Captured without a textual HUD label", () => {
+test("Shiny Tracker always exposes Seen/Captured pair with abbreviated Seen", () => {
   const derived = deriveClosedHudState({
     metrics: {
-      shiny: { seen: 7, captured: 3, failed: 4 },
+      shiny: { seen: 12_345, captured: 37, failed: 4 },
       rarities: {}
     }
   });
 
-  const seen = closedHudDisplay(
-    { widget: "shinyTracker", shinyMode: "seen" },
-    derived,
-    null
-  );
-  const captured = closedHudDisplay(
-    { widget: "shinyTracker", shinyMode: "captured" },
-    derived,
-    null
-  );
+  const display = closedHudDisplay({ widget: "shinyTracker" }, derived, null);
 
-  assert.equal(derived.shinySeen, 7);
-  assert.equal(derived.shinyCaptured, 3);
-  assert.equal(seen.kind, "shiny");
-  assert.equal(seen.mode, "seen");
-  assert.equal(seen.value, "7");
-  assert.equal(seen.label, undefined);
-  assert.equal(seen.title, "Shiny Seen: 7");
-  assert.equal(captured.kind, "shiny");
-  assert.equal(captured.mode, "captured");
-  assert.equal(captured.value, "3");
-  assert.equal(captured.title, "Shiny Captured: 3");
+  assert.equal(display.kind, "shiny");
+  assert.equal(display.seenValue, "12K");
+  assert.equal(display.capturedValue, "37");
+  assert.equal(display.title, "Shiny — Seen: 12.345 · Captured: 37");
+  assert.equal(display.value, undefined);
+  assert.equal(display.label, undefined);
 });
 
-test("Rarity Tracker filters rarities and optionally exposes failed counts", () => {
+test("Rarity Tracker exposes Seen/Captured and optionally Failed", () => {
   const derived = deriveClosedHudState({
     metrics: {
       rarities: {
-        rare: { captured: 12, failed: 31 },
-        epic: { captured: 4, failed: 9 },
-        legendary: { captured: 1, failed: 2 },
-        mythical: { captured: 0, failed: 1 }
+        rare: { seen: 12_345, captured: 12, failed: 31 },
+        epic: { seen: 987, captured: 4, failed: 9 },
+        legendary: { seen: 43, captured: 1, failed: 2 },
+        mythical: { seen: 8, captured: 0, failed: 1 }
       }
     }
   });
@@ -221,10 +220,16 @@ test("Rarity Tracker filters rarities and optionally exposes failed counts", () 
   assert.equal(display.showFailed, true);
   assert.deepEqual(display.rarities.map((rarity) => rarity.key), ["legendary", "mythical"]);
   assert.deepEqual(
-    display.rarities.map(({ captured, failed }) => [captured, failed]),
-    [[1, 2], [0, 1]]
+    display.rarities.map(({ seen, captured, failed }) => [seen, captured, failed]),
+    [[43, 1, 2], [8, 0, 1]]
   );
+  assert.equal(formatHudQuantity(12_345), "12K");
+  assert.equal(formatNumberForAssertion(display.rarities[0].captured), "1");
 });
+
+function formatNumberForAssertion(value) {
+  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(value);
+}
 
 test("inventory snapshot classifies capsules and potions and preserves authoritative quantity", () => {
   const snapshot = normalizeInventorySnapshot([
