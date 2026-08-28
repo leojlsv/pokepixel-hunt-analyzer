@@ -10,45 +10,48 @@ import { createInventoryState } from "./inventory-state.js";
 export const CLOSED_HUD_STORAGE_KEY = "pokepixel_hunt_analyzer_closed_hud_v1";
 
 export const CLOSED_HUD_WIDGETS = Object.freeze([
-  { id: "empty", label: "Empty", category: "Layout" },
-  { id: "seen", label: "Seen", category: "Hunt" },
-  { id: "seenPerHour", label: "Seen/h", category: "Hunt" },
-  { id: "captured", label: "Captured", category: "Capture" },
-  { id: "failed", label: "Failed", category: "Capture" },
-  { id: "captureRate", label: "Capture Rate", category: "Capture" },
-  { id: "trainerXpPerHour", label: "Trainer XP/h", category: "Leveling" },
-  { id: "pokemonXpPerHour", label: "Pokémon XP/h", category: "Leveling" },
-  { id: "dollarPerHour", label: "Dollar/h", category: "Economy" },
-  { id: "profitPerHour", label: "Profit/h", category: "Economy" },
-  { id: "expenses", label: "Expenses", category: "Economy" },
-  { id: "huntTime", label: "Hunt Time", category: "Hunt" },
-  { id: "capturedRarities", label: "Captured Rarities", category: "Capture" },
-  { id: "rarePlusFailed", label: "Rare+ Failed", category: "Capture" },
-  { id: "shinyCaptured", label: "Shiny Captured", category: "Capture" },
-  { id: "totalBallsUsed", label: "Total Balls Used", category: "HUD Exclusive" },
+  { id: "empty", label: "Empty", category: "Layout", size: 1 },
+  { id: "seen", label: "Seen", category: "Hunt", size: 1 },
+  { id: "seenPerHour", label: "Seen/h", category: "Hunt", size: 1 },
+  { id: "captured", label: "Captured", category: "Capture", size: 1 },
+  { id: "failed", label: "Failed", category: "Capture", size: 1 },
+  { id: "captureRate", label: "Capture Rate", category: "Capture", size: 1 },
+  { id: "trainerXpPerHour", label: "Trainer XP/h", category: "Leveling", size: 1 },
+  { id: "pokemonXpPerHour", label: "Pokémon XP/h", category: "Leveling", size: 1 },
+  { id: "dollarPerHour", label: "Dollar/h", category: "Economy", size: 1 },
+  { id: "profitPerHour", label: "Profit/h", category: "Economy", size: 1 },
+  { id: "expenses", label: "Expenses", category: "Economy", size: 1 },
+  { id: "huntTime", label: "Hunt Time", category: "Hunt", size: 1 },
+  { id: "capturedRarities", label: "Captured Rarities", category: "Capture", size: 2 },
+  { id: "rarePlusFailed", label: "Rare+ Failed", category: "Capture", size: 1 },
+  { id: "shinyCaptured", label: "Shiny Captured", category: "Capture", size: 1 },
+  { id: "totalBallsUsed", label: "Total Balls Used", category: "HUD Exclusive", size: 1 },
   {
     id: "ballTracker",
     label: "Ball Tracker",
     category: "HUD Exclusive",
-    itemType: "capsule"
+    itemType: "capsule",
+    size: 1
   },
   {
     id: "potionTracker",
     label: "Potion Tracker",
     category: "HUD Exclusive",
-    itemType: "potion"
+    itemType: "potion",
+    size: 1
   }
 ]);
 
 const WIDGET_BY_ID = new Map(CLOSED_HUD_WIDGETS.map((widget) => [widget.id, widget]));
 const RARE_PLUS_KEYS = new Set(["rare", "epic", "legendary", "mythical"]);
+const EMPTY_SLOT = Object.freeze({ widget: "empty", itemId: null });
 
 export const CLOSED_HUD_PRESETS = Object.freeze({
   default: Object.freeze([
     { widget: "seen" },
     { widget: "seenPerHour" },
-    { widget: "captured" },
-    { widget: "capturedRarities" }
+    { widget: "capturedRarities" },
+    { widget: "empty" }
   ]),
   leveling: Object.freeze([
     { widget: "trainerXpPerHour" },
@@ -77,11 +80,32 @@ function cloneSlot(slot) {
   };
 }
 
+function emptySlot() {
+  return { ...EMPTY_SLOT };
+}
+
+export function closedHudWidgetSize(widgetId) {
+  return WIDGET_BY_ID.get(widgetId)?.size === 2 ? 2 : 1;
+}
+
+function normalizeWideRows(slots) {
+  const normalized = slots.map(cloneSlot);
+  for (const rowStart of [0, 2]) {
+    const wideIndex = [rowStart, rowStart + 1]
+      .find((index) => closedHudWidgetSize(normalized[index]?.widget) === 2);
+    if (wideIndex == null) continue;
+    const wide = cloneSlot(normalized[wideIndex]);
+    normalized[rowStart] = wide;
+    normalized[rowStart + 1] = emptySlot();
+  }
+  return normalized;
+}
+
 export function closedHudConfigForPreset(preset = "default") {
   const key = Object.hasOwn(CLOSED_HUD_PRESETS, preset) ? preset : "default";
   return {
     preset: key,
-    slots: CLOSED_HUD_PRESETS[key].map(cloneSlot)
+    slots: normalizeWideRows(CLOSED_HUD_PRESETS[key].map(cloneSlot))
   };
 }
 
@@ -103,12 +127,30 @@ export function normalizeClosedHudConfig(raw) {
     slots.push(candidate);
   }
 
-  return { preset, slots };
+  return { preset, slots: normalizeWideRows(slots) };
 }
 
 function numeric(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
+}
+
+export function formatHudQuantity(value, { micro = false } = {}) {
+  const number = numeric(value);
+  const absolute = Math.abs(number);
+  if (absolute < 1_000) return formatNumber(number);
+
+  const units = [
+    [1_000_000_000, "B"],
+    [1_000_000, "M"],
+    [1_000, "K"]
+  ];
+  const [divisor, suffix] = units.find(([threshold]) => absolute >= threshold) || units[2];
+  const scaled = number / divisor;
+  if (micro) return `${Math.round(scaled)}${suffix}`;
+
+  const digits = Math.abs(scaled) < 10 ? 1 : 0;
+  return `${scaled.toFixed(digits).replace(/\.0$/, "")}${suffix}`;
 }
 
 export function deriveClosedHudState({ metrics = {}, encounters = [] } = {}) {
@@ -177,6 +219,15 @@ function inventoryItemForSlot(slot, inventory, type) {
   return firstInventoryItem(inventory, type);
 }
 
+function numberDisplay(label, value) {
+  return {
+    label,
+    value: formatNumber(value),
+    compactValue: formatHudQuantity(value),
+    microValue: formatHudQuantity(value, { micro: true })
+  };
+}
+
 export function closedHudDisplay(slot, derived, inventory) {
   const widgetId = slot?.widget || "empty";
 
@@ -184,47 +235,63 @@ export function closedHudDisplay(slot, derived, inventory) {
     case "empty":
       return { label: "", value: "", empty: true };
     case "seen":
-      return { label: "Seen", value: formatNumber(derived.seen) };
+      return numberDisplay("Seen", derived.seen);
     case "seenPerHour":
       return {
         label: "Seen/h",
-        value: derived.seenPerHour == null ? "—" : formatCompact(derived.seenPerHour)
+        value: derived.seenPerHour == null ? "—" : formatCompact(derived.seenPerHour),
+        compactValue: derived.seenPerHour == null ? "—" : formatHudQuantity(derived.seenPerHour),
+        microValue: derived.seenPerHour == null ? "—" : formatHudQuantity(derived.seenPerHour, { micro: true })
       };
     case "captured":
-      return { label: "Captured", value: formatNumber(derived.captured) };
+      return numberDisplay("Captured", derived.captured);
     case "failed":
-      return { label: "Failed", value: formatNumber(derived.failed) };
+      return numberDisplay("Failed", derived.failed);
     case "captureRate":
       return { label: "Capture", value: formatRate(derived.captureRate) };
     case "trainerXpPerHour":
       return {
         label: "XP/h",
-        value: derived.trainerXpPerHour == null ? "—" : formatCompact(derived.trainerXpPerHour)
+        value: derived.trainerXpPerHour == null ? "—" : formatCompact(derived.trainerXpPerHour),
+        compactValue: derived.trainerXpPerHour == null ? "—" : formatHudQuantity(derived.trainerXpPerHour),
+        microValue: derived.trainerXpPerHour == null ? "—" : formatHudQuantity(derived.trainerXpPerHour, { micro: true })
       };
     case "pokemonXpPerHour":
       return {
         label: "PK XP/h",
-        value: derived.pokemonXpPerHour == null ? "—" : formatCompact(derived.pokemonXpPerHour)
+        value: derived.pokemonXpPerHour == null ? "—" : formatCompact(derived.pokemonXpPerHour),
+        compactValue: derived.pokemonXpPerHour == null ? "—" : formatHudQuantity(derived.pokemonXpPerHour),
+        microValue: derived.pokemonXpPerHour == null ? "—" : formatHudQuantity(derived.pokemonXpPerHour, { micro: true })
       };
     case "dollarPerHour":
       return {
         label: "$/h",
-        value: derived.dollarPerHour == null ? "—" : formatCompact(derived.dollarPerHour)
+        value: derived.dollarPerHour == null ? "—" : formatCompact(derived.dollarPerHour),
+        compactValue: derived.dollarPerHour == null ? "—" : formatHudQuantity(derived.dollarPerHour),
+        microValue: derived.dollarPerHour == null ? "—" : formatHudQuantity(derived.dollarPerHour, { micro: true })
       };
     case "profitPerHour":
       return {
         label: "Profit/h",
         value: derived.profitPerHour == null ? "—" : formatCompact(derived.profitPerHour),
+        compactValue: derived.profitPerHour == null ? "—" : formatHudQuantity(derived.profitPerHour),
+        microValue: derived.profitPerHour == null ? "—" : formatHudQuantity(derived.profitPerHour, { micro: true }),
         tone: derived.profitPerHour == null ? "" : derived.profitPerHour < 0 ? "negative" : "positive"
       };
     case "expenses":
-      return { label: "Expenses", value: formatCompact(derived.expenses) };
+      return {
+        label: "Expenses",
+        value: formatCompact(derived.expenses),
+        compactValue: formatHudQuantity(derived.expenses),
+        microValue: formatHudQuantity(derived.expenses, { micro: true })
+      };
     case "huntTime":
       return { label: "Time", value: formatDuration(derived.activeMs) };
     case "capturedRarities":
       return {
         label: "Rarity",
         kind: "rarities",
+        size: 2,
         rarities: RARITIES.map(([key, label]) => ({
           key,
           label,
@@ -232,19 +299,24 @@ export function closedHudDisplay(slot, derived, inventory) {
         }))
       };
     case "rarePlusFailed":
-      return { label: "R+ Failed", value: formatNumber(derived.rarePlusFailed) };
+      return numberDisplay("R+ Failed", derived.rarePlusFailed);
     case "shinyCaptured":
-      return { label: "Shiny Cap", value: formatNumber(derived.shinyCaptured) };
+      return numberDisplay("Shiny Cap", derived.shinyCaptured);
     case "totalBallsUsed":
-      return { label: "Balls Used", value: formatNumber(derived.totalBallsUsed) };
-    case "ballTracker": { 
+      return numberDisplay("Balls Used", derived.totalBallsUsed);
+    case "ballTracker": {
       const item = inventoryItemForSlot(slot, inventory, "capsule");
       const itemId = item?.item_id || slot?.itemId || "";
       const remaining = item ? numeric(item.qty ?? item.quantity) : null;
       const used = itemId ? derived.ballUsage.get(itemId) || 0 : 0;
+      const remainingFull = remaining == null ? "—" : formatNumber(remaining);
+      const remainingCompact = remaining == null ? "—" : formatHudQuantity(remaining);
+      const remainingMicro = remaining == null ? "—" : formatHudQuantity(remaining, { micro: true });
       return {
         label: shortInventoryName(item, "capsule"),
-        value: `${remaining == null ? "—" : formatNumber(remaining)} · ↓${formatNumber(used)}`,
+        value: `${remainingFull} · ↓${formatNumber(used)}`,
+        compactValue: `${remainingCompact} · ↓${formatHudQuantity(used)}`,
+        microValue: `${remainingMicro}/↓${formatHudQuantity(used, { micro: true })}`,
         title: `${item?.name || itemId || "Ball"}: ${remaining == null ? "unknown" : formatNumber(remaining)} remaining, ${formatNumber(used)} used in this Hunt`
       };
     }
@@ -254,6 +326,8 @@ export function closedHudDisplay(slot, derived, inventory) {
       return {
         label: shortInventoryName(item, "potion"),
         value: remaining == null ? "—" : formatNumber(remaining),
+        compactValue: remaining == null ? "—" : formatHudQuantity(remaining),
+        microValue: remaining == null ? "—" : formatHudQuantity(remaining, { micro: true }),
         title: `${item?.name || slot?.itemId || "Potion"}: ${remaining == null ? "unknown" : formatNumber(remaining)} remaining`
       };
     }
@@ -283,7 +357,7 @@ function widgetOptionsMarkup() {
 
   return [...groups.entries()].map(([category, widgets]) => `
     <optgroup label="${category}">
-      ${widgets.map((widget) => `<option value="${widget.id}">${widget.label}</option>`).join("")}
+      ${widgets.map((widget) => `<option value="${widget.id}">${widget.label}${widget.size === 2 ? " · Wide" : ""}</option>`).join("")}
     </optgroup>`).join("");
 }
 
@@ -321,6 +395,7 @@ const CLOSED_HUD_STYLE = `
     line-height:1;
     text-align:left;
   }
+  .pha-hud-slot.is-wide { grid-column:1 / -1; }
   .pha-hud-slot.is-empty { opacity:.3; }
   .pha-hud-slot-label {
     overflow:hidden;
@@ -342,13 +417,16 @@ const CLOSED_HUD_STYLE = `
     text-overflow:ellipsis;
     white-space:nowrap;
   }
+  .pha-hud-slot-value.is-tight { font-size:9px; letter-spacing:-.02em; }
+  .pha-hud-slot-value.is-micro { font-size:8px; letter-spacing:-.03em; }
   .pha-hud-slot-value.positive { color:#70dfaa; }
   .pha-hud-slot-value.negative { color:#ef8b82; }
   .pha-hud-rarity-values {
     margin-top:2px;
     display:flex;
     align-items:center;
-    gap:2px;
+    justify-content:flex-start;
+    gap:3px;
     overflow:hidden;
     font-size:7px;
     font-weight:800;
@@ -401,6 +479,7 @@ const CLOSED_HUD_STYLE = `
     font-size:9px;
   }
   .pha-hud-settings button { padding:0 7px; cursor:pointer; }
+  .pha-hud-settings select:disabled { opacity:.45; cursor:not-allowed; }
   .pha-hud-slot-configs {
     display:grid;
     grid-template-columns:repeat(2,minmax(0,1fr));
@@ -474,6 +553,11 @@ export function createClosedHud({ pageWindow } = {}) {
     ).join("");
   }
 
+  function rowWideStart(index) {
+    const start = index < 2 ? 0 : 2;
+    return closedHudWidgetSize(config.slots[start]?.widget) === 2 ? start : -1;
+  }
+
   function syncSettings() {
     if (!settings) return;
     const presetSelect = settings.querySelector("[data-hud-preset]");
@@ -484,9 +568,13 @@ export function createClosedHud({ pageWindow } = {}) {
       const widgetSelect = settings.querySelector(`[data-hud-widget="${index}"]`);
       const itemSelect = settings.querySelector(`[data-hud-item="${index}"]`);
       const widget = WIDGET_BY_ID.get(slot.widget);
+      const wideStart = rowWideStart(index);
+      const consumed = wideStart >= 0 && index === wideStart + 1;
+
+      widgetSelect.disabled = consumed;
       widgetSelect.value = slot.widget;
 
-      if (!widget?.itemType) {
+      if (consumed || !widget?.itemType) {
         itemSelect.hidden = true;
         itemSelect.replaceChildren();
         continue;
@@ -515,9 +603,27 @@ export function createClosedHud({ pageWindow } = {}) {
     if (!widget || widget.itemType || widgetId === "empty") return slots;
     return slots.map((slot, slotIndex) =>
       slotIndex !== index && slot.widget === widgetId
-        ? { widget: "empty", itemId: null }
+        ? emptySlot()
         : slot
     );
+  }
+
+  function applyWidgetSelection(index, widgetId) {
+    let slots = config.slots.map(cloneSlot);
+    const rowStart = index < 2 ? 0 : 2;
+    const size = closedHudWidgetSize(widgetId);
+
+    if (size === 2) {
+      slots[rowStart] = { widget: widgetId, itemId: null };
+      slots[rowStart + 1] = emptySlot();
+      slots = enforceUniqueStandardWidget(rowStart, widgetId, slots);
+    } else {
+      if (closedHudWidgetSize(slots[rowStart]?.widget) === 2) slots[rowStart] = emptySlot();
+      slots[index] = { widget: widgetId, itemId: null };
+      slots = enforceUniqueStandardWidget(index, widgetId, slots);
+    }
+
+    saveConfig({ preset: "custom", slots });
   }
 
   function bindSettings() {
@@ -538,12 +644,7 @@ export function createClosedHud({ pageWindow } = {}) {
 
     for (const select of settings.querySelectorAll("[data-hud-widget]")) {
       select.addEventListener("change", (event) => {
-        const index = Number(event.currentTarget.dataset.hudWidget);
-        const widgetId = event.currentTarget.value;
-        let slots = config.slots.map(cloneSlot);
-        slots[index] = { widget: widgetId, itemId: null };
-        slots = enforceUniqueStandardWidget(index, widgetId, slots);
-        saveConfig({ preset: "custom", slots });
+        applyWidgetSelection(Number(event.currentTarget.dataset.hudWidget), event.currentTarget.value);
       });
     }
 
@@ -567,6 +668,9 @@ export function createClosedHud({ pageWindow } = {}) {
     const tabs = shadow.querySelector(".tabs");
     const alphaButton = shadow.getElementById("pha-alpha");
     if (!launcher || !topbar || !tabs || !alphaButton) return;
+
+    // Keep the legacy launcher from flashing while the persisted HUD config is hydrated.
+    launcher.style.visibility = "hidden";
 
     style = document.createElement("style");
     style.id = "pha-closed-hud-style";
@@ -602,7 +706,7 @@ export function createClosedHud({ pageWindow } = {}) {
     settings.innerHTML = `
       <div class="pha-hud-settings-head">
         <strong>Closed HUD · MVP</strong>
-        <small>4 indicators · changes apply instantly</small>
+        <small>4 units · wide widgets use 2</small>
       </div>
       <div class="pha-hud-settings-toolbar">
         <label>Preset
@@ -632,6 +736,8 @@ export function createClosedHud({ pageWindow } = {}) {
     bindSettings();
     syncSettings();
     renderLastState();
+    launcher.dataset.hudHydrated = "true";
+    launcher.style.visibility = "visible";
     inventoryState.start();
   }
 
@@ -644,7 +750,7 @@ export function createClosedHud({ pageWindow } = {}) {
     display.rarities.forEach((rarity, index) => {
       const value = document.createElement("span");
       value.className = `rarity-${rarity.key}`;
-      value.textContent = formatNumber(rarity.value);
+      value.textContent = formatHudQuantity(rarity.value);
       wrap.appendChild(value);
       titleParts.push(`${rarity.label}: ${formatNumber(rarity.value)}`);
       if (index < display.rarities.length - 1) {
@@ -659,13 +765,45 @@ export function createClosedHud({ pageWindow } = {}) {
     container.appendChild(wrap);
   }
 
+  function fits(element) {
+    return element.scrollWidth <= element.clientWidth + 1;
+  }
+
+  function fitDisplayValue(element, display) {
+    element.classList.remove("is-tight", "is-micro");
+    element.textContent = display.value ?? "";
+    if (fits(element)) return;
+
+    if (display.compactValue != null && display.compactValue !== display.value) {
+      element.textContent = display.compactValue;
+      if (fits(element)) return;
+    }
+
+    element.classList.add("is-tight");
+    if (fits(element)) return;
+
+    if (display.microValue != null) element.textContent = display.microValue;
+    element.classList.remove("is-tight");
+    element.classList.add("is-micro");
+  }
+
   function renderLastState() {
-    if (!mounted || !grid || !lastState) return;
-    const derived = deriveClosedHudState(lastState);
+    if (!mounted || !grid) return;
+    const derived = deriveClosedHudState(lastState || {});
     const inventory = activeInventory();
 
     for (let index = 0; index < 4; index += 1) {
       const slotElement = grid.querySelector(`[data-hud-slot="${index}"]`);
+      const rowStart = index < 2 ? 0 : 2;
+      const rowIsWide = closedHudWidgetSize(config.slots[rowStart]?.widget) === 2;
+      const consumed = rowIsWide && index === rowStart + 1;
+      slotElement.hidden = consumed;
+      slotElement.classList.toggle("is-wide", rowIsWide && index === rowStart);
+      if (consumed) {
+        slotElement.replaceChildren();
+        continue;
+      }
+
       const display = closedHudDisplay(config.slots[index], derived, inventory);
       slotElement.classList.toggle("is-empty", Boolean(display.empty));
       slotElement.title = display.title || "";
@@ -685,8 +823,8 @@ export function createClosedHud({ pageWindow } = {}) {
 
       const value = document.createElement("span");
       value.className = `pha-hud-slot-value${display.tone ? ` ${display.tone}` : ""}`;
-      value.textContent = display.value;
       slotElement.appendChild(value);
+      fitDisplayValue(value, display);
     }
   }
 
@@ -697,7 +835,11 @@ export function createClosedHud({ pageWindow } = {}) {
 
   function dispose() {
     inventoryState.dispose();
-    if (launcher) launcher.classList.remove("pha-custom-hud");
+    if (launcher) {
+      launcher.classList.remove("pha-custom-hud");
+      launcher.style.removeProperty("visibility");
+      delete launcher.dataset.hudHydrated;
+    }
     shadow?.querySelector(".topbar")?.classList.remove("pha-hud-topbar");
     grid?.remove();
     settings?.remove();
