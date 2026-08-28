@@ -9,6 +9,20 @@ import { createInventoryState } from "./inventory-state.js";
 
 export const CLOSED_HUD_STORAGE_KEY = "pokepixel_hunt_analyzer_closed_hud_v1";
 
+const RARITY_ABBR = Object.freeze({
+  weak: "W",
+  common: "C",
+  uncommon: "U",
+  rare: "R",
+  epic: "E",
+  legendary: "L",
+  mythical: "M"
+});
+const RARITY_KEYS = RARITIES.map(([key]) => key);
+const RARITY_KEY_SET = new Set(RARITY_KEYS);
+const DEFAULT_RARITY_KEYS = Object.freeze([...RARITY_KEYS]);
+const RARE_PLUS_KEYS = new Set(["rare", "epic", "legendary", "mythical"]);
+
 export const CLOSED_HUD_WIDGETS = Object.freeze([
   { id: "empty", label: "Empty", category: "Layout", size: 1 },
   { id: "seen", label: "Seen", category: "Hunt", size: 1 },
@@ -22,7 +36,13 @@ export const CLOSED_HUD_WIDGETS = Object.freeze([
   { id: "profitPerHour", label: "Profit/h", category: "Economy", size: 1 },
   { id: "expenses", label: "Expenses", category: "Economy", size: 1 },
   { id: "huntTime", label: "Hunt Time", category: "Hunt", size: 1 },
-  { id: "capturedRarities", label: "Captured Rarities", category: "Capture", size: 2 },
+  {
+    id: "rarityTracker",
+    label: "Rarity Tracker",
+    category: "Capture",
+    size: 2,
+    configurableSize: true
+  },
   { id: "rarePlusFailed", label: "Rare+ Failed", category: "Capture", size: 1 },
   { id: "shinyCaptured", label: "Shiny Captured", category: "Capture", size: 1 },
   { id: "totalBallsUsed", label: "Total Balls Used", category: "HUD Exclusive", size: 1 },
@@ -43,14 +63,29 @@ export const CLOSED_HUD_WIDGETS = Object.freeze([
 ]);
 
 const WIDGET_BY_ID = new Map(CLOSED_HUD_WIDGETS.map((widget) => [widget.id, widget]));
-const RARE_PLUS_KEYS = new Set(["rare", "epic", "legendary", "mythical"]);
-const EMPTY_SLOT = Object.freeze({ widget: "empty", itemId: null });
+const EMPTY_SLOT = Object.freeze({
+  widget: "empty",
+  itemId: null,
+  size: 1,
+  rarityKeys: null,
+  showFailed: false
+});
+
+function defaultRaritySlot(size = 2) {
+  return {
+    widget: "rarityTracker",
+    itemId: null,
+    size: size === 1 ? 1 : 2,
+    rarityKeys: [...DEFAULT_RARITY_KEYS],
+    showFailed: false
+  };
+}
 
 export const CLOSED_HUD_PRESETS = Object.freeze({
   default: Object.freeze([
     { widget: "seen" },
     { widget: "seenPerHour" },
-    { widget: "capturedRarities" },
+    defaultRaritySlot(2),
     { widget: "empty" }
   ]),
   leveling: Object.freeze([
@@ -73,10 +108,23 @@ export const CLOSED_HUD_PRESETS = Object.freeze({
   ])
 });
 
+function normalizeRarityKeys(value) {
+  if (!Array.isArray(value)) return [...DEFAULT_RARITY_KEYS];
+  const selected = RARITY_KEYS.filter((key) => value.includes(key) && RARITY_KEY_SET.has(key));
+  return selected.length > 0 ? selected : [...DEFAULT_RARITY_KEYS];
+}
+
 function cloneSlot(slot) {
+  let widget = String(slot?.widget || "empty");
+  if (widget === "capturedRarities") widget = "rarityTracker";
+
+  const rarity = widget === "rarityTracker";
   return {
-    widget: String(slot?.widget || "empty"),
-    itemId: slot?.itemId ? String(slot.itemId) : null
+    widget,
+    itemId: slot?.itemId ? String(slot.itemId) : null,
+    size: rarity ? (Number(slot?.size) === 1 ? 1 : 2) : 1,
+    rarityKeys: rarity ? normalizeRarityKeys(slot?.rarityKeys) : null,
+    showFailed: rarity ? Boolean(slot?.showFailed) : false
   };
 }
 
@@ -84,15 +132,21 @@ function emptySlot() {
   return { ...EMPTY_SLOT };
 }
 
-export function closedHudWidgetSize(widgetId) {
+export function closedHudWidgetSize(widgetId, slot = null) {
+  if (widgetId === "capturedRarities") return 2;
+  if (widgetId === "rarityTracker") return Number(slot?.size) === 1 ? 1 : 2;
   return WIDGET_BY_ID.get(widgetId)?.size === 2 ? 2 : 1;
+}
+
+function slotSize(slot) {
+  return closedHudWidgetSize(slot?.widget, slot);
 }
 
 function normalizeWideRows(slots) {
   const normalized = slots.map(cloneSlot);
   for (const rowStart of [0, 2]) {
-    const wideIndex = [rowStart, rowStart + 1]
-      .find((index) => closedHudWidgetSize(normalized[index]?.widget) === 2);
+    const rowIndexes = [rowStart, rowStart + 1];
+    const wideIndex = rowIndexes.find((index) => slotSize(normalized[index]) === 2);
     if (wideIndex == null) continue;
     const wide = cloneSlot(normalized[wideIndex]);
     normalized[rowStart] = wide;
@@ -123,7 +177,10 @@ export function normalizeClosedHudConfig(raw) {
 
   for (let index = 0; index < 4; index += 1) {
     const candidate = cloneSlot(rawSlots[index] || fallback.slots[index]);
-    if (!WIDGET_BY_ID.has(candidate.widget)) candidate.widget = fallback.slots[index].widget;
+    if (!WIDGET_BY_ID.has(candidate.widget)) {
+      slots.push(cloneSlot(fallback.slots[index]));
+      continue;
+    }
     slots.push(candidate);
   }
 
@@ -148,7 +205,6 @@ export function formatHudQuantity(value, { micro = false } = {}) {
   const [divisor, suffix] = units.find(([threshold]) => absolute >= threshold) || units[2];
   const scaled = number / divisor;
   if (micro) return `${Math.round(scaled)}${suffix}`;
-
   const digits = Math.abs(scaled) < 10 ? 1 : 0;
   return `${scaled.toFixed(digits).replace(/\.0$/, "")}${suffix}`;
 }
@@ -156,12 +212,14 @@ export function formatHudQuantity(value, { micro = false } = {}) {
 export function deriveClosedHudState({ metrics = {}, encounters = [] } = {}) {
   const rarities = metrics.rarities || {};
   const rarityCaptured = {};
+  const rarityFailed = {};
   let rarePlusFailed = 0;
   let shinyCaptured = 0;
 
   for (const [key] of RARITIES) {
     const row = rarities[key] || {};
     rarityCaptured[key] = numeric(row.captured);
+    rarityFailed[key] = numeric(row.failed);
     shinyCaptured += numeric(row.shinyCaptured);
     if (RARE_PLUS_KEYS.has(key)) rarePlusFailed += numeric(row.failed);
   }
@@ -191,6 +249,7 @@ export function deriveClosedHudState({ metrics = {}, encounters = [] } = {}) {
     expenses: numeric(metrics.expenses),
     activeMs,
     rarityCaptured,
+    rarityFailed,
     rarePlusFailed,
     shinyCaptured,
     totalBallsUsed: [...ballUsage.values()].reduce((sum, count) => sum + count, 0),
@@ -229,7 +288,8 @@ function numberDisplay(label, value) {
 }
 
 export function closedHudDisplay(slot, derived, inventory) {
-  const widgetId = slot?.widget || "empty";
+  const normalizedSlot = cloneSlot(slot);
+  const widgetId = normalizedSlot.widget;
 
   switch (widgetId) {
     case "empty":
@@ -287,17 +347,26 @@ export function closedHudDisplay(slot, derived, inventory) {
       };
     case "huntTime":
       return { label: "Time", value: formatDuration(derived.activeMs) };
-    case "capturedRarities":
+    case "rarityTracker": {
+      const selected = normalizeRarityKeys(normalizedSlot.rarityKeys);
+      const showFailed = Boolean(normalizedSlot.showFailed);
       return {
         label: "Rarity",
         kind: "rarities",
-        size: 2,
-        rarities: RARITIES.map(([key, label]) => ({
-          key,
-          label,
-          value: derived.rarityCaptured[key] || 0
-        }))
+        size: normalizedSlot.size,
+        showFailed,
+        rarities: selected.map((key) => {
+          const label = RARITIES.find(([rarityKey]) => rarityKey === key)?.[1] || key;
+          return {
+            key,
+            label,
+            abbr: RARITY_ABBR[key] || label.slice(0, 1).toUpperCase(),
+            captured: numeric(derived.rarityCaptured?.[key]),
+            failed: numeric(derived.rarityFailed?.[key])
+          };
+        })
       };
+    }
     case "rarePlusFailed":
       return numberDisplay("R+ Failed", derived.rarePlusFailed);
     case "shinyCaptured":
@@ -305,30 +374,27 @@ export function closedHudDisplay(slot, derived, inventory) {
     case "totalBallsUsed":
       return numberDisplay("Balls Used", derived.totalBallsUsed);
     case "ballTracker": {
-      const item = inventoryItemForSlot(slot, inventory, "capsule");
-      const itemId = item?.item_id || slot?.itemId || "";
+      const item = inventoryItemForSlot(normalizedSlot, inventory, "capsule");
+      const itemId = item?.item_id || normalizedSlot.itemId || "";
       const remaining = item ? numeric(item.qty ?? item.quantity) : null;
       const used = itemId ? derived.ballUsage.get(itemId) || 0 : 0;
-      const remainingFull = remaining == null ? "—" : formatNumber(remaining);
-      const remainingCompact = remaining == null ? "—" : formatHudQuantity(remaining);
-      const remainingMicro = remaining == null ? "—" : formatHudQuantity(remaining, { micro: true });
       return {
         label: shortInventoryName(item, "capsule"),
-        value: `${remainingFull} · ↓${formatNumber(used)}`,
-        compactValue: `${remainingCompact} · ↓${formatHudQuantity(used)}`,
-        microValue: `${remainingMicro}/↓${formatHudQuantity(used, { micro: true })}`,
+        kind: "inventory",
+        value: remaining == null ? "—" : formatNumber(remaining),
+        secondaryValue: `↓${formatNumber(used)}`,
         title: `${item?.name || itemId || "Ball"}: ${remaining == null ? "unknown" : formatNumber(remaining)} remaining, ${formatNumber(used)} used in this Hunt`
       };
     }
     case "potionTracker": {
-      const item = inventoryItemForSlot(slot, inventory, "potion");
+      const item = inventoryItemForSlot(normalizedSlot, inventory, "potion");
       const remaining = item ? numeric(item.qty ?? item.quantity) : null;
       return {
         label: shortInventoryName(item, "potion"),
+        kind: "inventory",
         value: remaining == null ? "—" : formatNumber(remaining),
-        compactValue: remaining == null ? "—" : formatHudQuantity(remaining),
-        microValue: remaining == null ? "—" : formatHudQuantity(remaining, { micro: true }),
-        title: `${item?.name || slot?.itemId || "Potion"}: ${remaining == null ? "unknown" : formatNumber(remaining)} remaining`
+        secondaryValue: null,
+        title: `${item?.name || normalizedSlot.itemId || "Potion"}: ${remaining == null ? "unknown" : formatNumber(remaining)} remaining`
       };
     }
     default:
@@ -354,17 +420,39 @@ function widgetOptionsMarkup() {
     if (!groups.has(widget.category)) groups.set(widget.category, []);
     groups.get(widget.category).push(widget);
   }
-
   return [...groups.entries()].map(([category, widgets]) => `
     <optgroup label="${category}">
-      ${widgets.map((widget) => `<option value="${widget.id}">${widget.label}${widget.size === 2 ? " · Wide" : ""}</option>`).join("")}
+      ${widgets.map((widget) => `<option value="${widget.id}">${widget.label}</option>`).join("")}
     </optgroup>`).join("");
 }
 
+function rarityConfigMarkup(index) {
+  return `
+    <div class="pha-hud-rarity-config" data-hud-rarity-config="${index}" hidden>
+      <div class="pha-hud-rarity-toolbar">
+        <label>Width
+          <select data-hud-rarity-width="${index}">
+            <option value="1">1 slot</option>
+            <option value="2">2 slots</option>
+          </select>
+        </label>
+        <label class="pha-hud-inline-check">
+          <input type="checkbox" data-hud-rarity-failed="${index}">
+          <span>Show Failed</span>
+        </label>
+      </div>
+      <div class="pha-hud-rarity-checks" aria-label="Tracked rarities">
+        ${RARITIES.map(([key, label]) => `
+          <label title="${label}">
+            <input type="checkbox" data-hud-rarity-key="${index}" value="${key}">
+            <span class="rarity-${key}">${RARITY_ABBR[key] || label[0]}</span>
+          </label>`).join("")}
+      </div>
+    </div>`;
+}
+
 const CLOSED_HUD_STYLE = `
-  .topbar.pha-hud-topbar {
-    grid-template-columns:minmax(0,1fr) auto auto auto auto;
-  }
+  .topbar.pha-hud-topbar { grid-template-columns:minmax(0,1fr) auto auto auto auto; }
   #pha-toggle.pha-custom-hud {
     width:220px !important;
     min-width:220px !important;
@@ -395,7 +483,8 @@ const CLOSED_HUD_STYLE = `
     line-height:1;
     text-align:left;
   }
-  .pha-hud-slot.is-wide { grid-column:1 / -1; }
+  .pha-hud-slot.is-wide { grid-column:span 2; }
+  .pha-hud-slot.is-consumed { display:none; }
   .pha-hud-slot.is-empty { opacity:.3; }
   .pha-hud-slot-label {
     overflow:hidden;
@@ -414,26 +503,77 @@ const CLOSED_HUD_STYLE = `
     font-size:10px;
     font-weight:800;
     font-variant-numeric:tabular-nums;
-    text-overflow:ellipsis;
+    text-overflow:clip;
     white-space:nowrap;
   }
-  .pha-hud-slot-value.is-tight { font-size:9px; letter-spacing:-.02em; }
-  .pha-hud-slot-value.is-micro { font-size:8px; letter-spacing:-.03em; }
   .pha-hud-slot-value.positive { color:#70dfaa; }
   .pha-hud-slot-value.negative { color:#ef8b82; }
-  .pha-hud-rarity-values {
+
+  .pha-hud-inventory-line {
+    min-width:0;
     margin-top:2px;
     display:flex;
-    align-items:center;
-    justify-content:flex-start;
-    gap:3px;
+    align-items:baseline;
+    gap:5px;
     overflow:hidden;
-    font-size:7px;
-    font-weight:800;
-    font-variant-numeric:tabular-nums;
     white-space:nowrap;
+    font-variant-numeric:tabular-nums;
   }
-  .pha-hud-rarity-separator { color:#66645d; font-weight:400; }
+  .pha-hud-inventory-primary {
+    flex:none;
+    color:#f0eee6;
+    font-size:10px;
+    font-weight:800;
+  }
+  .pha-hud-inventory-secondary {
+    min-width:0;
+    overflow:hidden;
+    color:#aaa79c;
+    font-size:7px;
+    font-weight:700;
+    text-overflow:clip;
+  }
+  .pha-hud-inventory-line.hide-secondary .pha-hud-inventory-secondary { display:none; }
+  .pha-hud-inventory-line.tight .pha-hud-inventory-primary { font-size:9px; }
+  .pha-hud-inventory-line.extra-tight .pha-hud-inventory-primary { font-size:8px; }
+
+  .pha-hud-slot.is-rarity { padding:0 2px; }
+  .pha-hud-rarity-grid {
+    width:100%;
+    min-width:0;
+    height:100%;
+    display:grid;
+    align-items:center;
+    gap:2px;
+  }
+  .pha-hud-rarity-cell {
+    min-width:0;
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    white-space:nowrap;
+    font-variant-numeric:tabular-nums;
+  }
+  .pha-hud-rarity-key {
+    font-size:6px;
+    font-weight:800;
+    line-height:1;
+  }
+  .pha-hud-rarity-count {
+    margin-top:2px;
+    color:#f0eee6;
+    font-size:8px;
+    font-weight:800;
+    line-height:1;
+  }
+  .pha-hud-rarity-grid.with-failed .pha-hud-rarity-count { font-size:7px; }
+  .pha-hud-rarity-grid.dense { gap:1px; }
+  .pha-hud-rarity-grid.dense .pha-hud-rarity-count { font-size:7px; }
+  .pha-hud-rarity-grid.dense.with-failed .pha-hud-rarity-count { font-size:6px; }
+
   .pha-hud-settings-button { min-width:38px; }
   .pha-hud-settings {
     padding:8px 10px;
@@ -479,7 +619,6 @@ const CLOSED_HUD_STYLE = `
     font-size:9px;
   }
   .pha-hud-settings button { padding:0 7px; cursor:pointer; }
-  .pha-hud-settings select:disabled { opacity:.45; cursor:not-allowed; }
   .pha-hud-slot-configs {
     display:grid;
     grid-template-columns:repeat(2,minmax(0,1fr));
@@ -499,11 +638,52 @@ const CLOSED_HUD_STYLE = `
   .pha-hud-slot-config > span { text-align:center; }
   .pha-hud-slot-config select { min-width:0; width:100%; }
   .pha-hud-slot-config select[data-hud-item] { grid-column:2; }
-  .pha-hud-inventory-status {
-    margin-top:6px;
-    color:var(--muted);
-    font-size:8px;
+  .pha-hud-rarity-config {
+    grid-column:1 / -1;
+    margin-top:2px;
+    padding-top:5px;
+    border-top:1px solid #393a34;
   }
+  .pha-hud-rarity-toolbar {
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:5px;
+    align-items:end;
+  }
+  .pha-hud-inline-check {
+    height:25px;
+    padding:0 5px;
+    display:flex !important;
+    flex-direction:row !important;
+    align-items:center;
+    gap:4px !important;
+    border:1px solid var(--border);
+    border-radius:3px;
+    color:var(--text) !important;
+    text-transform:none !important;
+  }
+  .pha-hud-inline-check input { margin:0; accent-color:#c0ad72; }
+  .pha-hud-rarity-checks {
+    margin-top:5px;
+    display:grid;
+    grid-template-columns:repeat(7,minmax(0,1fr));
+    gap:3px;
+  }
+  .pha-hud-rarity-checks label {
+    height:23px;
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+    justify-content:center;
+    gap:2px;
+    border:1px solid #41423c;
+    border-radius:3px;
+    background:#20211e;
+    cursor:pointer;
+  }
+  .pha-hud-rarity-checks input { width:10px; height:10px; margin:0; accent-color:#c0ad72; }
+  .pha-hud-rarity-checks span { font-size:8px; font-weight:800; }
+  .pha-hud-inventory-status { margin-top:6px; color:var(--muted); font-size:8px; }
   .pha-hud-inventory-status.ready { color:#70dfaa; }
 `;
 
@@ -518,6 +698,10 @@ export function createClosedHud({ pageWindow } = {}) {
   let config = readStoredConfig();
   let inventorySnapshot = null;
   let mounted = false;
+
+  const primedLauncher = document.getElementById("pokepixel-hunt-analyzer-root")
+    ?.shadowRoot?.getElementById("pha-toggle");
+  if (primedLauncher) primedLauncher.style.visibility = "hidden";
 
   const inventoryState = createInventoryState({
     pageWindow,
@@ -547,15 +731,9 @@ export function createClosedHud({ pageWindow } = {}) {
         ? `<option value="${selectedId}">${selectedId}</option>`
         : '<option value="">Waiting for inventory…</option>';
     }
-
     return items.map((item) =>
       `<option value="${item.item_id}">${item.name || item.item_id}</option>`
     ).join("");
-  }
-
-  function rowWideStart(index) {
-    const start = index < 2 ? 0 : 2;
-    return closedHudWidgetSize(config.slots[start]?.widget) === 2 ? start : -1;
   }
 
   function syncSettings() {
@@ -567,26 +745,34 @@ export function createClosedHud({ pageWindow } = {}) {
       const slot = config.slots[index];
       const widgetSelect = settings.querySelector(`[data-hud-widget="${index}"]`);
       const itemSelect = settings.querySelector(`[data-hud-item="${index}"]`);
+      const rarityConfig = settings.querySelector(`[data-hud-rarity-config="${index}"]`);
       const widget = WIDGET_BY_ID.get(slot.widget);
-      const wideStart = rowWideStart(index);
-      const consumed = wideStart >= 0 && index === wideStart + 1;
-
-      widgetSelect.disabled = consumed;
       widgetSelect.value = slot.widget;
 
-      if (consumed || !widget?.itemType) {
+      if (widget?.itemType) {
+        const inventory = activeInventory();
+        const effectiveItem = inventoryItemForSlot(slot, inventory, widget.itemType);
+        const selectedId = effectiveItem?.item_id || slot.itemId || "";
+        itemSelect.innerHTML = selectOptionsForType(widget.itemType, selectedId);
+        itemSelect.hidden = false;
+        if (selectedId && [...itemSelect.options].some((option) => option.value === selectedId)) {
+          itemSelect.value = selectedId;
+        }
+      } else {
         itemSelect.hidden = true;
         itemSelect.replaceChildren();
-        continue;
       }
 
-      const inventory = activeInventory();
-      const effectiveItem = inventoryItemForSlot(slot, inventory, widget.itemType);
-      const selectedId = effectiveItem?.item_id || slot.itemId || "";
-      itemSelect.innerHTML = selectOptionsForType(widget.itemType, selectedId);
-      itemSelect.hidden = false;
-      if (selectedId && [...itemSelect.options].some((option) => option.value === selectedId)) {
-        itemSelect.value = selectedId;
+      const isRarity = slot.widget === "rarityTracker";
+      rarityConfig.hidden = !isRarity;
+      if (isRarity) {
+        const width = rarityConfig.querySelector(`[data-hud-rarity-width="${index}"]`);
+        const failed = rarityConfig.querySelector(`[data-hud-rarity-failed="${index}"]`);
+        width.value = String(slot.size === 1 ? 1 : 2);
+        failed.checked = Boolean(slot.showFailed);
+        for (const checkbox of rarityConfig.querySelectorAll(`[data-hud-rarity-key="${index}"]`)) {
+          checkbox.checked = slot.rarityKeys.includes(checkbox.value);
+        }
       }
     }
 
@@ -600,29 +786,16 @@ export function createClosedHud({ pageWindow } = {}) {
 
   function enforceUniqueStandardWidget(index, widgetId, slots) {
     const widget = WIDGET_BY_ID.get(widgetId);
-    if (!widget || widget.itemType || widgetId === "empty") return slots;
+    if (!widget || widget.itemType || widgetId === "empty" || widgetId === "rarityTracker") return slots;
     return slots.map((slot, slotIndex) =>
-      slotIndex !== index && slot.widget === widgetId
-        ? emptySlot()
-        : slot
+      slotIndex !== index && slot.widget === widgetId ? emptySlot() : slot
     );
   }
 
-  function applyWidgetSelection(index, widgetId) {
-    let slots = config.slots.map(cloneSlot);
-    const rowStart = index < 2 ? 0 : 2;
-    const size = closedHudWidgetSize(widgetId);
-
-    if (size === 2) {
-      slots[rowStart] = { widget: widgetId, itemId: null };
-      slots[rowStart + 1] = emptySlot();
-      slots = enforceUniqueStandardWidget(rowStart, widgetId, slots);
-    } else {
-      if (closedHudWidgetSize(slots[rowStart]?.widget) === 2) slots[rowStart] = emptySlot();
-      slots[index] = { widget: widgetId, itemId: null };
-      slots = enforceUniqueStandardWidget(index, widgetId, slots);
-    }
-
+  function updateRaritySlot(index, patch) {
+    const slots = config.slots.map(cloneSlot);
+    if (slots[index]?.widget !== "rarityTracker") return;
+    slots[index] = { ...slots[index], ...patch, widget: "rarityTracker" };
     saveConfig({ preset: "custom", slots });
   }
 
@@ -644,7 +817,14 @@ export function createClosedHud({ pageWindow } = {}) {
 
     for (const select of settings.querySelectorAll("[data-hud-widget]")) {
       select.addEventListener("change", (event) => {
-        applyWidgetSelection(Number(event.currentTarget.dataset.hudWidget), event.currentTarget.value);
+        const index = Number(event.currentTarget.dataset.hudWidget);
+        const widgetId = event.currentTarget.value;
+        let slots = config.slots.map(cloneSlot);
+        slots[index] = widgetId === "rarityTracker"
+          ? defaultRaritySlot(2)
+          : { ...emptySlot(), widget: widgetId };
+        slots = enforceUniqueStandardWidget(index, widgetId, slots);
+        saveConfig({ preset: "custom", slots });
       });
     }
 
@@ -654,6 +834,35 @@ export function createClosedHud({ pageWindow } = {}) {
         const slots = config.slots.map(cloneSlot);
         slots[index] = { ...slots[index], itemId: event.currentTarget.value || null };
         saveConfig({ preset: "custom", slots });
+      });
+    }
+
+    for (const select of settings.querySelectorAll("[data-hud-rarity-width]")) {
+      select.addEventListener("change", (event) => {
+        updateRaritySlot(Number(event.currentTarget.dataset.hudRarityWidth), {
+          size: event.currentTarget.value === "1" ? 1 : 2
+        });
+      });
+    }
+
+    for (const input of settings.querySelectorAll("[data-hud-rarity-failed]")) {
+      input.addEventListener("change", (event) => {
+        updateRaritySlot(Number(event.currentTarget.dataset.hudRarityFailed), {
+          showFailed: event.currentTarget.checked
+        });
+      });
+    }
+
+    for (const input of settings.querySelectorAll("[data-hud-rarity-key]")) {
+      input.addEventListener("change", (event) => {
+        const index = Number(event.currentTarget.dataset.hudRarityKey);
+        const group = [...settings.querySelectorAll(`[data-hud-rarity-key="${index}"]`)];
+        let rarityKeys = group.filter((checkbox) => checkbox.checked).map((checkbox) => checkbox.value);
+        if (rarityKeys.length === 0) {
+          event.currentTarget.checked = true;
+          rarityKeys = [event.currentTarget.value];
+        }
+        updateRaritySlot(index, { rarityKeys });
       });
     }
   }
@@ -669,9 +878,7 @@ export function createClosedHud({ pageWindow } = {}) {
     const alphaButton = shadow.getElementById("pha-alpha");
     if (!launcher || !topbar || !tabs || !alphaButton) return;
 
-    // Keep the legacy launcher from flashing while the persisted HUD config is hydrated.
     launcher.style.visibility = "hidden";
-
     style = document.createElement("style");
     style.id = "pha-closed-hud-style";
     style.textContent = CLOSED_HUD_STYLE;
@@ -706,7 +913,7 @@ export function createClosedHud({ pageWindow } = {}) {
     settings.innerHTML = `
       <div class="pha-hud-settings-head">
         <strong>Closed HUD · MVP</strong>
-        <small>4 units · wide widgets use 2</small>
+        <small>4 layout units · changes apply instantly</small>
       </div>
       <div class="pha-hud-settings-toolbar">
         <label>Preset
@@ -722,11 +929,12 @@ export function createClosedHud({ pageWindow } = {}) {
       </div>
       <div class="pha-hud-slot-configs">
         ${[0, 1, 2, 3].map((index) => `
-          <label class="pha-hud-slot-config">
+          <div class="pha-hud-slot-config">
             <span>${index + 1}</span>
             <select data-hud-widget="${index}">${widgetOptionsMarkup()}</select>
             <select data-hud-item="${index}" hidden></select>
-          </label>`).join("")}
+            ${rarityConfigMarkup(index)}
+          </div>`).join("")}
       </div>
       <div class="pha-hud-inventory-status" data-hud-inventory-status>Waiting for inventory snapshot…</div>
     `;
@@ -736,95 +944,121 @@ export function createClosedHud({ pageWindow } = {}) {
     bindSettings();
     syncSettings();
     renderLastState();
-    launcher.dataset.hudHydrated = "true";
-    launcher.style.visibility = "visible";
+    launcher.style.visibility = "";
     inventoryState.start();
   }
 
   function renderRarities(container, display) {
-    container.replaceChildren();
     const wrap = document.createElement("span");
-    wrap.className = "pha-hud-rarity-values";
-    const titleParts = [];
+    wrap.className = `pha-hud-rarity-grid${display.showFailed ? " with-failed" : ""}${display.rarities.length >= 6 ? " dense" : ""}`;
+    wrap.style.gridTemplateColumns = `repeat(${Math.max(1, display.rarities.length)}, minmax(0, 1fr))`;
 
-    display.rarities.forEach((rarity, index) => {
-      const value = document.createElement("span");
-      value.className = `rarity-${rarity.key}`;
-      value.textContent = formatHudQuantity(rarity.value);
-      wrap.appendChild(value);
-      titleParts.push(`${rarity.label}: ${formatNumber(rarity.value)}`);
-      if (index < display.rarities.length - 1) {
-        const separator = document.createElement("span");
-        separator.className = "pha-hud-rarity-separator";
-        separator.textContent = "·";
-        wrap.appendChild(separator);
-      }
-    });
+    for (const rarity of display.rarities) {
+      const cell = document.createElement("span");
+      cell.className = "pha-hud-rarity-cell";
+      cell.title = `${rarity.label} — Captured: ${formatNumber(rarity.captured)}${display.showFailed ? ` · Failed: ${formatNumber(rarity.failed)}` : ""}`;
 
-    container.title = titleParts.join(" · ");
+      const key = document.createElement("span");
+      key.className = `pha-hud-rarity-key rarity-${rarity.key}`;
+      key.textContent = rarity.abbr;
+
+      const count = document.createElement("span");
+      count.className = "pha-hud-rarity-count";
+      count.textContent = display.showFailed
+        ? `${formatNumber(rarity.captured)}/${formatNumber(rarity.failed)}`
+        : formatNumber(rarity.captured);
+
+      cell.append(key, count);
+      wrap.appendChild(cell);
+    }
+
     container.appendChild(wrap);
   }
 
-  function fits(element) {
-    return element.scrollWidth <= element.clientWidth + 1;
+  function fitAdaptiveValue(value, display) {
+    const candidates = [display.value, display.compactValue, display.microValue]
+      .filter((candidate, index, array) => candidate != null && array.indexOf(candidate) === index);
+    for (const candidate of candidates) {
+      value.textContent = candidate;
+      if (value.scrollWidth <= value.clientWidth + 1) return;
+    }
   }
 
-  function fitDisplayValue(element, display) {
-    element.classList.remove("is-tight", "is-micro");
-    element.textContent = display.value ?? "";
-    if (fits(element)) return;
+  function fitInventoryLine(line) {
+    const primary = line.querySelector(".pha-hud-inventory-primary");
+    if (!primary) return;
+    line.classList.remove("hide-secondary", "tight", "extra-tight");
+    if (line.scrollWidth <= line.clientWidth + 1) return;
+    line.classList.add("hide-secondary");
+    if (line.scrollWidth <= line.clientWidth + 1) return;
+    line.classList.add("tight");
+    if (line.scrollWidth <= line.clientWidth + 1) return;
+    line.classList.add("extra-tight");
+  }
 
-    if (display.compactValue != null && display.compactValue !== display.value) {
-      element.textContent = display.compactValue;
-      if (fits(element)) return;
+  function renderInventory(container, display) {
+    const label = document.createElement("span");
+    label.className = "pha-hud-slot-label";
+    label.textContent = display.label;
+
+    const line = document.createElement("span");
+    line.className = "pha-hud-inventory-line";
+    const primary = document.createElement("span");
+    primary.className = "pha-hud-inventory-primary";
+    primary.textContent = display.value;
+    line.appendChild(primary);
+
+    if (display.secondaryValue) {
+      const secondary = document.createElement("span");
+      secondary.className = "pha-hud-inventory-secondary";
+      secondary.textContent = display.secondaryValue;
+      line.appendChild(secondary);
     }
 
-    element.classList.add("is-tight");
-    if (fits(element)) return;
-
-    if (display.microValue != null) element.textContent = display.microValue;
-    element.classList.remove("is-tight");
-    element.classList.add("is-micro");
+    container.append(label, line);
+    fitInventoryLine(line);
   }
 
   function renderLastState() {
     if (!mounted || !grid) return;
-    const derived = deriveClosedHudState(lastState || {});
+    const source = lastState || { metrics: { rarities: {} }, encounters: [] };
+    const derived = deriveClosedHudState(source);
     const inventory = activeInventory();
 
     for (let index = 0; index < 4; index += 1) {
       const slotElement = grid.querySelector(`[data-hud-slot="${index}"]`);
-      const rowStart = index < 2 ? 0 : 2;
-      const rowIsWide = closedHudWidgetSize(config.slots[rowStart]?.widget) === 2;
-      const consumed = rowIsWide && index === rowStart + 1;
-      slotElement.hidden = consumed;
-      slotElement.classList.toggle("is-wide", rowIsWide && index === rowStart);
-      if (consumed) {
-        slotElement.replaceChildren();
-        continue;
-      }
+      const slot = config.slots[index];
+      const display = closedHudDisplay(slot, derived, inventory);
+      const size = slotSize(slot);
+      const rowStart = index % 2 === 0;
+      const consumed = !rowStart && slot.widget === "empty" && slotSize(config.slots[index - 1]) === 2;
 
-      const display = closedHudDisplay(config.slots[index], derived, inventory);
+      slotElement.className = "pha-hud-slot";
       slotElement.classList.toggle("is-empty", Boolean(display.empty));
+      slotElement.classList.toggle("is-wide", size === 2 && rowStart);
+      slotElement.classList.toggle("is-consumed", consumed);
+      slotElement.classList.toggle("is-rarity", display.kind === "rarities");
       slotElement.title = display.title || "";
       slotElement.replaceChildren();
 
-      if (display.empty) continue;
-
-      const label = document.createElement("span");
-      label.className = "pha-hud-slot-label";
-      label.textContent = display.label;
-      slotElement.appendChild(label);
-
+      if (consumed || display.empty) continue;
       if (display.kind === "rarities") {
         renderRarities(slotElement, display);
         continue;
       }
+      if (display.kind === "inventory") {
+        renderInventory(slotElement, display);
+        continue;
+      }
 
+      const label = document.createElement("span");
+      label.className = "pha-hud-slot-label";
+      label.textContent = display.label;
       const value = document.createElement("span");
       value.className = `pha-hud-slot-value${display.tone ? ` ${display.tone}` : ""}`;
-      slotElement.appendChild(value);
-      fitDisplayValue(value, display);
+      value.textContent = display.value;
+      slotElement.append(label, value);
+      fitAdaptiveValue(value, display);
     }
   }
 
@@ -837,8 +1071,7 @@ export function createClosedHud({ pageWindow } = {}) {
     inventoryState.dispose();
     if (launcher) {
       launcher.classList.remove("pha-custom-hud");
-      launcher.style.removeProperty("visibility");
-      delete launcher.dataset.hudHydrated;
+      launcher.style.visibility = "";
     }
     shadow?.querySelector(".topbar")?.classList.remove("pha-hud-topbar");
     grid?.remove();
