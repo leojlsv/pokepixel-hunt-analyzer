@@ -14,15 +14,34 @@ import {
   decrementInventoryItem
 } from "../../userscript/inventory-state.js";
 
-test("closed HUD default preset fills four layout units", () => {
+test("closed HUD default preset uses a two-slot Rarity Tracker", () => {
   const config = closedHudConfigForPreset("default");
 
   assert.equal(config.preset, "default");
   assert.deepEqual(
     config.slots.map((slot) => slot.widget),
-    ["seen", "seenPerHour", "capturedRarities", "empty"]
+    ["seen", "seenPerHour", "rarityTracker", "empty"]
   );
-  assert.equal(closedHudWidgetSize("capturedRarities"), 2);
+  assert.equal(closedHudWidgetSize("rarityTracker"), 2);
+  assert.equal(config.slots[2].size, 2);
+  assert.equal(config.slots[2].showFailed, false);
+  assert.equal(config.slots[2].rarityKeys.length, 7);
+});
+
+test("legacy Captured Rarities config migrates to Rarity Tracker", () => {
+  const config = normalizeClosedHudConfig({
+    preset: "custom",
+    slots: [
+      { widget: "seen" },
+      { widget: "seenPerHour" },
+      { widget: "capturedRarities" },
+      { widget: "empty" }
+    ]
+  });
+
+  assert.equal(config.slots[2].widget, "rarityTracker");
+  assert.equal(config.slots[2].size, 2);
+  assert.equal(config.slots[3].widget, "empty");
 });
 
 test("closed HUD config falls back from unknown widgets without breaking four-slot shape", () => {
@@ -40,24 +59,50 @@ test("closed HUD config falls back from unknown widgets without breaking four-sl
   assert.equal(config.slots[1].widget, "seenPerHour");
 });
 
-test("wide widgets normalize to the beginning of their row and consume the paired slot", () => {
+test("two-slot Rarity Tracker normalizes to row start and consumes paired slot", () => {
   const config = normalizeClosedHudConfig({
     preset: "custom",
     slots: [
       { widget: "seen" },
-      { widget: "seenPerHour" },
+      {
+        widget: "rarityTracker",
+        size: 2,
+        rarityKeys: ["rare", "epic", "legendary", "mythical"],
+        showFailed: true
+      },
       { widget: "captured" },
-      { widget: "capturedRarities" }
+      { widget: "failed" }
     ]
   });
 
-  assert.deepEqual(
-    config.slots.map((slot) => slot.widget),
-    ["seen", "seenPerHour", "capturedRarities", "empty"]
-  );
+  assert.equal(config.slots[0].widget, "rarityTracker");
+  assert.equal(config.slots[0].size, 2);
+  assert.deepEqual(config.slots[0].rarityKeys, ["rare", "epic", "legendary", "mythical"]);
+  assert.equal(config.slots[0].showFailed, true);
+  assert.equal(config.slots[1].widget, "empty");
 });
 
-test("adaptive HUD quantity formatting keeps large values compact", () => {
+test("one-slot Rarity Tracker leaves the paired indicator available", () => {
+  const config = normalizeClosedHudConfig({
+    preset: "custom",
+    slots: [
+      {
+        widget: "rarityTracker",
+        size: 1,
+        rarityKeys: ["legendary", "mythical"],
+        showFailed: true
+      },
+      { widget: "profitPerHour" },
+      { widget: "seen" },
+      { widget: "captured" }
+    ]
+  });
+
+  assert.equal(config.slots[0].size, 1);
+  assert.equal(config.slots[1].widget, "profitPerHour");
+});
+
+test("adaptive HUD quantity formatting remains available for non-inventory metrics", () => {
   assert.equal(formatHudQuantity(999), "999");
   assert.equal(formatHudQuantity(2_300), "2.3K");
   assert.equal(formatHudQuantity(52_320), "52K");
@@ -65,7 +110,7 @@ test("adaptive HUD quantity formatting keeps large values compact", () => {
   assert.equal(formatHudQuantity(3_480_000), "3.5M");
 });
 
-test("deriveClosedHudState computes profit per hour and per-ball usage", () => {
+test("deriveClosedHudState computes financial rate, ball usage and captured/failed rarity maps", () => {
   const state = deriveClosedHudState({
     metrics: {
       seen: 100,
@@ -99,8 +144,39 @@ test("deriveClosedHudState computes profit per hour and per-ball usage", () => {
   assert.equal(state.totalBallsUsed, 3);
   assert.equal(state.ballUsage.get("capsule_ultra"), 2);
   assert.equal(state.ballUsage.get("capsule_super"), 1);
+  assert.equal(state.rarityCaptured.rare, 1);
+  assert.equal(state.rarityFailed.rare, 2);
   assert.equal(state.rarePlusFailed, 3);
   assert.equal(state.shinyCaptured, 1);
+});
+
+test("Rarity Tracker filters rarities and optionally exposes failed counts", () => {
+  const derived = deriveClosedHudState({
+    metrics: {
+      rarities: {
+        rare: { captured: 12, failed: 31 },
+        epic: { captured: 4, failed: 9 },
+        legendary: { captured: 1, failed: 2 },
+        mythical: { captured: 0, failed: 1 }
+      }
+    }
+  });
+
+  const display = closedHudDisplay({
+    widget: "rarityTracker",
+    size: 1,
+    rarityKeys: ["legendary", "mythical"],
+    showFailed: true
+  }, derived, null);
+
+  assert.equal(display.kind, "rarities");
+  assert.equal(display.size, 1);
+  assert.equal(display.showFailed, true);
+  assert.deepEqual(display.rarities.map((rarity) => rarity.key), ["legendary", "mythical"]);
+  assert.deepEqual(
+    display.rarities.map(({ captured, failed }) => [captured, failed]),
+    [[1, 2], [0, 1]]
+  );
 });
 
 test("inventory snapshot classifies capsules and potions and preserves authoritative quantity", () => {
@@ -146,13 +222,13 @@ test("local capture reconciliation decrements remaining ball until next inventor
   assert.equal(snapshot.byId.get("capsule_ultra").qty, 10);
 });
 
-test("Ball Tracker exposes full, compact and micro representations", () => {
+test("Ball Tracker never rounds authoritative remaining inventory", () => {
   const inventory = normalizeInventorySnapshot([
-    { item_id: "capsule_super", name: "Super Ball", type: "capsule", qty: 2300 }
+    { item_id: "capsule_super", name: "Super Ball", type: "capsule", qty: 1953 }
   ]);
   const derived = deriveClosedHudState({
     metrics: {},
-    encounters: Array.from({ length: 3164 }, () => ({
+    encounters: Array.from({ length: 3506 }, () => ({
       captureResult: "failed",
       capsuleItemId: "capsule_super"
     }))
@@ -165,9 +241,24 @@ test("Ball Tracker exposes full, compact and micro representations", () => {
   );
 
   assert.equal(display.label, "Super");
-  assert.match(display.value, /2\.300/);
-  assert.match(display.value, /↓3\.164/);
-  assert.equal(display.compactValue, "2.3K · ↓3.2K");
-  assert.equal(display.microValue, "2K/↓3K");
-  assert.match(display.title, /2\.300 remaining/);
+  assert.equal(display.kind, "inventory");
+  assert.equal(display.value, "1.953");
+  assert.equal(display.secondaryValue, "↓3.506");
+  assert.equal(display.compactValue, undefined);
+  assert.match(display.title, /1\.953 remaining/);
+  assert.match(display.title, /3\.506 used/);
+});
+
+test("Potion Tracker keeps remaining inventory exact", () => {
+  const inventory = normalizeInventorySnapshot([
+    { item_id: "potion_hyper", name: "Hyper Potion", type: "potion", qty: 1276 }
+  ]);
+  const display = closedHudDisplay(
+    { widget: "potionTracker", itemId: "potion_hyper" },
+    deriveClosedHudState(),
+    inventory
+  );
+
+  assert.equal(display.value, "1.276");
+  assert.equal(display.secondaryValue, null);
 });
