@@ -30,10 +30,10 @@ data/         IndexedDB and repositories
 services/     application/event coordination
 tests/        unit, integration and sanitized fixtures
 scripts/      build/development utilities
-docs/         architecture and protocol decisions
+docs/         architecture and product/runtime decisions
 ```
 
-See `docs/ARCHITECTURE.md` for detailed responsibilities.
+See `docs/ARCHITECTURE.md` for detailed responsibilities and `docs/CLOSED_HUD.md` for the compact HUD contract.
 
 ## 3. Development workflow
 
@@ -58,7 +58,7 @@ release/
 
 Keep changes focused. A refactor should not quietly change formulas or product behavior.
 
-Before opening a PR:
+Before opening or finalizing a PR:
 
 ```bash
 npm ci
@@ -66,7 +66,7 @@ npm run audit:deps
 npm run validate
 ```
 
-For runtime/UI changes, also perform the manual smoke test in section 8.
+For runtime/UI changes, also perform the manual smoke test in section 8 on the production-domain build.
 
 ## 4. Code rules
 
@@ -74,9 +74,11 @@ For runtime/UI changes, also perform the manual smoke test in section 8.
 
 - Runtime/browser integration belongs in `userscript/`.
 - Generation-specific protocol reconciliation belongs in `userscript/protocol-adapter.js`; canonical event normalization belongs in `domain/events.js`.
-- Metrics/formulas belong in domain modules, not the UI.
+- Core analytics formulas belong in domain modules.
+- Presentation-only combinations may be derived from state already loaded by the caller, but must not create a second analytics persistence model.
 - IndexedDB access belongs in `data/` repositories.
 - Cross-module application coordination belongs in `services/`.
+- Closed HUD and Inventory presentation behavior belongs in `userscript/closed-hud*.js` and `userscript/inventory-state.js`.
 
 Avoid bypassing these boundaries for convenience.
 
@@ -100,15 +102,13 @@ Production builds also declare Tampermonkey-native update metadata:
 
 These URLs are Tampermonkey metadata, not Analyzer runtime requests. They do not require a new `@grant` or `@connect` entry. DEV builds intentionally omit both update directives so a development userscript can never replace or join the production update channel.
 
-Do not assume the userscript's `window` is the page's JavaScript global when privileged grants are present.
-
-Any integration with page-owned runtime objects, especially `WebSocket`, must resolve and use the page window explicitly. DOM, IndexedDB, localStorage and Web Audio remain normal userscript/browser responsibilities.
+Do not assume the userscript `window` is the page JavaScript global when privileged grants are present. Integrations with page-owned objects such as `WebSocket` and the Inventory API must resolve the page window explicitly.
 
 Adding or removing `@grant`, `@sandbox` or `@connect` is a runtime/security change and requires:
 
 1. explicit justification;
 2. automated coverage where possible;
-3. a live WebSocket smoke test before merge.
+3. a live smoke test before merge.
 
 ### Side effects
 
@@ -128,9 +128,7 @@ Do not duplicate:
 
 ### File organization
 
-Prefer modules named by responsibility.
-
-Do not create runtime files such as:
+Prefer modules named by responsibility. Do not create version-named patch files such as:
 
 ```text
 fix-v162.js
@@ -138,22 +136,20 @@ ui-v17.js
 patch-latest.js
 ```
 
-Modify or extract the responsible module instead.
+Small `*-runtime.js` wrappers are acceptable only when they represent a stable runtime boundary/compatibility concern; they must not become a chain of accumulated feature patches.
 
 ### Comments
 
-Comments should explain constraints or non-obvious decisions.
-
-Do not use source comments as a changelog. Release/history notes belong in `CHANGELOG.md`.
+Comments should explain constraints or non-obvious decisions. Do not use source comments as a changelog. Release/history notes belong in `CHANGELOG.md`.
 
 ## 5. Protocol changes
 
 Before consuming a new field/event:
 
 1. confirm it from real protocol evidence;
-2. document semantics in `docs/PROTOCOL_AND_ANALYTICS.md` (and `docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md` when generation-specific);
+2. document semantics in `docs/PROTOCOL_AND_ANALYTICS.md` and, when generation-specific, `docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md`;
 3. reconcile generation-specific/raw shapes in `userscript/protocol-adapter.js`;
-4. normalize the resulting canonical event in `domain/events.js`;
+4. normalize the canonical event in `domain/events.js`;
 5. update tracker/persistence only if the product needs it;
 6. add regression coverage;
 7. verify that sensitive/raw data is not persisted or logged.
@@ -181,13 +177,15 @@ Rules:
 - ordinary new object properties do not require a migration unless an index/store changes;
 - managed connections must remain safe on `versionchange`.
 
-Schema v3 adds the sparse `encounters.captureTicketAtMs` index used by Catch Gallery. It must not backfill or invent historical Capture Ticket eligibility.
+Schema v3 adds the sparse `encounters.captureTicketAtMs` index used by Catch Gallery. v1.12.0 does not add or change an analytics schema.
 
 Custom Audio is intentionally isolated from the analytics database in:
 
 ```text
 pokepixel_hunt_analyzer_assets
 ```
+
+Closed HUD configuration, global audio mute and per-Hunt Potion usage support are local presentation/coordination state and do not belong in the analytics database.
 
 ## 7. Automated tests
 
@@ -202,7 +200,9 @@ Coverage areas include:
 - IndexedDB migrations/repositories;
 - event-pipeline integration;
 - sanitized fixture regression;
-- Sound Alert policy and custom audio persistence;
+- Sound Alert policy, global mute helpers and custom audio persistence;
+- Closed HUD catalog, aggregation/formatting and supply-symbol helpers;
+- per-Potion usage reconciliation and reload/session reset behavior;
 - Capture Ticket eligibility, PNG metadata and remote image loader behavior;
 - Catch Gallery filtering/sorting/pagination;
 - Hunt deletion ordering and deletion policy;
@@ -215,26 +215,31 @@ Add tests for new behavior or bug fixes whenever the behavior is deterministic o
 
 Required after UI/runtime/WebSocket changes:
 
-1. PokePixel connects normally with the userscript enabled.
+1. PokePixel connects normally with the production-domain userscript enabled.
 2. `window.__POKEPIXEL_HUNT_ANALYZER_USERSCRIPT_HOOKED__` returns `true` in the page Console.
-3. HUD appears and opens/closes the Analyzer.
-4. Current updates Seen / XP / Dollar during a Hunt.
-5. New Hunt works.
-6. Pause / Resume works.
-7. End Hunt works.
-8. Captured filters/details work; Failed shows Pokémon / IV / Pokéball / Chance / Fled at directly with Rarity/Shiny/IV filters.
-9. HUD minimized values update.
-10. Drag, resize, wheel scroll and alpha work.
-11. History loads Hunts / Pokémon / Attempts and its filters/drill-downs work.
-12. DELETE is unavailable for the Running/Paused Current Hunt.
-13. After End Hunt, DELETE removes the Hunt and its encounters; it remains absent after History refresh and F5.
-14. Sound 1 / Sound 2 previews and per-event exclusivity work.
-15. Custom Audio import / replace / remove / persistence work.
-16. Catch Gallery collapse, filters, sorting and pagination work.
-17. Capture Ticket BETA Generate works for Legend / Mythic / Shiny fixtures or eligible real captures.
-18. Capture Ticket Copy can be pasted into a compatible target when the browser supports image clipboard writes.
-19. F5 preserves IndexedDB data and UI state.
-20. With two game tabs, only one is ACTIVE and the other is STANDBY.
+3. Closed HUD appears and opens/closes the Analyzer.
+4. F5 does not expose the legacy HUD or a temporary zero-value Closed HUD before hydrated data appears.
+5. Current updates Seen / XP / Dollar during a Hunt.
+6. New Hunt, Pause / Resume and End Hunt work.
+7. Captured filters/details work; Failed shows Pokémon / IV / Pokéball / Chance / Fled at directly with Rarity/Shiny/IV filters.
+8. Closed HUD configuration persists after reload and presets/Custom switch correctly.
+9. Validate representative Closed HUD widgets: Seen/Seen-h, Captured, Dollar/Profit/Expenses, Rare+ metrics and Highest IV.
+10. Rarity Tracker works with 1–7 selected rarities; `Show Failed` OFF renders Captured only and ON renders `Failed / Captured` with Captured visually dominant.
+11. Shiny Tracker is one fixed `★ Seen / Captured` metric; Seen compacts, Captured stays exact and star/Captured use the gold accent.
+12. Ball Tracker shows current inventory + `↓ used`; Ball Success / Failed / Capture Rate / Cost follow the selected Ball and switching between at least two Balls produces independent values.
+13. Potion Tracker shows current inventory + `↓ used`; consuming increments, refill does not increment, F5 preserves the same Hunt count and New Hunt resets it.
+14. Supply symbols remain visually secondary and separated from their numeric values.
+15. Drag, resize, wheel scroll and alpha work.
+16. History loads Hunts / Pokémon / Attempts and filters/drill-downs work.
+17. DELETE is unavailable for the Running/Paused Current Hunt; after End Hunt, DELETE removes the Hunt and its encounters and remains deleted after refresh/F5.
+18. Sound 1 / Sound 2 previews and per-event exclusivity work.
+19. Global Sound Alerts Mute blocks new alerts without changing individual choices; Unmute restores playback and reload preserves mute state.
+20. Custom Audio import / replace / remove / persistence work.
+21. Catch Gallery collapse, filters, sorting and pagination work.
+22. Capture Ticket BETA Generate works for Legend / Mythic / Shiny fixtures or eligible real captures.
+23. Capture Ticket Copy can be pasted into a compatible target when the browser supports image clipboard writes.
+24. F5 preserves IndexedDB data and intended UI state.
+25. With two game tabs, only one is ACTIVE and the other is STANDBY.
 
 A clean automated suite does not replace this smoke test for browser behavior.
 
@@ -270,14 +275,14 @@ Release process:
 3. update README, CHANGELOG and affected technical docs;
 4. run `npm ci`, `npm run audit:deps` and `npm run validate`;
 5. install/smoke the **production** userscript from that exact branch when runtime behavior changed;
-6. open/update the release PR against `main` and require green CI;
-7. merge the validated release PR;
+6. require green CI on the release PR;
+7. merge the validated release PR into `main`;
 8. require green CI on the resulting `main` commit;
 9. create `publish/vX.Y.Z` from that exact merged `main` commit and push it;
 10. `.github/workflows/publish.yml` verifies version/main alignment, re-runs audit + validation, creates tag `vX.Y.Z`, publishes both update assets and removes the temporary publish branch;
 11. verify the release, both assets and the stable `releases/latest/download/...` routes before announcing it.
 
-The two mandatory production release assets are:
+Mandatory production assets:
 
 ```text
 pokepixel-hunt-analyzer.meta.js
@@ -286,7 +291,7 @@ pokepixel-hunt-analyzer.user.js
 
 Their filenames are a compatibility contract with already-installed Tampermonkey scripts and must not be renamed.
 
-The complete update/release contract, bootstrap behavior, invariants, smoke procedure, hotfix policy and post-release checklist live in [`TAMPERMONKEY_UPDATES.md`](TAMPERMONKEY_UPDATES.md). Treat that document as normative for every release from v1.11.0 onward.
+The complete update/release contract lives in [`TAMPERMONKEY_UPDATES.md`](TAMPERMONKEY_UPDATES.md) and is normative for every release from v1.11.0 onward.
 
 Do not release from a temporary test/harness branch. The only publication branch pattern is `publish/vX.Y.Z`, created after merge from the current `main` commit.
 
@@ -307,4 +312,4 @@ local debug logs
 
 The userscript is intentionally passive. Any feature that sends or modifies gameplay traffic is outside the current architecture and requires an explicit product decision.
 
-Capture Ticket's external requests are limited to public render assets. Do not attach Hunt payloads, account identifiers or credentials to those requests.
+Capture Ticket external requests are limited to public render assets. Do not attach Hunt payloads, account identifiers or credentials to those requests.

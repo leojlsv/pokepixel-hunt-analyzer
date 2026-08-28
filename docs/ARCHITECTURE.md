@@ -9,11 +9,11 @@ Core invariants:
 - observe inbound PokePixel WebSocket traffic only;
 - never send, replay or modify gameplay messages;
 - persist normalized analytics, never raw frames or authentication data;
-- keep domain rules independent from the browser UI;
+- keep domain rules independent from browser UI;
 - keep `package.json` as the single application-version source;
 - keep one active analytics writer when multiple game tabs are open.
 
-History is persisted locally and exposed through the History UI. Capture Tickets and custom audio remain client-side features; there is no Analyzer backend/cloud storage.
+History is persisted locally and exposed through the History UI. Closed HUD configuration, Capture Tickets and custom audio remain client-side features; there is no Analyzer backend/cloud storage.
 
 ## 2. Runtime flow
 
@@ -32,10 +32,10 @@ domain/* + data/*
         ↓
 IndexedDB
         ↓
-Current / History / Misc surfaces
+Current / History / Misc / Closed HUD
 ```
 
-`userscript/main.js` is an orchestrator. It should not accumulate protocol parsing, persistence rules or UI implementation details.
+`userscript/main.js` is an orchestrator. It should not accumulate protocol parsing, persistence rules or detailed UI implementation.
 
 ## 3. Module boundaries
 
@@ -47,18 +47,22 @@ Browser/runtime boundary.
 - `websocket-observer.js` — passive WebSocket constructor interception and frame decoding.
 - `protocol-adapter.js` — generation-specific protocol reconciliation; maps HuntSim frames/queues/rewards into canonical events while passing legacy events through unchanged.
 - `tab-leadership.js` — localStorage lease that elects one ACTIVE tab.
-- `ui.js` / `ui-markup.js` — panel lifecycle, navigation and static analyzer markup.
+- `ui.js` / `ui-markup.js` — panel lifecycle, navigation and static Analyzer markup.
 - `current-view.js` — Current Hunt rendering.
 - `history-view.js` / `history-styles.js` — lazy History rendering and presentation.
-- `history-delete.js` — History DELETE control and browser confirmation/availability state.
+- `history-delete.js` — History DELETE control and destructive-action guard UI.
+- `closed-hud.js` — Closed HUD catalog, configuration normalization, aggregation, inventory-aware display models and base rendering.
+- `closed-hud-runtime.js` — small runtime/presentation compatibility layer around the Closed HUD, including early-paint guarding and compact supply-symbol presentation.
+- `inventory-state.js` — page-owned Inventory snapshot normalization/reconciliation for Ball/Potion widgets.
 - `audio-alerts.js` — built-in/custom audio controls and playback orchestration.
+- `audio-alerts-runtime.js` — global persistent Mute/Unmute wrapper for Sound Alerts.
 - `custom-audio-repository.js` — browser-side custom audio asset persistence.
 - `catch-gallery.js` — Catch Gallery controls/filter/sort/pagination/actions.
 - `capture-ticket.js` — Capture Ticket rendering and preview orchestration.
 - `remote-image-loader.js` — bounded PokémonDB image cache, in-flight dedupe and request pacing.
 - `png-metadata.js` — PNG metadata encoding/validation.
 
-Browser-specific APIs should remain in this layer.
+Browser-specific APIs stay in this layer.
 
 ### `services/`
 
@@ -102,7 +106,7 @@ UI code should not use raw IndexedDB transactions directly.
 
 ## 4. Persistence
 
-Database:
+Analytics database:
 
 ```text
 pokepixel_hunt_analyzer
@@ -162,11 +166,15 @@ See `docs/PROTOCOL_AND_ANALYTICS.md` for protocol field ownership and metric sem
 
 Never edit a migration that may already exist in a user's browser. Add the next schema version and migrate forward.
 
-IndexedDB object stores are schemaless beyond keys/indexes, so adding ordinary row properties does not require a migration. Adding `captureTicketAtMs` as an indexed query surface required schema v3. The migration creates the sparse index only and does not scan/rewrite historical encounters; the service pipeline assigns the field to future eligible captures.
+IndexedDB object stores are schemaless beyond keys/indexes, so adding ordinary row properties does not require a migration. Schema v3 added the sparse `captureTicketAtMs` index. v1.12.0 adds no analytics migration.
 
 Managed database connections close themselves on `versionchange`, preventing an older open game tab from unnecessarily blocking a schema upgrade.
 
-Custom audio blobs are intentionally isolated in the separate browser database `pokepixel_hunt_analyzer_assets`; they are not part of the analytics schema.
+Custom audio blobs are intentionally isolated in:
+
+```text
+pokepixel_hunt_analyzer_assets
+```
 
 ## 5. Identity
 
@@ -195,12 +203,12 @@ Important rules:
 - `wildMonsterId` correlates a temporary encounter but is never the DB primary key; HuntSim uses a synthetic `huntsim:<server-session-or-zone>:<kill-seq>` value;
 - repeated `combat.started` for the same individual must not create duplicate encounters;
 - potion-only `loot.received` events update session expenses and do not create encounters;
-- legacy `capture.success` never overwrites a complete combat-started individual snapshot; HuntSim successful captures may enrich fields missing from the synthetic/unmatched target because terminal `creature` data is authoritative for those fields, but `creature.level` is never used as target level.
+- legacy `capture.success` never overwrites a complete combat-started individual snapshot; HuntSim successful captures may enrich missing fields from authoritative terminal `creature` data, but `creature.level` is never used as target level;
 - duplicate HuntSim projections (`hunt.kill_reward`, `hunt.rewards`, capture projections in `hunt.events`) must not enter analytics twice.
 
 ### Tampermonkey page-window boundary
 
-The production metadata currently uses:
+Production metadata uses:
 
 ```text
 @sandbox raw
@@ -209,23 +217,36 @@ The production metadata currently uses:
 @connect img.pokemondb.net
 ```
 
-Privileged grants mean runtime code must not assume the userscript `window` is identical to the page's JavaScript global.
+Privileged grants mean runtime code must not assume the userscript `window` is identical to the page JavaScript global.
 
-The WebSocket observer resolves the page window explicitly, preferring `unsafeWindow` and falling back to `window`. Any future integration with page-owned objects must follow the same rule. A grant/sandbox change requires live verification that `window.__POKEPIXEL_HUNT_ANALYZER_USERSCRIPT_HOOKED__ === true` and that real events still reach the pipeline.
+The WebSocket observer and Inventory integration resolve page-owned objects explicitly. A grant/sandbox change requires live verification that `window.__POKEPIXEL_HUNT_ANALYZER_USERSCRIPT_HOOKED__ === true` and that real events still reach the pipeline.
 
 ## 7. Hunt timing and metrics
 
-Authoritative elapsed Hunt time is derived from timestamps and accumulated active milliseconds.
-
-Never use an incrementing UI timer as the source of truth.
+Authoritative elapsed Hunt time is derived from timestamps and accumulated active milliseconds. Never use an incrementing UI timer as the source of truth.
 
 Time while the browser is closed is not counted as active Hunt time.
 
-`domain/sessionMetrics.js` owns Current metrics. UI modules format and render those values; they should not duplicate formulas.
+`domain/sessionMetrics.js` owns Current aggregate metrics. UI modules format/render those values and may derive presentation-only combinations from already-loaded Current state. The Closed HUD must not create a parallel analytics persistence model.
 
 Current refresh uses revision-aware session caching. History and Catch Gallery perform explicit/lazy persistence reads and do not join Current's one-second refresh loop.
 
-## 8. Multi-tab leadership
+## 8. Closed HUD
+
+The Closed HUD reuses the same Current state passed by `main.js` plus Inventory snapshots. It introduces no new continuous analytics polling loop and no IndexedDB schema changes.
+
+Layout/configuration rules, widget formulas and formatting are normative in [`CLOSED_HUD.md`](CLOSED_HUD.md).
+
+Important runtime constraints:
+
+- four fixed layout units in a 2x2 grid;
+- standard widgets use one unit; Rarity Tracker may use one or two;
+- configuration is presentation state, not analytics state;
+- the launcher is hidden until first hydrated render to avoid legacy/zero-value flashes;
+- Ball usage comes from current-Hunt encounters;
+- per-Potion usage is derived from authoritative Inventory decreases and scoped by local `sessionId`.
+
+## 9. Multi-tab leadership
 
 Only one game tab writes analytics at a time.
 
@@ -238,26 +259,25 @@ STANDBY  another live tab owns the lease
 
 A standby tab can take over after the active lease expires or is released on unload.
 
-The lock is coordination state only; persistent Hunt data remains in IndexedDB.
+The lock is coordination state only; persistent Hunt data remains in IndexedDB. Destructive History deletion is also accepted only from the ACTIVE Analyzer tab.
 
-Destructive History deletion is also accepted only from the ACTIVE Analyzer tab.
+## 10. UI/local state
 
-## 9. UI state
+The Analyzer uses Shadow DOM to isolate layout/styles from PokePixel.
 
-The analyzer uses Shadow DOM to isolate its layout/styles from PokePixel.
-
-LocalStorage stores presentation/settings state only, including:
+LocalStorage stores presentation/coordination state only, including:
 
 - panel/HUD position and panel size;
-- active Current/History/Misc navigation;
-- open/minimized and section-collapse state;
-- alpha level;
-- audio alert selection/settings;
+- active navigation and open/minimized state;
+- section-collapse state and alpha level;
+- Closed HUD configuration (`pokepixel_hunt_analyzer_closed_hud_v1`);
+- per-Hunt Potion inventory baseline/usage support (`pokepixel_hunt_analyzer_potion_usage_v1`);
+- Sound Alert selection/settings and global mute (`pokepixel_hunt_analyzer_audio_muted_v1`);
 - active-tab lease.
 
-Analytics data does not live in localStorage. Custom audio blobs use their own bounded IndexedDB asset database.
+Analytics history does not live in localStorage. Custom audio blobs use their separate bounded IndexedDB asset database.
 
-## 10. Security and privacy
+## 11. Security and privacy
 
 Never persist or log:
 
@@ -281,7 +301,7 @@ No Hunt payload, account credential or analytics database content should be atta
 
 Analytics failures must not intentionally block the game.
 
-## 11. Build
+## 12. Build and release
 
 Production bundle entrypoint:
 
@@ -289,23 +309,26 @@ Production bundle entrypoint:
 userscript/main.js
 ```
 
-Build:
+Production build:
 
 ```bash
 npm run build:userscript
 ```
 
-Output:
+Outputs:
 
 ```text
 dist/pokepixel-hunt-analyzer.user.js
+dist/pokepixel-hunt-analyzer.meta.js
 ```
 
-`scripts/build-userscript.mjs` injects the version from `package.json` and generates the Tampermonkey metadata block. The default build targets PROD and preserves the historical production namespace. `npm run build:userscript:dev` uses a separate DEV identity/domain for live protocol smoke testing.
+`scripts/build-userscript.mjs` injects the version from `package.json` and generates the Tampermonkey metadata block. The default build targets PROD and preserves the historical production namespace. `npm run build:userscript:dev` uses a separate DEV identity/domain and intentionally omits update metadata.
 
-CI performs a clean dependency install, a high-severity npm audit gate, the complete test suite and the userscript build.
+CI performs a clean dependency install, a high-severity npm audit gate, the complete test suite and production userscript validation.
 
-## 12. Non-goals
+Release publication follows [`TAMPERMONKEY_UPDATES.md`](TAMPERMONKEY_UPDATES.md): validated changes merge to `main`, then an exact-main `publish/vX.Y.Z` branch triggers the guarded release workflow.
+
+## 13. Non-goals
 
 Do not add these without an explicit product decision:
 

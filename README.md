@@ -4,7 +4,7 @@ Analytics de Hunt em tempo real para **PokePixel**, direto dentro do jogo.
 
 O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** que observa passivamente eventos do jogo, organiza Hunts e calcula métricas de eficiência sem automatizar gameplay.
 
-**Versão:** `v1.11.1`  
+**Versão:** `v1.12.0`  
 **Core Analyzer:** estável  
 **Capture Ticket:** BETA  
 **Dados e analytics:** locais  
@@ -39,6 +39,30 @@ Acompanha a Hunt atual em tempo real:
 
 O Current usa cache de snapshots e agregados reutilizáveis para evitar reprocessamento excessivo em Hunts longas.
 
+### Closed HUD customizável
+
+A partir da v1.12.0, o HUD minimizado usa um grid fixo **2x2 com 4 unidades**. O botão `HUD` no header permite escolher presets ou montar uma composição Custom que persiste localmente.
+
+Catálogo disponível:
+
+- **Hunt:** Seen, Seen/h, Hunt Time;
+- **Capture:** Captured, Failed, Capture Rate, Rarity Tracker, Shiny Tracker, Rare+ Attempts, Rare+ Captured, Rare+ Failed;
+- **Quality:** Highest IV;
+- **Leveling:** Trainer XP/h, Pokémon XP/h;
+- **Economy:** Dollar, Dollar/h, Profit, Profit/h, Expenses;
+- **Supplies:** Total Balls Used, Ball Tracker, Ball Success, Ball Failed, Ball Capture Rate, Ball Cost, Potion Tracker.
+
+Regras principais:
+
+- Seen é abreviado quando necessário; Captured permanece exato;
+- `Rarity Tracker` mostra Captured e, com `Show Failed`, muda para `Failed / Captured`;
+- `Shiny Tracker` é sempre `★ Seen / Captured`, com estrela e Captured dourados;
+- `Rare+` significa Rare + Epic + Legendary + Mythical;
+- Ball Tracker e Potion Tracker mostram estoque atual + `↓ usados`;
+- métricas específicas de Ball usam a Ball selecionada no próprio widget;
+- o HUD permanece oculto durante a hidratação inicial para evitar estado legado/zerado no F5.
+
+Detalhes, fórmulas e persistência: [`docs/CLOSED_HUD.md`](docs/CLOSED_HUD.md).
 
 ### Compatibilidade de protocolo
 
@@ -99,6 +123,8 @@ Cada combinação pode usar:
 - Sound 2;
 - Custom Audio.
 
+O botão global de speaker permite **Mute / Unmute** sem apagar as escolhas individuais e preserva o estado após reload.
+
 Custom Audio:
 
 - MP3 / WAV / OGG / Opus quando o browser consegue decodificar;
@@ -134,10 +160,6 @@ Esses requests são usados apenas para renderização do ticket; os dados de Hun
 
 Mais detalhes: [`docs/CAPTURE_TICKETS.md`](docs/CAPTURE_TICKETS.md).
 
-### HUD compacto
-
-Quando minimizado, o Analyzer mantém um resumo rápido da Hunt sem fechar o processamento.
-
 ### Interface ajustável
 
 O painel pode ser:
@@ -148,7 +170,7 @@ O painel pode ser:
 - parcialmente transparente pelo controle `α`;
 - recolhido por seção.
 
-Posição, tamanho, transparência e estado visual são preservados localmente.
+Posição, tamanho, transparência, Closed HUD e estado visual são preservados localmente.
 
 ---
 
@@ -181,7 +203,7 @@ Custom Audio usa outro banco local:
 pokepixel_hunt_analyzer_assets
 ```
 
-Fechar o navegador ou reiniciar o computador não apaga automaticamente o histórico.
+Configuração visual do Closed HUD, coordenação de Inventory/Potion e Mute dos Sound Alerts usam apenas estado local do browser. Fechar o navegador ou reiniciar o computador não apaga automaticamente o histórico.
 
 ### Permissões do userscript
 
@@ -327,7 +349,11 @@ userscript/
 ├── current-view.js
 ├── history-view.js
 ├── history-delete.js
+├── closed-hud.js
+├── closed-hud-runtime.js
+├── inventory-state.js
 ├── audio-alerts.js
+├── audio-alerts-runtime.js
 ├── custom-audio-repository.js
 ├── catch-gallery.js
 ├── capture-ticket.js
@@ -358,7 +384,7 @@ eventPipeline.js
         ↓
 domain + IndexedDB
         ↓
-Current / History / Misc
+Current / History / Misc / Closed HUD
 ```
 
 Documentação técnica:
@@ -367,6 +393,7 @@ Documentação técnica:
 - [`docs/PROTOCOL_AND_ANALYTICS.md`](docs/PROTOCOL_AND_ANALYTICS.md)
 - [`docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md`](docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md)
 - [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)
+- [`docs/CLOSED_HUD.md`](docs/CLOSED_HUD.md)
 - [`docs/CAPTURE_TICKETS.md`](docs/CAPTURE_TICKETS.md)
 - [`docs/TAMPERMONKEY_UPDATES.md`](docs/TAMPERMONKEY_UPDATES.md)
 - [`SECURITY.md`](SECURITY.md)
