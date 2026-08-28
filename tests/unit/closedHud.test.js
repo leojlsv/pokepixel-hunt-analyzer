@@ -224,12 +224,8 @@ test("Rarity Tracker exposes Seen/Captured and optionally Failed", () => {
     [[43, 1, 2], [8, 0, 1]]
   );
   assert.equal(formatHudQuantity(12_345), "12K");
-  assert.equal(formatNumberForAssertion(display.rarities[0].captured), "1");
+  assert.equal(display.rarities[0].captured, 1);
 });
-
-function formatNumberForAssertion(value) {
-  return new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 }).format(value);
-}
 
 test("inventory snapshot classifies capsules and potions and preserves authoritative quantity", () => {
   const snapshot = normalizeInventorySnapshot([
