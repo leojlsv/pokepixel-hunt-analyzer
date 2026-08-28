@@ -3,23 +3,26 @@ import assert from "node:assert/strict";
 
 import {
   closedHudConfigForPreset,
-  normalizeClosedHudConfig,
+  closedHudDisplay,
+  closedHudWidgetSize,
   deriveClosedHudState,
-  closedHudDisplay
+  formatHudQuantity,
+  normalizeClosedHudConfig
 } from "../../userscript/closed-hud.js";
 import {
   normalizeInventorySnapshot,
   decrementInventoryItem
 } from "../../userscript/inventory-state.js";
 
-test("closed HUD default preset exposes four indicators", () => {
+test("closed HUD default preset fills four layout units", () => {
   const config = closedHudConfigForPreset("default");
 
   assert.equal(config.preset, "default");
   assert.deepEqual(
     config.slots.map((slot) => slot.widget),
-    ["seen", "seenPerHour", "captured", "capturedRarities"]
+    ["seen", "seenPerHour", "capturedRarities", "empty"]
   );
+  assert.equal(closedHudWidgetSize("capturedRarities"), 2);
 });
 
 test("closed HUD config falls back from unknown widgets without breaking four-slot shape", () => {
@@ -35,6 +38,31 @@ test("closed HUD config falls back from unknown widgets without breaking four-sl
   assert.equal(config.slots.length, 4);
   assert.equal(config.slots[0].widget, "seen");
   assert.equal(config.slots[1].widget, "seenPerHour");
+});
+
+test("wide widgets normalize to the beginning of their row and consume the paired slot", () => {
+  const config = normalizeClosedHudConfig({
+    preset: "custom",
+    slots: [
+      { widget: "seen" },
+      { widget: "seenPerHour" },
+      { widget: "captured" },
+      { widget: "capturedRarities" }
+    ]
+  });
+
+  assert.deepEqual(
+    config.slots.map((slot) => slot.widget),
+    ["seen", "seenPerHour", "capturedRarities", "empty"]
+  );
+});
+
+test("adaptive HUD quantity formatting keeps large values compact", () => {
+  assert.equal(formatHudQuantity(999), "999");
+  assert.equal(formatHudQuantity(2_300), "2.3K");
+  assert.equal(formatHudQuantity(52_320), "52K");
+  assert.equal(formatHudQuantity(3_164, { micro: true }), "3K");
+  assert.equal(formatHudQuantity(3_480_000), "3.5M");
 });
 
 test("deriveClosedHudState computes profit per hour and per-ball usage", () => {
@@ -118,25 +146,28 @@ test("local capture reconciliation decrements remaining ball until next inventor
   assert.equal(snapshot.byId.get("capsule_ultra").qty, 10);
 });
 
-test("Ball Tracker combines remaining inventory and Hunt usage", () => {
+test("Ball Tracker exposes full, compact and micro representations", () => {
   const inventory = normalizeInventorySnapshot([
-    { item_id: "capsule_ultra", name: "Ultra Ball", type: "capsule", qty: 4562 }
+    { item_id: "capsule_super", name: "Super Ball", type: "capsule", qty: 2300 }
   ]);
   const derived = deriveClosedHudState({
     metrics: {},
-    encounters: Array.from({ length: 23 }, () => ({
+    encounters: Array.from({ length: 3164 }, () => ({
       captureResult: "failed",
-      capsuleItemId: "capsule_ultra"
+      capsuleItemId: "capsule_super"
     }))
   });
 
   const display = closedHudDisplay(
-    { widget: "ballTracker", itemId: "capsule_ultra" },
+    { widget: "ballTracker", itemId: "capsule_super" },
     derived,
     inventory
   );
 
-  assert.equal(display.label, "Ultra");
-  assert.match(display.value, /4\.562/);
-  assert.match(display.value, /↓23/);
+  assert.equal(display.label, "Super");
+  assert.match(display.value, /2\.300/);
+  assert.match(display.value, /↓3\.164/);
+  assert.equal(display.compactValue, "2.3K · ↓3.2K");
+  assert.equal(display.microValue, "2K/↓3K");
+  assert.match(display.title, /2\.300 remaining/);
 });
