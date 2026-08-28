@@ -1017,33 +1017,27 @@ export function createClosedHud({ pageWindow } = {}) {
     for (const rarity of display.rarities) {
       const cell = document.createElement("span");
       cell.className = "pha-hud-rarity-cell";
-      cell.title = `${rarity.label} — Seen: ${formatNumber(rarity.seen)} · Captured: ${formatNumber(rarity.captured)}${display.showFailed ? ` · Failed: ${formatNumber(rarity.failed)}` : ""}`;
+      cell.title = `${rarity.label} — ${display.showFailed ? `Failed: ${formatNumber(rarity.failed)} · ` : ""}Captured: ${formatNumber(rarity.captured)}`;
 
       const count = document.createElement("span");
       count.className = "pha-hud-rarity-count";
-
-      const seen = document.createElement("span");
-      seen.className = "pha-hud-rarity-seen";
-      seen.textContent = formatHudQuantity(rarity.seen);
-
-      const separator = document.createElement("span");
-      separator.className = "pha-hud-rarity-separator";
-      separator.textContent = "/";
 
       const captured = document.createElement("span");
       captured.className = `pha-hud-rarity-captured rarity-${rarity.key}`;
       captured.textContent = formatNumber(rarity.captured);
 
-      count.append(seen, separator, captured);
-
       if (display.showFailed) {
-        const failedSeparator = document.createElement("span");
-        failedSeparator.className = "pha-hud-rarity-separator";
-        failedSeparator.textContent = "/";
         const failed = document.createElement("span");
         failed.className = "pha-hud-rarity-failed";
         failed.textContent = formatNumber(rarity.failed);
-        count.append(failedSeparator, failed);
+
+        const separator = document.createElement("span");
+        separator.className = "pha-hud-rarity-separator";
+        separator.textContent = "/";
+
+        count.append(failed, separator, captured);
+      } else {
+        count.appendChild(captured);
       }
 
       cell.appendChild(count);
