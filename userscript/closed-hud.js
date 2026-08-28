@@ -22,6 +22,7 @@ const RARITY_KEYS = RARITIES.map(([key]) => key);
 const RARITY_KEY_SET = new Set(RARITY_KEYS);
 const DEFAULT_RARITY_KEYS = Object.freeze([...RARITY_KEYS]);
 const RARE_PLUS_KEYS = new Set(["rare", "epic", "legendary", "mythical"]);
+const SHINY_MODES = new Set(["seen", "captured"]);
 
 export const CLOSED_HUD_WIDGETS = Object.freeze([
   { id: "empty", label: "Empty", category: "Layout", size: 1 },
@@ -44,7 +45,7 @@ export const CLOSED_HUD_WIDGETS = Object.freeze([
     configurableSize: true
   },
   { id: "rarePlusFailed", label: "Rare+ Failed", category: "Capture", size: 1 },
-  { id: "shinyCaptured", label: "Shiny Captured", category: "Capture", size: 1 },
+  { id: "shinyTracker", label: "Shiny Tracker", category: "Capture", size: 1 },
   { id: "totalBallsUsed", label: "Total Balls Used", category: "HUD Exclusive", size: 1 },
   {
     id: "ballTracker",
@@ -68,8 +69,14 @@ const EMPTY_SLOT = Object.freeze({
   itemId: null,
   size: 1,
   rarityKeys: null,
-  showFailed: false
+  showFailed: false,
+  shinyMode: null
 });
+
+function normalizeShinyMode(value) {
+  const mode = String(value || "captured").toLowerCase();
+  return SHINY_MODES.has(mode) ? mode : "captured";
+}
 
 function defaultRaritySlot(size = 2) {
   return {
@@ -77,7 +84,16 @@ function defaultRaritySlot(size = 2) {
     itemId: null,
     size: size === 1 ? 1 : 2,
     rarityKeys: [...DEFAULT_RARITY_KEYS],
-    showFailed: false
+    showFailed: false,
+    shinyMode: null
+  };
+}
+
+function defaultShinySlot(mode = "captured") {
+  return {
+    ...EMPTY_SLOT,
+    widget: "shinyTracker",
+    shinyMode: normalizeShinyMode(mode)
   };
 }
 
@@ -117,14 +133,17 @@ function normalizeRarityKeys(value) {
 function cloneSlot(slot) {
   let widget = String(slot?.widget || "empty");
   if (widget === "capturedRarities") widget = "rarityTracker";
+  if (widget === "shinyCaptured") widget = "shinyTracker";
 
   const rarity = widget === "rarityTracker";
+  const shiny = widget === "shinyTracker";
   return {
     widget,
     itemId: slot?.itemId ? String(slot.itemId) : null,
     size: rarity ? (Number(slot?.size) === 1 ? 1 : 2) : 1,
     rarityKeys: rarity ? normalizeRarityKeys(slot?.rarityKeys) : null,
-    showFailed: rarity ? Boolean(slot?.showFailed) : false
+    showFailed: rarity ? Boolean(slot?.showFailed) : false,
+    shinyMode: shiny ? normalizeShinyMode(slot?.shinyMode) : null
   };
 }
 
@@ -211,16 +230,19 @@ export function formatHudQuantity(value, { micro = false } = {}) {
 
 export function deriveClosedHudState({ metrics = {}, encounters = [] } = {}) {
   const rarities = metrics.rarities || {};
+  const shinyBucket = metrics.shiny || {};
   const rarityCaptured = {};
   const rarityFailed = {};
   let rarePlusFailed = 0;
-  let shinyCaptured = 0;
+  let fallbackShinySeen = 0;
+  let fallbackShinyCaptured = 0;
 
   for (const [key] of RARITIES) {
     const row = rarities[key] || {};
     rarityCaptured[key] = numeric(row.captured);
     rarityFailed[key] = numeric(row.failed);
-    shinyCaptured += numeric(row.shinyCaptured);
+    fallbackShinySeen += numeric(row.shinySeen);
+    fallbackShinyCaptured += numeric(row.shinyCaptured);
     if (RARE_PLUS_KEYS.has(key)) rarePlusFailed += numeric(row.failed);
   }
 
@@ -251,7 +273,8 @@ export function deriveClosedHudState({ metrics = {}, encounters = [] } = {}) {
     rarityCaptured,
     rarityFailed,
     rarePlusFailed,
-    shinyCaptured,
+    shinySeen: shinyBucket.seen == null ? fallbackShinySeen : numeric(shinyBucket.seen),
+    shinyCaptured: shinyBucket.captured == null ? fallbackShinyCaptured : numeric(shinyBucket.captured),
     totalBallsUsed: [...ballUsage.values()].reduce((sum, count) => sum + count, 0),
     ballUsage
   };
@@ -369,8 +392,17 @@ export function closedHudDisplay(slot, derived, inventory) {
     }
     case "rarePlusFailed":
       return numberDisplay("R+ Failed", derived.rarePlusFailed);
-    case "shinyCaptured":
-      return numberDisplay("Shiny Cap", derived.shinyCaptured);
+    case "shinyTracker": {
+      const mode = normalizeShinyMode(normalizedSlot.shinyMode);
+      const amount = mode === "seen" ? numeric(derived.shinySeen) : numeric(derived.shinyCaptured);
+      const modeLabel = mode === "seen" ? "Seen" : "Captured";
+      return {
+        kind: "shiny",
+        mode,
+        value: formatNumber(amount),
+        title: `Shiny ${modeLabel}: ${formatNumber(amount)}`
+      };
+    }
     case "totalBallsUsed":
       return numberDisplay("Balls Used", derived.totalBallsUsed);
     case "ballTracker": {
@@ -448,6 +480,18 @@ function rarityConfigMarkup(index) {
             <span class="rarity-${key}">${RARITY_ABBR[key] || label[0]}</span>
           </label>`).join("")}
       </div>
+    </div>`;
+}
+
+function shinyConfigMarkup(index) {
+  return `
+    <div class="pha-hud-shiny-config" data-hud-shiny-config="${index}" hidden>
+      <label>Track
+        <select data-hud-shiny-mode="${index}">
+          <option value="seen">Seen</option>
+          <option value="captured">Captured</option>
+        </select>
+      </label>
     </div>`;
 }
 
@@ -541,7 +585,8 @@ const CLOSED_HUD_STYLE = `
   .pha-hud-inventory-line.tight .pha-hud-inventory-primary { font-size:10px; }
   .pha-hud-inventory-line.extra-tight .pha-hud-inventory-primary { font-size:9px; }
 
-  .pha-hud-slot.is-rarity { padding:0 2px; }
+  .pha-hud-slot.is-rarity,
+  .pha-hud-slot.is-shiny { padding:0 2px; }
   .pha-hud-rarity-grid {
     width:100%;
     min-width:0;
@@ -575,27 +620,43 @@ const CLOSED_HUD_STYLE = `
     line-height:1;
     white-space:nowrap;
   }
-  .pha-hud-rarity-captured {
-    min-width:0;
-    font-size:inherit;
-    font-weight:800;
-  }
-  .pha-hud-rarity-separator {
-    flex:none;
-    color:#77746a;
-    font-size:.85em;
-    font-weight:600;
-  }
-  .pha-hud-rarity-failed {
-    min-width:0;
-    color:#f0eee6;
-    font-size:inherit;
-    font-weight:800;
-  }
+  .pha-hud-rarity-captured { min-width:0; font-size:inherit; font-weight:800; }
+  .pha-hud-rarity-separator { flex:none; color:#77746a; font-size:.85em; font-weight:600; }
+  .pha-hud-rarity-failed { min-width:0; color:#f0eee6; font-size:inherit; font-weight:800; }
   .pha-hud-rarity-grid.with-failed .pha-hud-rarity-count { font-size:8px; }
   .pha-hud-rarity-grid.dense { gap:1px; }
   .pha-hud-rarity-grid.dense .pha-hud-rarity-count { font-size:9px; }
   .pha-hud-rarity-grid.dense.with-failed .pha-hud-rarity-count { font-size:7px; }
+
+  .pha-hud-shiny-line {
+    width:100%;
+    min-width:0;
+    height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+    overflow:hidden;
+    font-variant-numeric:tabular-nums;
+    white-space:nowrap;
+  }
+  .pha-hud-shiny-star {
+    flex:none;
+    color:#d7b45d;
+    font-size:11px;
+    font-weight:900;
+    line-height:1;
+    text-shadow:0 0 3px #d7b45d55;
+  }
+  .pha-hud-shiny-value {
+    min-width:0;
+    overflow:hidden;
+    color:#f0eee6;
+    font-size:12px;
+    font-weight:800;
+    line-height:1;
+    text-overflow:clip;
+  }
 
   .pha-hud-settings-button { min-width:38px; }
   .pha-hud-settings {
@@ -610,12 +671,7 @@ const CLOSED_HUD_STYLE = `
     justify-content:space-between;
     gap:8px;
   }
-  .pha-hud-settings-head strong {
-    color:var(--gold);
-    font-size:10px;
-    letter-spacing:.05em;
-    text-transform:uppercase;
-  }
+  .pha-hud-settings-head strong { color:var(--gold); font-size:10px; letter-spacing:.05em; text-transform:uppercase; }
   .pha-hud-settings-head small { color:var(--muted); font-size:8px; }
   .pha-hud-settings-toolbar {
     margin-bottom:7px;
@@ -625,12 +681,7 @@ const CLOSED_HUD_STYLE = `
     align-items:end;
   }
   .pha-hud-settings label,
-  .pha-hud-slot-config > span {
-    color:#c0ad72;
-    font-size:8px;
-    letter-spacing:.025em;
-    text-transform:uppercase;
-  }
+  .pha-hud-slot-config > span { color:#c0ad72; font-size:8px; letter-spacing:.025em; text-transform:uppercase; }
   .pha-hud-settings label { display:flex; flex-direction:column; gap:3px; }
   .pha-hud-settings select,
   .pha-hud-settings button {
@@ -642,11 +693,7 @@ const CLOSED_HUD_STYLE = `
     font-size:9px;
   }
   .pha-hud-settings button { padding:0 7px; cursor:pointer; }
-  .pha-hud-slot-configs {
-    display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:6px;
-  }
+  .pha-hud-slot-configs { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px; }
   .pha-hud-slot-config {
     min-width:0;
     padding:5px;
@@ -661,18 +708,14 @@ const CLOSED_HUD_STYLE = `
   .pha-hud-slot-config > span { text-align:center; }
   .pha-hud-slot-config select { min-width:0; width:100%; }
   .pha-hud-slot-config select[data-hud-item] { grid-column:2; }
-  .pha-hud-rarity-config {
+  .pha-hud-rarity-config,
+  .pha-hud-shiny-config {
     grid-column:1 / -1;
     margin-top:2px;
     padding-top:5px;
     border-top:1px solid #393a34;
   }
-  .pha-hud-rarity-toolbar {
-    display:grid;
-    grid-template-columns:minmax(0,1fr) auto;
-    gap:5px;
-    align-items:end;
-  }
+  .pha-hud-rarity-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:5px; align-items:end; }
   .pha-hud-inline-check {
     height:25px;
     padding:0 5px;
@@ -686,12 +729,7 @@ const CLOSED_HUD_STYLE = `
     text-transform:none !important;
   }
   .pha-hud-inline-check input { margin:0; accent-color:#c0ad72; }
-  .pha-hud-rarity-checks {
-    margin-top:5px;
-    display:grid;
-    grid-template-columns:repeat(7,minmax(0,1fr));
-    gap:3px;
-  }
+  .pha-hud-rarity-checks { margin-top:5px; display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; }
   .pha-hud-rarity-checks label {
     height:23px;
     display:flex;
@@ -769,6 +807,7 @@ export function createClosedHud({ pageWindow } = {}) {
       const widgetSelect = settings.querySelector(`[data-hud-widget="${index}"]`);
       const itemSelect = settings.querySelector(`[data-hud-item="${index}"]`);
       const rarityConfig = settings.querySelector(`[data-hud-rarity-config="${index}"]`);
+      const shinyConfig = settings.querySelector(`[data-hud-shiny-config="${index}"]`);
       const widget = WIDGET_BY_ID.get(slot.widget);
       widgetSelect.value = slot.widget;
 
@@ -797,6 +836,12 @@ export function createClosedHud({ pageWindow } = {}) {
           checkbox.checked = slot.rarityKeys.includes(checkbox.value);
         }
       }
+
+      const isShiny = slot.widget === "shinyTracker";
+      shinyConfig.hidden = !isShiny;
+      if (isShiny) {
+        shinyConfig.querySelector(`[data-hud-shiny-mode="${index}"]`).value = normalizeShinyMode(slot.shinyMode);
+      }
     }
 
     const status = settings.querySelector("[data-hud-inventory-status]");
@@ -809,7 +854,13 @@ export function createClosedHud({ pageWindow } = {}) {
 
   function enforceUniqueStandardWidget(index, widgetId, slots) {
     const widget = WIDGET_BY_ID.get(widgetId);
-    if (!widget || widget.itemType || widgetId === "empty" || widgetId === "rarityTracker") return slots;
+    if (
+      !widget ||
+      widget.itemType ||
+      widgetId === "empty" ||
+      widgetId === "rarityTracker" ||
+      widgetId === "shinyTracker"
+    ) return slots;
     return slots.map((slot, slotIndex) =>
       slotIndex !== index && slot.widget === widgetId ? emptySlot() : slot
     );
@@ -819,6 +870,13 @@ export function createClosedHud({ pageWindow } = {}) {
     const slots = config.slots.map(cloneSlot);
     if (slots[index]?.widget !== "rarityTracker") return;
     slots[index] = { ...slots[index], ...patch, widget: "rarityTracker" };
+    saveConfig({ preset: "custom", slots });
+  }
+
+  function updateShinySlot(index, mode) {
+    const slots = config.slots.map(cloneSlot);
+    if (slots[index]?.widget !== "shinyTracker") return;
+    slots[index] = { ...slots[index], widget: "shinyTracker", shinyMode: normalizeShinyMode(mode) };
     saveConfig({ preset: "custom", slots });
   }
 
@@ -845,7 +903,9 @@ export function createClosedHud({ pageWindow } = {}) {
         let slots = config.slots.map(cloneSlot);
         slots[index] = widgetId === "rarityTracker"
           ? defaultRaritySlot(2)
-          : { ...emptySlot(), widget: widgetId };
+          : widgetId === "shinyTracker"
+            ? defaultShinySlot("captured")
+            : { ...emptySlot(), widget: widgetId };
         slots = enforceUniqueStandardWidget(index, widgetId, slots);
         saveConfig({ preset: "custom", slots });
       });
@@ -886,6 +946,12 @@ export function createClosedHud({ pageWindow } = {}) {
           rarityKeys = [event.currentTarget.value];
         }
         updateRaritySlot(index, { rarityKeys });
+      });
+    }
+
+    for (const select of settings.querySelectorAll("[data-hud-shiny-mode]")) {
+      select.addEventListener("change", (event) => {
+        updateShinySlot(Number(event.currentTarget.dataset.hudShinyMode), event.currentTarget.value);
       });
     }
   }
@@ -957,6 +1023,7 @@ export function createClosedHud({ pageWindow } = {}) {
             <select data-hud-widget="${index}">${widgetOptionsMarkup()}</select>
             <select data-hud-item="${index}" hidden></select>
             ${rarityConfigMarkup(index)}
+            ${shinyConfigMarkup(index)}
           </div>`).join("")}
       </div>
       <div class="pha-hud-inventory-status" data-hud-inventory-status>Waiting for inventory snapshot…</div>
@@ -980,10 +1047,6 @@ export function createClosedHud({ pageWindow } = {}) {
       const cell = document.createElement("span");
       cell.className = "pha-hud-rarity-cell";
       cell.title = `${rarity.label} — Captured: ${formatNumber(rarity.captured)}${display.showFailed ? ` · Failed: ${formatNumber(rarity.failed)}` : ""}`;
-      cell.setAttribute(
-        "aria-label",
-        `${rarity.label}: ${formatNumber(rarity.captured)} captured${display.showFailed ? `, ${formatNumber(rarity.failed)} failed` : ""}`
-      );
 
       const count = document.createElement("span");
       count.className = "pha-hud-rarity-count";
@@ -997,7 +1060,6 @@ export function createClosedHud({ pageWindow } = {}) {
         const separator = document.createElement("span");
         separator.className = "pha-hud-rarity-separator";
         separator.textContent = "/";
-
         const failed = document.createElement("span");
         failed.className = "pha-hud-rarity-failed";
         failed.textContent = formatNumber(rarity.failed);
@@ -1009,6 +1071,24 @@ export function createClosedHud({ pageWindow } = {}) {
     }
 
     container.appendChild(wrap);
+  }
+
+  function renderShiny(container, display) {
+    const line = document.createElement("span");
+    line.className = "pha-hud-shiny-line";
+    line.title = display.title || "";
+
+    const star = document.createElement("span");
+    star.className = "pha-hud-shiny-star";
+    star.setAttribute("aria-hidden", "true");
+    star.textContent = "★";
+
+    const value = document.createElement("span");
+    value.className = "pha-hud-shiny-value";
+    value.textContent = display.value;
+
+    line.append(star, value);
+    container.appendChild(line);
   }
 
   function fitAdaptiveValue(value, display) {
@@ -1057,7 +1137,7 @@ export function createClosedHud({ pageWindow } = {}) {
 
   function renderLastState() {
     if (!mounted || !grid) return;
-    const source = lastState || { metrics: { rarities: {} }, encounters: [] };
+    const source = lastState || { metrics: { rarities: {}, shiny: {} }, encounters: [] };
     const derived = deriveClosedHudState(source);
     const inventory = activeInventory();
 
@@ -1074,12 +1154,17 @@ export function createClosedHud({ pageWindow } = {}) {
       slotElement.classList.toggle("is-wide", size === 2 && rowStart);
       slotElement.classList.toggle("is-consumed", consumed);
       slotElement.classList.toggle("is-rarity", display.kind === "rarities");
+      slotElement.classList.toggle("is-shiny", display.kind === "shiny");
       slotElement.title = display.title || "";
       slotElement.replaceChildren();
 
       if (consumed || display.empty) continue;
       if (display.kind === "rarities") {
         renderRarities(slotElement, display);
+        continue;
+      }
+      if (display.kind === "shiny") {
+        renderShiny(slotElement, display);
         continue;
       }
       if (display.kind === "inventory") {
