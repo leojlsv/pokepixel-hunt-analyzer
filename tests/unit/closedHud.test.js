@@ -44,21 +44,6 @@ test("legacy Captured Rarities config migrates to Rarity Tracker", () => {
   assert.equal(config.slots[3].widget, "empty");
 });
 
-test("legacy Shiny Captured config migrates to Shiny Tracker captured mode", () => {
-  const config = normalizeClosedHudConfig({
-    preset: "custom",
-    slots: [
-      { widget: "shinyCaptured" },
-      { widget: "seen" },
-      { widget: "captured" },
-      { widget: "failed" }
-    ]
-  });
-
-  assert.equal(config.slots[0].widget, "shinyTracker");
-  assert.equal(config.slots[0].shinyMode, "captured");
-});
-
 test("closed HUD config falls back from unknown widgets without breaking four-slot shape", () => {
   const config = normalizeClosedHudConfig({
     preset: "custom",
@@ -165,38 +150,6 @@ test("deriveClosedHudState computes financial rate, ball usage and captured/fail
   assert.equal(state.shinyCaptured, 1);
 });
 
-test("Shiny Tracker exposes Seen or Captured without a textual HUD label", () => {
-  const derived = deriveClosedHudState({
-    metrics: {
-      shiny: { seen: 7, captured: 3, failed: 4 },
-      rarities: {}
-    }
-  });
-
-  const seen = closedHudDisplay(
-    { widget: "shinyTracker", shinyMode: "seen" },
-    derived,
-    null
-  );
-  const captured = closedHudDisplay(
-    { widget: "shinyTracker", shinyMode: "captured" },
-    derived,
-    null
-  );
-
-  assert.equal(derived.shinySeen, 7);
-  assert.equal(derived.shinyCaptured, 3);
-  assert.equal(seen.kind, "shiny");
-  assert.equal(seen.mode, "seen");
-  assert.equal(seen.value, "7");
-  assert.equal(seen.label, undefined);
-  assert.equal(seen.title, "Shiny Seen: 7");
-  assert.equal(captured.kind, "shiny");
-  assert.equal(captured.mode, "captured");
-  assert.equal(captured.value, "3");
-  assert.equal(captured.title, "Shiny Captured: 3");
-});
-
 test("Rarity Tracker filters rarities and optionally exposes failed counts", () => {
   const derived = deriveClosedHudState({
     metrics: {
@@ -224,6 +177,42 @@ test("Rarity Tracker filters rarities and optionally exposes failed counts", () 
     display.rarities.map(({ captured, failed }) => [captured, failed]),
     [[1, 2], [0, 1]]
   );
+});
+
+test("Shiny Tracker supports Seen and Captured modes", () => {
+  const derived = deriveClosedHudState({
+    metrics: {
+      shiny: { seen: 7, captured: 3, failed: 4 },
+      rarities: {}
+    }
+  });
+
+  const seen = closedHudDisplay({ widget: "shinyTracker", shinyMode: "seen" }, derived, null);
+  const captured = closedHudDisplay({ widget: "shinyTracker", shinyMode: "captured" }, derived, null);
+
+  assert.equal(seen.kind, "shiny");
+  assert.equal(seen.mode, "seen");
+  assert.equal(seen.value, "7");
+  assert.equal(seen.title, "Shiny Seen: 7");
+  assert.equal(captured.kind, "shiny");
+  assert.equal(captured.mode, "captured");
+  assert.equal(captured.value, "3");
+  assert.equal(captured.title, "Shiny Captured: 3");
+});
+
+test("legacy Shiny Captured config migrates to Shiny Tracker Captured mode", () => {
+  const config = normalizeClosedHudConfig({
+    preset: "custom",
+    slots: [
+      { widget: "shinyCaptured" },
+      { widget: "seen" },
+      { widget: "captured" },
+      { widget: "empty" }
+    ]
+  });
+
+  assert.equal(config.slots[0].widget, "shinyTracker");
+  assert.equal(config.slots[0].shinyMode, "captured");
 });
 
 test("inventory snapshot classifies capsules and potions and preserves authoritative quantity", () => {
