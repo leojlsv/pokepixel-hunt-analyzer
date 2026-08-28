@@ -17,10 +17,10 @@ import {
   resolvePageWindow
 } from "./websocket-observer.js";
 import { createUi } from "./ui.js";
-import { createAudioAlerts } from "./audio-alerts.js";
+import { createAudioAlerts } from "./audio-alerts-runtime.js";
 import { createCatchGallery } from "./catch-gallery.js";
 import { createHistoryDeleteControl } from "./history-delete.js";
-import { createClosedHud } from "./closed-hud.js";
+import { createClosedHud } from "./closed-hud-runtime.js";
 
 const APP_VERSION = __APP_VERSION__;
 const TAB_LOCK_REFRESH_MS = 2_000;
