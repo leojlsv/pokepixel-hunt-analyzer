@@ -437,7 +437,6 @@ function readStoredConfig() {
 function writeStoredConfig(config) {
   localStorage.setItem(CLOSED_HUD_STORAGE_KEY, JSON.stringify(config));
 }
-
 function widgetOptionsMarkup() {
   const groups = new Map();
   for (const widget of CLOSED_HUD_WIDGETS) {
@@ -646,7 +645,7 @@ const CLOSED_HUD_STYLE = `
   .pha-hud-shiny-captured {
     min-width:0;
     overflow:hidden;
-    color:#f0eee6;
+    color:#d7b45d;
     font-size:12px;
     font-weight:800;
     line-height:1;
