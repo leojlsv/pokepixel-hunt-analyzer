@@ -22,7 +22,6 @@ const RARITY_KEYS = RARITIES.map(([key]) => key);
 const RARITY_KEY_SET = new Set(RARITY_KEYS);
 const DEFAULT_RARITY_KEYS = Object.freeze([...RARITY_KEYS]);
 const RARE_PLUS_KEYS = new Set(["rare", "epic", "legendary", "mythical"]);
-const SHINY_MODES = new Set(["seen", "captured"]);
 
 export const CLOSED_HUD_WIDGETS = Object.freeze([
   { id: "empty", label: "Empty", category: "Layout", size: 1 },
@@ -69,14 +68,8 @@ const EMPTY_SLOT = Object.freeze({
   itemId: null,
   size: 1,
   rarityKeys: null,
-  showFailed: false,
-  shinyMode: null
+  showFailed: false
 });
-
-function normalizeShinyMode(value) {
-  const mode = String(value || "captured").toLowerCase();
-  return SHINY_MODES.has(mode) ? mode : "captured";
-}
 
 function defaultRaritySlot(size = 2) {
   return {
@@ -84,16 +77,14 @@ function defaultRaritySlot(size = 2) {
     itemId: null,
     size: size === 1 ? 1 : 2,
     rarityKeys: [...DEFAULT_RARITY_KEYS],
-    showFailed: false,
-    shinyMode: null
+    showFailed: false
   };
 }
 
-function defaultShinySlot(mode = "captured") {
+function defaultShinySlot() {
   return {
     ...EMPTY_SLOT,
-    widget: "shinyTracker",
-    shinyMode: normalizeShinyMode(mode)
+    widget: "shinyTracker"
   };
 }
 
@@ -136,14 +127,12 @@ function cloneSlot(slot) {
   if (widget === "shinyCaptured") widget = "shinyTracker";
 
   const rarity = widget === "rarityTracker";
-  const shiny = widget === "shinyTracker";
   return {
     widget,
     itemId: slot?.itemId ? String(slot.itemId) : null,
     size: rarity ? (Number(slot?.size) === 1 ? 1 : 2) : 1,
     rarityKeys: rarity ? normalizeRarityKeys(slot?.rarityKeys) : null,
-    showFailed: rarity ? Boolean(slot?.showFailed) : false,
-    shinyMode: shiny ? normalizeShinyMode(slot?.shinyMode) : null
+    showFailed: rarity ? Boolean(slot?.showFailed) : false
   };
 }
 
@@ -231,6 +220,7 @@ export function formatHudQuantity(value, { micro = false } = {}) {
 export function deriveClosedHudState({ metrics = {}, encounters = [] } = {}) {
   const rarities = metrics.rarities || {};
   const shinyBucket = metrics.shiny || {};
+  const raritySeen = {};
   const rarityCaptured = {};
   const rarityFailed = {};
   let rarePlusFailed = 0;
@@ -239,6 +229,7 @@ export function deriveClosedHudState({ metrics = {}, encounters = [] } = {}) {
 
   for (const [key] of RARITIES) {
     const row = rarities[key] || {};
+    raritySeen[key] = numeric(row.seen);
     rarityCaptured[key] = numeric(row.captured);
     rarityFailed[key] = numeric(row.failed);
     fallbackShinySeen += numeric(row.shinySeen);
@@ -270,6 +261,7 @@ export function deriveClosedHudState({ metrics = {}, encounters = [] } = {}) {
     profitPerHour,
     expenses: numeric(metrics.expenses),
     activeMs,
+    raritySeen,
     rarityCaptured,
     rarityFailed,
     rarePlusFailed,
@@ -318,7 +310,7 @@ export function closedHudDisplay(slot, derived, inventory) {
     case "empty":
       return { label: "", value: "", empty: true };
     case "seen":
-      return numberDisplay("Seen", derived.seen);
+      return { label: "Seen", value: formatHudQuantity(derived.seen) };
     case "seenPerHour":
       return {
         label: "Seen/h",
@@ -327,7 +319,7 @@ export function closedHudDisplay(slot, derived, inventory) {
         microValue: derived.seenPerHour == null ? "—" : formatHudQuantity(derived.seenPerHour, { micro: true })
       };
     case "captured":
-      return numberDisplay("Captured", derived.captured);
+      return { label: "Captured", value: formatNumber(derived.captured) };
     case "failed":
       return numberDisplay("Failed", derived.failed);
     case "captureRate":
@@ -384,6 +376,7 @@ export function closedHudDisplay(slot, derived, inventory) {
             key,
             label,
             abbr: RARITY_ABBR[key] || label.slice(0, 1).toUpperCase(),
+            seen: numeric(derived.raritySeen?.[key]),
             captured: numeric(derived.rarityCaptured?.[key]),
             failed: numeric(derived.rarityFailed?.[key])
           };
@@ -393,14 +386,13 @@ export function closedHudDisplay(slot, derived, inventory) {
     case "rarePlusFailed":
       return numberDisplay("R+ Failed", derived.rarePlusFailed);
     case "shinyTracker": {
-      const mode = normalizeShinyMode(normalizedSlot.shinyMode);
-      const amount = mode === "seen" ? numeric(derived.shinySeen) : numeric(derived.shinyCaptured);
-      const modeLabel = mode === "seen" ? "Seen" : "Captured";
+      const seen = numeric(derived.shinySeen);
+      const captured = numeric(derived.shinyCaptured);
       return {
         kind: "shiny",
-        mode,
-        value: formatNumber(amount),
-        title: `Shiny ${modeLabel}: ${formatNumber(amount)}`
+        seenValue: formatHudQuantity(seen),
+        capturedValue: formatNumber(captured),
+        title: `Shiny — Seen: ${formatNumber(seen)} · Captured: ${formatNumber(captured)}`
       };
     }
     case "totalBallsUsed":
@@ -480,16 +472,6 @@ function rarityConfigMarkup(index) {
             <span class="rarity-${key}">${RARITY_ABBR[key] || label[0]}</span>
           </label>`).join("")}
       </div>
-    </div>`;
-}
-
-function shinyConfigMarkup(index) {
-  return `
-    <div class="pha-hud-shiny-config" data-hud-shiny-config="${index}" hidden>
-      <select data-hud-shiny-mode="${index}" aria-label="Shiny Tracker mode">
-        <option value="seen">Seen</option>
-        <option value="captured">Captured</option>
-      </select>
     </div>`;
 }
 
@@ -618,9 +600,10 @@ const CLOSED_HUD_STYLE = `
     line-height:1;
     white-space:nowrap;
   }
+  .pha-hud-rarity-seen { min-width:0; color:#aaa79c; font-size:.82em; font-weight:700; }
   .pha-hud-rarity-captured { min-width:0; font-size:inherit; font-weight:800; }
-  .pha-hud-rarity-separator { flex:none; color:#77746a; font-size:.85em; font-weight:600; }
-  .pha-hud-rarity-failed { min-width:0; color:#f0eee6; font-size:inherit; font-weight:800; }
+  .pha-hud-rarity-separator { flex:none; color:#77746a; font-size:.8em; font-weight:600; }
+  .pha-hud-rarity-failed { min-width:0; color:#f0eee6; font-size:.82em; font-weight:700; }
   .pha-hud-rarity-grid.with-failed .pha-hud-rarity-count { font-size:8px; }
   .pha-hud-rarity-grid.dense { gap:1px; }
   .pha-hud-rarity-grid.dense .pha-hud-rarity-count { font-size:9px; }
@@ -633,7 +616,7 @@ const CLOSED_HUD_STYLE = `
     display:flex;
     align-items:center;
     justify-content:center;
-    gap:4px;
+    gap:3px;
     overflow:hidden;
     font-variant-numeric:tabular-nums;
     white-space:nowrap;
@@ -646,7 +629,21 @@ const CLOSED_HUD_STYLE = `
     line-height:1;
     text-shadow:0 0 3px #d7b45d55;
   }
-  .pha-hud-shiny-value {
+  .pha-hud-shiny-seen {
+    min-width:0;
+    overflow:hidden;
+    color:#aaa79c;
+    font-size:9px;
+    font-weight:700;
+    line-height:1;
+  }
+  .pha-hud-shiny-separator {
+    flex:none;
+    color:#77746a;
+    font-size:8px;
+    font-weight:600;
+  }
+  .pha-hud-shiny-captured {
     min-width:0;
     overflow:hidden;
     color:#f0eee6;
@@ -711,9 +708,6 @@ const CLOSED_HUD_STYLE = `
     margin-top:2px;
     padding-top:5px;
     border-top:1px solid #393a34;
-  }
-  .pha-hud-shiny-config {
-    grid-column:1 / -1;
   }
   .pha-hud-rarity-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:5px; align-items:end; }
   .pha-hud-inline-check {
@@ -807,7 +801,6 @@ export function createClosedHud({ pageWindow } = {}) {
       const widgetSelect = settings.querySelector(`[data-hud-widget="${index}"]`);
       const itemSelect = settings.querySelector(`[data-hud-item="${index}"]`);
       const rarityConfig = settings.querySelector(`[data-hud-rarity-config="${index}"]`);
-      const shinyConfig = settings.querySelector(`[data-hud-shiny-config="${index}"]`);
       const widget = WIDGET_BY_ID.get(slot.widget);
       widgetSelect.value = slot.widget;
 
@@ -836,12 +829,6 @@ export function createClosedHud({ pageWindow } = {}) {
           checkbox.checked = slot.rarityKeys.includes(checkbox.value);
         }
       }
-
-      const isShiny = slot.widget === "shinyTracker";
-      shinyConfig.hidden = !isShiny;
-      if (isShiny) {
-        shinyConfig.querySelector(`[data-hud-shiny-mode="${index}"]`).value = normalizeShinyMode(slot.shinyMode);
-      }
     }
 
     const status = settings.querySelector("[data-hud-inventory-status]");
@@ -858,8 +845,7 @@ export function createClosedHud({ pageWindow } = {}) {
       !widget ||
       widget.itemType ||
       widgetId === "empty" ||
-      widgetId === "rarityTracker" ||
-      widgetId === "shinyTracker"
+      widgetId === "rarityTracker"
     ) return slots;
     return slots.map((slot, slotIndex) =>
       slotIndex !== index && slot.widget === widgetId ? emptySlot() : slot
@@ -870,13 +856,6 @@ export function createClosedHud({ pageWindow } = {}) {
     const slots = config.slots.map(cloneSlot);
     if (slots[index]?.widget !== "rarityTracker") return;
     slots[index] = { ...slots[index], ...patch, widget: "rarityTracker" };
-    saveConfig({ preset: "custom", slots });
-  }
-
-  function updateShinySlot(index, mode) {
-    const slots = config.slots.map(cloneSlot);
-    if (slots[index]?.widget !== "shinyTracker") return;
-    slots[index] = { ...slots[index], widget: "shinyTracker", shinyMode: normalizeShinyMode(mode) };
     saveConfig({ preset: "custom", slots });
   }
 
@@ -904,7 +883,7 @@ export function createClosedHud({ pageWindow } = {}) {
         slots[index] = widgetId === "rarityTracker"
           ? defaultRaritySlot(2)
           : widgetId === "shinyTracker"
-            ? defaultShinySlot("captured")
+            ? defaultShinySlot()
             : { ...emptySlot(), widget: widgetId };
         slots = enforceUniqueStandardWidget(index, widgetId, slots);
         saveConfig({ preset: "custom", slots });
@@ -946,12 +925,6 @@ export function createClosedHud({ pageWindow } = {}) {
           rarityKeys = [event.currentTarget.value];
         }
         updateRaritySlot(index, { rarityKeys });
-      });
-    }
-
-    for (const select of settings.querySelectorAll("[data-hud-shiny-mode]")) {
-      select.addEventListener("change", (event) => {
-        updateShinySlot(Number(event.currentTarget.dataset.hudShinyMode), event.currentTarget.value);
       });
     }
   }
@@ -1023,7 +996,6 @@ export function createClosedHud({ pageWindow } = {}) {
             <select data-hud-widget="${index}">${widgetOptionsMarkup()}</select>
             <select data-hud-item="${index}" hidden></select>
             ${rarityConfigMarkup(index)}
-            ${shinyConfigMarkup(index)}
           </div>`).join("")}
       </div>
       <div class="pha-hud-inventory-status" data-hud-inventory-status>Waiting for inventory snapshot…</div>
@@ -1046,24 +1018,33 @@ export function createClosedHud({ pageWindow } = {}) {
     for (const rarity of display.rarities) {
       const cell = document.createElement("span");
       cell.className = "pha-hud-rarity-cell";
-      cell.title = `${rarity.label} — Captured: ${formatNumber(rarity.captured)}${display.showFailed ? ` · Failed: ${formatNumber(rarity.failed)}` : ""}`;
+      cell.title = `${rarity.label} — Seen: ${formatNumber(rarity.seen)} · Captured: ${formatNumber(rarity.captured)}${display.showFailed ? ` · Failed: ${formatNumber(rarity.failed)}` : ""}`;
 
       const count = document.createElement("span");
       count.className = "pha-hud-rarity-count";
 
+      const seen = document.createElement("span");
+      seen.className = "pha-hud-rarity-seen";
+      seen.textContent = formatHudQuantity(rarity.seen);
+
+      const separator = document.createElement("span");
+      separator.className = "pha-hud-rarity-separator";
+      separator.textContent = "/";
+
       const captured = document.createElement("span");
       captured.className = `pha-hud-rarity-captured rarity-${rarity.key}`;
       captured.textContent = formatNumber(rarity.captured);
-      count.appendChild(captured);
+
+      count.append(seen, separator, captured);
 
       if (display.showFailed) {
-        const separator = document.createElement("span");
-        separator.className = "pha-hud-rarity-separator";
-        separator.textContent = "/";
+        const failedSeparator = document.createElement("span");
+        failedSeparator.className = "pha-hud-rarity-separator";
+        failedSeparator.textContent = "/";
         const failed = document.createElement("span");
         failed.className = "pha-hud-rarity-failed";
         failed.textContent = formatNumber(rarity.failed);
-        count.append(separator, failed);
+        count.append(failedSeparator, failed);
       }
 
       cell.appendChild(count);
@@ -1083,11 +1064,19 @@ export function createClosedHud({ pageWindow } = {}) {
     star.setAttribute("aria-hidden", "true");
     star.textContent = "★";
 
-    const value = document.createElement("span");
-    value.className = "pha-hud-shiny-value";
-    value.textContent = display.value;
+    const seen = document.createElement("span");
+    seen.className = "pha-hud-shiny-seen";
+    seen.textContent = display.seenValue;
 
-    line.append(star, value);
+    const separator = document.createElement("span");
+    separator.className = "pha-hud-shiny-separator";
+    separator.textContent = "/";
+
+    const captured = document.createElement("span");
+    captured.className = "pha-hud-shiny-captured";
+    captured.textContent = display.capturedValue;
+
+    line.append(star, seen, separator, captured);
     container.appendChild(line);
   }
 
