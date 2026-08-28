@@ -20,6 +20,7 @@ import { createUi } from "./ui.js";
 import { createAudioAlerts } from "./audio-alerts.js";
 import { createCatchGallery } from "./catch-gallery.js";
 import { createHistoryDeleteControl } from "./history-delete.js";
+import { createClosedHud } from "./closed-hud.js";
 
 const APP_VERSION = __APP_VERSION__;
 const TAB_LOCK_REFRESH_MS = 2_000;
@@ -46,7 +47,9 @@ let encountersRepository;
 let audioAlerts;
 let catchGallery;
 let historyDeleteControl;
+let closedHud;
 let ui;
+let pageWindow;
 let updateQueue = Promise.resolve();
 let currentLoadPromise = null;
 let cachedSessionId = null;
@@ -207,13 +210,15 @@ async function performCurrentLoad() {
   }
 
   const metrics = refreshSessionMetrics(cachedAggregateMetrics, session, now);
-
-  ui.renderCurrent({
+  const currentState = {
     sessionId,
     encounterSnapshotVersion: encounterListSnapshotVersion,
     metrics,
     encounters: cachedEncounters
-  });
+  };
+
+  ui.renderCurrent(currentState);
+  closedHud?.render(currentState);
 }
 
 function loadCurrent() {
@@ -300,12 +305,15 @@ function mountUiWhenReady() {
   const mount = () => {
     catchGallery?.dispose();
     historyDeleteControl?.dispose();
+    closedHud?.dispose();
     ui = createUi({
       onSessionAction: (action) => void handleSessionAction(action),
       onLoadHistorySessions: (options) => sessionsRepository.getPage(options),
       onLoadHistorySessionEncounters: (sessionId) =>
         encountersRepository.getBySessionId(sessionId)
     });
+    closedHud = createClosedHud({ pageWindow });
+    closedHud.mount();
     audioAlerts?.mountControls();
     catchGallery?.mountControls();
     markCatchGalleryBeta();
@@ -337,7 +345,7 @@ function scheduleRefreshes() {
 }
 
 async function initialize() {
-  const pageWindow = resolvePageWindow({
+  pageWindow = resolvePageWindow({
     unsafeWindowObject:
       typeof unsafeWindow !== "undefined" ? unsafeWindow : null,
     windowObject: window
@@ -374,6 +382,7 @@ async function initialize() {
 window.addEventListener("beforeunload", () => {
   catchGallery?.dispose();
   historyDeleteControl?.dispose();
+  closedHud?.dispose();
   leadership.release();
 });
 
