@@ -486,12 +486,10 @@ function rarityConfigMarkup(index) {
 function shinyConfigMarkup(index) {
   return `
     <div class="pha-hud-shiny-config" data-hud-shiny-config="${index}" hidden>
-      <label>Track
-        <select data-hud-shiny-mode="${index}">
-          <option value="seen">Seen</option>
-          <option value="captured">Captured</option>
-        </select>
-      </label>
+      <select data-hud-shiny-mode="${index}" aria-label="Shiny Tracker mode">
+        <option value="seen">Seen</option>
+        <option value="captured">Captured</option>
+      </select>
     </div>`;
 }
 
@@ -708,12 +706,14 @@ const CLOSED_HUD_STYLE = `
   .pha-hud-slot-config > span { text-align:center; }
   .pha-hud-slot-config select { min-width:0; width:100%; }
   .pha-hud-slot-config select[data-hud-item] { grid-column:2; }
-  .pha-hud-rarity-config,
-  .pha-hud-shiny-config {
+  .pha-hud-rarity-config {
     grid-column:1 / -1;
     margin-top:2px;
     padding-top:5px;
     border-top:1px solid #393a34;
+  }
+  .pha-hud-shiny-config {
+    grid-column:1 / -1;
   }
   .pha-hud-rarity-toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:5px; align-items:end; }
   .pha-hud-inline-check {
