@@ -3,6 +3,8 @@
 All notable project changes should be recorded here.
 The project follows Semantic Versioning.
 
+> Detailed historical notes that previously lived in this file through v1.11.1 are preserved verbatim in [`docs/CHANGELOG_ARCHIVE_PRE_1.12.md`](docs/CHANGELOG_ARCHIVE_PRE_1.12.md). This file keeps the release-level history concise from v1.12.0 forward.
+
 ## [1.12.0] - 2026-08-28
 
 ### Customizable Closed HUD
@@ -261,11 +263,11 @@ The project follows Semantic Versioning.
 - 183 automated tests passing.
 - v1.6.0 userscript build validated.
 - Live PokePixel smoke test approved with no observed regressions.
-- Full EN-US UI translation, History detail refinements, security hardening and the earlier Phase 1–5 implementation history are preserved in the repository history below this release line.
+- Full detailed notes for the remaining v1.6.0 implementation, Phase 1–5 history and pre-1.0 development are preserved in the archive linked at the top of this file.
 
 ## [1.0.0] - 2026-08-10
 
-All 15 acceptance criteria in `docs/DEVELOPMENT.md §8` verified passing (Phase 5 final release checklist). This release consolidated the IndexedDB foundation, event pipeline, Current/History/Compare surfaces, diagnostics, robustness and documentation work accumulated from the original extension architecture.
+All 15 acceptance criteria in the original Phase 5 release checklist were verified passing. Full implementation notes are preserved in the archived changelog.
 
 ## [0.3.0]
 
