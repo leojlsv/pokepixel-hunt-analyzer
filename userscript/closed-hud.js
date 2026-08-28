@@ -481,7 +481,7 @@ const CLOSED_HUD_STYLE = `
     overflow:hidden;
     border-left:1px solid #41423c;
     line-height:1;
-    text-align:left;
+    text-align:center;
   }
   .pha-hud-slot.is-wide { grid-column:span 2; }
   .pha-hud-slot.is-consumed { display:none; }
@@ -492,6 +492,7 @@ const CLOSED_HUD_STYLE = `
     font-size:7px;
     font-weight:700;
     letter-spacing:.03em;
+    text-align:center;
     text-overflow:ellipsis;
     text-transform:uppercase;
     white-space:nowrap;
@@ -500,9 +501,10 @@ const CLOSED_HUD_STYLE = `
     margin-top:2px;
     overflow:hidden;
     color:#f0eee6;
-    font-size:10px;
+    font-size:11px;
     font-weight:800;
     font-variant-numeric:tabular-nums;
+    text-align:center;
     text-overflow:clip;
     white-space:nowrap;
   }
@@ -514,15 +516,17 @@ const CLOSED_HUD_STYLE = `
     margin-top:2px;
     display:flex;
     align-items:baseline;
+    justify-content:center;
     gap:5px;
     overflow:hidden;
+    text-align:center;
     white-space:nowrap;
     font-variant-numeric:tabular-nums;
   }
   .pha-hud-inventory-primary {
     flex:none;
     color:#f0eee6;
-    font-size:10px;
+    font-size:11px;
     font-weight:800;
   }
   .pha-hud-inventory-secondary {
@@ -534,8 +538,8 @@ const CLOSED_HUD_STYLE = `
     text-overflow:clip;
   }
   .pha-hud-inventory-line.hide-secondary .pha-hud-inventory-secondary { display:none; }
-  .pha-hud-inventory-line.tight .pha-hud-inventory-primary { font-size:9px; }
-  .pha-hud-inventory-line.extra-tight .pha-hud-inventory-primary { font-size:8px; }
+  .pha-hud-inventory-line.tight .pha-hud-inventory-primary { font-size:10px; }
+  .pha-hud-inventory-line.extra-tight .pha-hud-inventory-primary { font-size:9px; }
 
   .pha-hud-slot.is-rarity { padding:0 2px; }
   .pha-hud-rarity-grid {
@@ -544,35 +548,54 @@ const CLOSED_HUD_STYLE = `
     height:100%;
     display:grid;
     align-items:center;
+    justify-items:stretch;
     gap:2px;
   }
   .pha-hud-rarity-cell {
     min-width:0;
     height:100%;
     display:flex;
-    flex-direction:column;
     align-items:center;
     justify-content:center;
     overflow:hidden;
+    text-align:center;
     white-space:nowrap;
     font-variant-numeric:tabular-nums;
   }
-  .pha-hud-rarity-key {
-    font-size:6px;
-    font-weight:800;
-    line-height:1;
-  }
   .pha-hud-rarity-count {
-    margin-top:2px;
-    color:#f0eee6;
-    font-size:8px;
+    width:100%;
+    min-width:0;
+    display:inline-flex;
+    align-items:baseline;
+    justify-content:center;
+    gap:1px;
+    overflow:hidden;
+    font-size:10px;
     font-weight:800;
     line-height:1;
+    white-space:nowrap;
   }
-  .pha-hud-rarity-grid.with-failed .pha-hud-rarity-count { font-size:7px; }
+  .pha-hud-rarity-captured {
+    min-width:0;
+    font-size:inherit;
+    font-weight:800;
+  }
+  .pha-hud-rarity-separator {
+    flex:none;
+    color:#77746a;
+    font-size:.85em;
+    font-weight:600;
+  }
+  .pha-hud-rarity-failed {
+    min-width:0;
+    color:#f0eee6;
+    font-size:inherit;
+    font-weight:800;
+  }
+  .pha-hud-rarity-grid.with-failed .pha-hud-rarity-count { font-size:8px; }
   .pha-hud-rarity-grid.dense { gap:1px; }
-  .pha-hud-rarity-grid.dense .pha-hud-rarity-count { font-size:7px; }
-  .pha-hud-rarity-grid.dense.with-failed .pha-hud-rarity-count { font-size:6px; }
+  .pha-hud-rarity-grid.dense .pha-hud-rarity-count { font-size:9px; }
+  .pha-hud-rarity-grid.dense.with-failed .pha-hud-rarity-count { font-size:7px; }
 
   .pha-hud-settings-button { min-width:38px; }
   .pha-hud-settings {
@@ -957,18 +980,31 @@ export function createClosedHud({ pageWindow } = {}) {
       const cell = document.createElement("span");
       cell.className = "pha-hud-rarity-cell";
       cell.title = `${rarity.label} — Captured: ${formatNumber(rarity.captured)}${display.showFailed ? ` · Failed: ${formatNumber(rarity.failed)}` : ""}`;
-
-      const key = document.createElement("span");
-      key.className = `pha-hud-rarity-key rarity-${rarity.key}`;
-      key.textContent = rarity.abbr;
+      cell.setAttribute(
+        "aria-label",
+        `${rarity.label}: ${formatNumber(rarity.captured)} captured${display.showFailed ? `, ${formatNumber(rarity.failed)} failed` : ""}`
+      );
 
       const count = document.createElement("span");
       count.className = "pha-hud-rarity-count";
-      count.textContent = display.showFailed
-        ? `${formatNumber(rarity.captured)}/${formatNumber(rarity.failed)}`
-        : formatNumber(rarity.captured);
 
-      cell.append(key, count);
+      const captured = document.createElement("span");
+      captured.className = `pha-hud-rarity-captured rarity-${rarity.key}`;
+      captured.textContent = formatNumber(rarity.captured);
+      count.appendChild(captured);
+
+      if (display.showFailed) {
+        const separator = document.createElement("span");
+        separator.className = "pha-hud-rarity-separator";
+        separator.textContent = "/";
+
+        const failed = document.createElement("span");
+        failed.className = "pha-hud-rarity-failed";
+        failed.textContent = formatNumber(rarity.failed);
+        count.append(separator, failed);
+      }
+
+      cell.appendChild(count);
       wrap.appendChild(cell);
     }
 
