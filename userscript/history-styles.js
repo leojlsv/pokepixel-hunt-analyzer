@@ -1,4 +1,8 @@
 export const HISTORY_STYLES = String.raw`
+#rarity-section td {
+  font-size: 11px;
+}
+
 .history-view {
   display: flex;
   flex-direction: column;
