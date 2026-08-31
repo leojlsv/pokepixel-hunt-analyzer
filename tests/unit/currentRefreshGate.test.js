@@ -72,6 +72,31 @@ test("multiple requests during one load collapse into one latest-state rerun", a
   assert.equal(gate.snapshot().reruns, 1);
 });
 
+test("preserves an overlapping refresh request even when the first load fails", async () => {
+  const first = deferred();
+  const failure = new Error("transient read failure");
+  let calls = 0;
+
+  const gate = createCurrentRefreshGate(async () => {
+    calls += 1;
+    if (calls === 1) {
+      await first.promise;
+      throw failure;
+    }
+  });
+
+  const promise = gate.run();
+  gate.run();
+
+  first.resolve();
+  await assert.rejects(promise, failure);
+
+  assert.equal(calls, 2);
+  assert.equal(gate.snapshot().runs, 2);
+  assert.equal(gate.snapshot().reruns, 1);
+  assert.equal(gate.snapshot().inFlight, false);
+});
+
 test("reports refresh duration without affecting execution", async () => {
   let clock = 100;
   const gate = createCurrentRefreshGate(async () => {
