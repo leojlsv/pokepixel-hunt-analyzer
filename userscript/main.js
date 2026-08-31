@@ -17,6 +17,7 @@ import {
   installWebSocketObserver,
   resolvePageWindow
 } from "./websocket-observer.js";
+import { createCurrentRefreshGate } from "./current-refresh-gate.js";
 import { createUi } from "./ui.js";
 import { createAudioAlerts } from "./audio-alerts-runtime.js";
 import { createCatchGallery } from "./catch-gallery.js";
@@ -54,7 +55,6 @@ let closedHud;
 let ui;
 let pageWindow;
 let updateQueue = Promise.resolve();
-let currentLoadPromise = null;
 let eventRefreshTimer = null;
 let cachedSessionId = null;
 let cachedEncounters = [];
@@ -65,6 +65,8 @@ let encounterListRevision = 0;
 let cachedEncounterListRevision = -1;
 let encounterListSnapshotVersion = 0;
 let lastEncounterSyncAt = 0;
+let lastCurrentRenderAtMs = null;
+let lastCurrentRender = null;
 let protocolQueueDepth = 0;
 let protocolMaxQueueDepth = 0;
 let protocolEventsQueued = 0;
@@ -268,16 +270,22 @@ async function performCurrentLoad() {
 
   ui.renderCurrent(currentState);
   closedHud?.render(currentState);
+
+  lastCurrentRenderAtMs = Date.now();
+  lastCurrentRender = {
+    sessionId,
+    encounterCount: cachedEncounters.length,
+    seen: metrics?.seen ?? null,
+    captured: metrics?.captured ?? null,
+    failed: metrics?.failed ?? null,
+    encounterSnapshotVersion: encounterListSnapshotVersion
+  };
 }
 
-function loadCurrent() {
-  if (currentLoadPromise) return currentLoadPromise;
+const currentRefreshGate = createCurrentRefreshGate(performCurrentLoad);
 
-  currentLoadPromise = performCurrentLoad()
-    .finally(() => {
-      currentLoadPromise = null;
-    });
-  return currentLoadPromise;
+function loadCurrent() {
+  return currentRefreshGate.run();
 }
 
 async function buildDiagnosticsSnapshot() {
@@ -301,7 +309,20 @@ async function buildDiagnosticsSnapshot() {
       eventsDroppedStandby: protocolEventsDroppedStandby,
       lastQueuedAtMs: lastProtocolQueuedAtMs,
       lastProcessedAtMs: lastProtocolProcessedAtMs,
-      lastProcessedEvent: lastProtocolProcessed ? { ...lastProtocolProcessed } : null
+      lastProcessedEvent: lastProtocolProcessed ? { ...lastProtocolProcessed } : null,
+      currentRefresh: currentRefreshGate.snapshot(),
+      currentCache: {
+        cachedSessionId,
+        encounterDataRevision,
+        cachedEncounterRevision,
+        encounterListRevision,
+        cachedEncounterListRevision,
+        encounterCount: cachedEncounters.length,
+        lastEncounterSyncAt
+      },
+      currentRender: lastCurrentRender
+        ? { atMs: lastCurrentRenderAtMs, ...lastCurrentRender }
+        : null
     },
     session: session
       ? {
@@ -357,7 +378,6 @@ async function handleSessionAction(action) {
           return;
       }
 
-      if (currentLoadPromise) await currentLoadPromise;
       await loadCurrent();
       historyDeleteControl?.refresh();
     })
@@ -381,7 +401,7 @@ async function handleHistorySessionDelete(sessionId) {
 
   const task = updateQueue.then(async () => {
     await ready;
-    if (currentLoadPromise) await currentLoadPromise;
+    await loadCurrent();
 
     const { deletingCurrent } = await deleteHuntData({
       sessionId,
