@@ -6,8 +6,7 @@ import {
   getWebSocketObserverStatus,
   installWebSocketObserver,
   parseProtocolPayload,
-  resolvePageWindow,
-  summarizeRewardPayload
+  resolvePageWindow
 } from "../../userscript/websocket-observer.js";
 
 const HOOK_FLAG = "__POKEPIXEL_HUNT_ANALYZER_USERSCRIPT_HOOKED__";
@@ -126,38 +125,17 @@ test("marks the hook installed only after replacing WebSocket", () => {
   assert.equal(status.installedAtMs, 100);
   assert.equal(status.socketsCreated, 0);
   assert.deepEqual(status.rawTypes, {});
-  assert.deepEqual(status.rewardSamples, {});
 });
 
-test("summarizes reward payloads without exposing string identifiers", () => {
-  const summary = summarizeRewardPayload({
-    type: "hunt.kill_reward",
-    data: {
-      session_id: "secret-session",
-      kills: [
-        {
-          seq: 308,
-          species_id: "pidgey",
-          exp: 798,
-          trainer_exp: 900,
-          pokemon_exp: 850,
-          gold: 1
-        }
-      ]
-    }
-  });
+test("preserves derived WebSocket constructor semantics", () => {
+  const windowObject = { WebSocket: FakeWebSocket };
+  installWebSocketObserver({ onPayload() {}, windowObject });
 
-  assert.deepEqual(summary.keys, ["kills", "session_id"]);
-  assert.equal(summary.arrays.kills.length, 1);
-  assert.deepEqual(summary.arrays.kills.items[0].numeric, {
-    seq: 308,
-    exp: 798,
-    trainer_exp: 900,
-    pokemon_exp: 850,
-    gold: 1
-  });
-  assert.equal(JSON.stringify(summary).includes("secret-session"), false);
-  assert.equal(JSON.stringify(summary).includes("pidgey"), false);
+  class DerivedWebSocket extends windowObject.WebSocket {}
+
+  const socket = new DerivedWebSocket("wss://example.test");
+  assert.equal(socket instanceof DerivedWebSocket, true);
+  assert.equal(socket instanceof FakeWebSocket, true);
 });
 
 test("serializes async message decoding per socket and tracks raw type timing", async () => {
@@ -205,39 +183,4 @@ test("serializes async message decoding per socket and tracks raw type timing", 
   assert.equal(status.rawTypes.second.count, 1);
   assert.ok(status.rawTypes.first.firstAtMs <= status.rawTypes.first.lastAtMs);
   assert.ok(status.rawTypes.second.firstAtMs <= status.rawTypes.second.lastAtMs);
-});
-
-test("captures the latest sanitized reward sample", async () => {
-  let clock = 2000;
-  const windowObject = { WebSocket: FakeWebSocket };
-  const protocolAdapter = { adapt() { return []; } };
-
-  installWebSocketObserver({
-    onPayload() {},
-    windowObject,
-    protocolAdapter,
-    now: () => ++clock
-  });
-
-  const socket = new windowObject.WebSocket("wss://example.test");
-  socket.emit("message", {
-    data: JSON.stringify({
-      type: "hunt.kill_reward",
-      seq: 10,
-      data: {
-        session_id: "hidden",
-        kills: [{ seq: 44, exp: 123, gold: 5, species_id: "hidden-species" }]
-      }
-    })
-  });
-
-  await waitUntil(() =>
-    getWebSocketObserverStatus({ windowObject }).rewardSamples["hunt.kill_reward"]?.count === 1
-  );
-
-  const sample = getWebSocketObserverStatus({ windowObject })
-    .rewardSamples["hunt.kill_reward"];
-  assert.equal(sample.count, 1);
-  assert.equal(sample.latest.arrays.kills.items[0].numeric.exp, 123);
-  assert.equal(JSON.stringify(sample).includes("hidden"), false);
 });
