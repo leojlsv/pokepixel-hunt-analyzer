@@ -13,6 +13,7 @@ import {
 import { EVENT_TYPES } from "../domain/events.js";
 import { createTabLeadership } from "./tab-leadership.js";
 import {
+  getWebSocketObserverStatus,
   installWebSocketObserver,
   resolvePageWindow
 } from "./websocket-observer.js";
@@ -25,11 +26,13 @@ import { createClosedHud } from "./closed-hud-runtime.js";
 const APP_VERSION = __APP_VERSION__;
 const TAB_LOCK_REFRESH_MS = 2_000;
 const CURRENT_REFRESH_MS = 1_000;
+const EVENT_REFRESH_DELAY_MS = 75;
 const STANDBY_RECONCILE_MS = 10_000;
 const CATCH_GALLERY_LOAD_LIMIT = 500;
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const CATCH_GALLERY_SECTION_ID = "catch-gallery";
 const CATCH_GALLERY_BETA_STYLE_ID = "pha-catch-gallery-beta-style";
+const DIAGNOSTICS_GLOBAL = "__POKEPIXEL_HUNT_ANALYZER_DIAGNOSTICS__";
 const OBSERVED_EVENT_TYPES = new Set(EVENT_TYPES);
 const METRIC_DATA_EVENTS = new Set([
   "loot.received",
@@ -52,6 +55,7 @@ let ui;
 let pageWindow;
 let updateQueue = Promise.resolve();
 let currentLoadPromise = null;
+let eventRefreshTimer = null;
 let cachedSessionId = null;
 let cachedEncounters = [];
 let cachedAggregateMetrics = null;
@@ -61,6 +65,14 @@ let encounterListRevision = 0;
 let cachedEncounterListRevision = -1;
 let encounterListSnapshotVersion = 0;
 let lastEncounterSyncAt = 0;
+let protocolQueueDepth = 0;
+let protocolMaxQueueDepth = 0;
+let protocolEventsQueued = 0;
+let protocolEventsProcessed = 0;
+let protocolEventsDroppedStandby = 0;
+let lastProtocolQueuedAtMs = null;
+let lastProtocolProcessedAtMs = null;
+let lastProtocolProcessed = null;
 let resolveReady;
 const ready = new Promise((resolve) => {
   resolveReady = resolve;
@@ -135,9 +147,30 @@ function finiteOrNull(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function requestCurrentRefresh() {
+  if (eventRefreshTimer !== null) return;
+
+  eventRefreshTimer = setTimeout(() => {
+    eventRefreshTimer = null;
+    loadCurrent().catch((error) => {
+      console.error("PokePixel Hunt Analyzer (event refresh):", error);
+    });
+  }, EVENT_REFRESH_DELAY_MS);
+}
+
 function enqueueProtocolEvent(payload, socketId) {
-  if (!leadership.isActive() || !payload || typeof payload !== "object") return;
+  if (!payload || typeof payload !== "object") return;
   if (!OBSERVED_EVENT_TYPES.has(payload.type)) return;
+
+  if (!leadership.isActive()) {
+    protocolEventsDroppedStandby += 1;
+    return;
+  }
+
+  protocolEventsQueued += 1;
+  protocolQueueDepth += 1;
+  protocolMaxQueueDepth = Math.max(protocolMaxQueueDepth, protocolQueueDepth);
+  lastProtocolQueuedAtMs = Date.now();
 
   updateQueue = updateQueue
     .then(async () => {
@@ -149,6 +182,14 @@ function enqueueProtocolEvent(payload, socketId) {
         socketId,
         data: payload.data
       });
+
+      protocolEventsProcessed += 1;
+      lastProtocolProcessedAtMs = Date.now();
+      lastProtocolProcessed = {
+        type: payload.type,
+        seq: finiteOrNull(payload.seq),
+        socketId
+      };
 
       if (eventResult?.terminalAlert) {
         void audioAlerts?.handleTerminalAlert(eventResult.terminalAlert);
@@ -163,9 +204,17 @@ function enqueueProtocolEvent(payload, socketId) {
       } else if (METRIC_DATA_EVENTS.has(payload.type)) {
         markMetricDataDirty();
       }
+
+      // Keep the 1s timer as a safety net, but do not make the HUD wait for
+      // it after a persisted event. Coalescing avoids repeated IndexedDB reads
+      // during compact HuntSim batches.
+      requestCurrentRefresh();
     })
     .catch((error) => {
       console.error("PokePixel Hunt Analyzer (event pipeline):", error);
+    })
+    .finally(() => {
+      protocolQueueDepth = Math.max(0, protocolQueueDepth - 1);
     });
 }
 
@@ -229,6 +278,59 @@ function loadCurrent() {
       currentLoadPromise = null;
     });
   return currentLoadPromise;
+}
+
+async function buildDiagnosticsSnapshot() {
+  const session = sessionsRepository
+    ? await sessionsRepository.getCurrentReadOnly()
+    : null;
+  const pipelineDiagnostics = pipeline
+    ? await pipeline.getDiagnosticsSnapshot()
+    : null;
+
+  return {
+    appVersion: APP_VERSION,
+    capturedAtMs: Date.now(),
+    websocket: getWebSocketObserverStatus({ windowObject: pageWindow }),
+    runtime: {
+      leadershipActive: leadership.isActive(),
+      queueDepth: protocolQueueDepth,
+      maxQueueDepth: protocolMaxQueueDepth,
+      eventsQueued: protocolEventsQueued,
+      eventsProcessed: protocolEventsProcessed,
+      eventsDroppedStandby: protocolEventsDroppedStandby,
+      lastQueuedAtMs: lastProtocolQueuedAtMs,
+      lastProcessedAtMs: lastProtocolProcessedAtMs,
+      lastProcessedEvent: lastProtocolProcessed ? { ...lastProtocolProcessed } : null
+    },
+    session: session
+      ? {
+          sessionId: session.sessionId,
+          status: session.status,
+          locked: Boolean(session.locked),
+          serverSessionId: session.serverSessionId ?? null,
+          zoneId: session.zoneId ?? null,
+          startedAtMs: session.startedAtMs ?? null,
+          lastActivityAtMs: session.lastActivityAtMs ?? null
+        }
+      : null,
+    pipeline: pipelineDiagnostics
+  };
+}
+
+function installDiagnosticsBridge() {
+  if (!pageWindow) return;
+
+  try {
+    Object.defineProperty(pageWindow, DIAGNOSTICS_GLOBAL, {
+      value: buildDiagnosticsSnapshot,
+      configurable: true,
+      enumerable: false,
+      writable: false
+    });
+  } catch {
+    // Support diagnostics must never interfere with analytics startup.
+  }
 }
 
 async function handleSessionAction(action) {
@@ -356,6 +458,7 @@ async function initialize() {
     windowObject: pageWindow
   });
   leadership.refresh();
+  installDiagnosticsBridge();
 
   const database = await openDatabase();
   sessionsRepository = createSessionsRepository(database);
@@ -383,6 +486,8 @@ window.addEventListener("beforeunload", () => {
   catchGallery?.dispose();
   historyDeleteControl?.dispose();
   closedHud?.dispose();
+  if (eventRefreshTimer !== null) clearTimeout(eventRefreshTimer);
+  void pipeline?.flushDiagnostics();
   leadership.release();
 });
 
