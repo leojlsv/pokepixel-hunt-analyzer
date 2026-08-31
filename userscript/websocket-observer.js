@@ -2,6 +2,11 @@ import { createProtocolAdapter } from "./protocol-adapter.js";
 
 const HOOK_FLAG = "__POKEPIXEL_HUNT_ANALYZER_USERSCRIPT_HOOKED__";
 const STATUS_FLAG = "__POKEPIXEL_HUNT_ANALYZER_WS_STATUS__";
+const REWARD_DIAGNOSTIC_TYPES = new Set([
+  "hunt.kill_reward",
+  "hunt.rewards",
+  "loot.received"
+]);
 const textDecoder = new TextDecoder();
 
 export async function decodeMessageData(data) {
@@ -36,6 +41,62 @@ export function resolvePageWindow({
   return unsafeWindowObject || windowObject;
 }
 
+function numericFields(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const fields = {};
+  for (const [key, fieldValue] of Object.entries(value)) {
+    if (typeof fieldValue === "number" && Number.isFinite(fieldValue)) {
+      fields[key] = fieldValue;
+    }
+  }
+  return fields;
+}
+
+/**
+ * Reward diagnostics intentionally keep only object keys, numeric values and
+ * array lengths. String identifiers, creature names, session ids and payload
+ * bodies are never exposed through the support snapshot.
+ */
+export function summarizeRewardPayload(payload) {
+  const data = payload?.data;
+  if (!data || typeof data !== "object") return null;
+
+  if (Array.isArray(data)) {
+    return {
+      dataKind: "array",
+      length: data.length,
+      items: data.slice(0, 3).map((item) => ({
+        keys: item && typeof item === "object" && !Array.isArray(item)
+          ? Object.keys(item).sort()
+          : [],
+        numeric: numericFields(item)
+      }))
+    };
+  }
+
+  const arrays = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (!Array.isArray(value)) continue;
+    arrays[key] = {
+      length: value.length,
+      items: value.slice(0, 3).map((item) => ({
+        keys: item && typeof item === "object" && !Array.isArray(item)
+          ? Object.keys(item).sort()
+          : [],
+        numeric: numericFields(item)
+      }))
+    };
+  }
+
+  return {
+    dataKind: "object",
+    keys: Object.keys(data).sort(),
+    numeric: numericFields(data),
+    arrays
+  };
+}
+
 function createObserverStatus(now) {
   return {
     hookInstalled: false,
@@ -55,6 +116,7 @@ function createObserverStatus(now) {
     lastPayloadAtMs: null,
     lastPayloadType: null,
     rawTypes: Object.create(null),
+    rewardSamples: Object.create(null),
     now
   };
 }
@@ -65,6 +127,10 @@ function cloneRawTypes(rawTypes) {
     snapshot[type] = { ...value };
   }
   return snapshot;
+}
+
+function cloneRewardSamples(rewardSamples) {
+  return JSON.parse(JSON.stringify(rewardSamples || {}));
 }
 
 export function getWebSocketObserverStatus({ windowObject = window } = {}) {
@@ -87,12 +153,17 @@ export function getWebSocketObserverStatus({ windowObject = window } = {}) {
       lastMessageAtMs: null,
       lastPayloadAtMs: null,
       lastPayloadType: null,
-      rawTypes: {}
+      rawTypes: {},
+      rewardSamples: {}
     };
   }
 
-  const { now: _now, rawTypes, ...snapshot } = status;
-  return { ...snapshot, rawTypes: cloneRawTypes(rawTypes) };
+  const { now: _now, rawTypes, rewardSamples, ...snapshot } = status;
+  return {
+    ...snapshot,
+    rawTypes: cloneRawTypes(rawTypes),
+    rewardSamples: cloneRewardSamples(rewardSamples)
+  };
 }
 
 export function installWebSocketObserver({
@@ -165,6 +236,19 @@ export function installWebSocketObserver({
               rawType.count += 1;
               rawType.lastAtMs = payloadAtMs;
               status.rawTypes[status.lastPayloadType] = rawType;
+
+              if (REWARD_DIAGNOSTIC_TYPES.has(status.lastPayloadType)) {
+                const rewardSample = status.rewardSamples[status.lastPayloadType] || {
+                  count: 0,
+                  firstAtMs: payloadAtMs,
+                  lastAtMs: null,
+                  latest: null
+                };
+                rewardSample.count += 1;
+                rewardSample.lastAtMs = payloadAtMs;
+                rewardSample.latest = summarizeRewardPayload(payload);
+                status.rewardSamples[status.lastPayloadType] = rewardSample;
+              }
             }
 
             let canonicalPayloads;
