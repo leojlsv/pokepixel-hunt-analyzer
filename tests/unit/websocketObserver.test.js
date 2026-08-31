@@ -3,9 +3,52 @@ import assert from "node:assert/strict";
 
 import {
   decodeMessageData,
+  getWebSocketObserverStatus,
+  installWebSocketObserver,
   parseProtocolPayload,
   resolvePageWindow
 } from "../../userscript/websocket-observer.js";
+
+const HOOK_FLAG = "__POKEPIXEL_HUNT_ANALYZER_USERSCRIPT_HOOKED__";
+
+class FakeWebSocket {
+  constructor() {
+    this.listeners = new Map();
+  }
+
+  addEventListener(type, listener) {
+    const listeners = this.listeners.get(type) || [];
+    listeners.push(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  emit(type, event = {}) {
+    for (const listener of this.listeners.get(type) || []) {
+      listener(event);
+    }
+  }
+}
+
+class DelayedBlob extends Blob {
+  constructor(parts, delayMs) {
+    super(parts);
+    this.delayMs = delayMs;
+  }
+
+  async text() {
+    await new Promise((resolve) => setTimeout(resolve, this.delayMs));
+    return super.text();
+  }
+}
+
+async function waitUntil(predicate, timeoutMs = 250) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) return;
+    await new Promise((resolve) => setTimeout(resolve, 2));
+  }
+  throw new Error("condition was not reached before timeout");
+}
 
 test("decodes supported WebSocket message payload types", async () => {
   const json = '{"type":"combat.started","seq":1}';
@@ -48,4 +91,77 @@ test("prefers unsafeWindow for the WebSocket hook when available", () => {
     resolvePageWindow({ windowObject: sandboxWindow }),
     sandboxWindow
   );
+});
+
+test("does not mark HOOKED when WebSocket is unavailable", () => {
+  const windowObject = {};
+
+  assert.equal(
+    installWebSocketObserver({ onPayload() {}, windowObject }),
+    false
+  );
+  assert.equal(windowObject[HOOK_FLAG], undefined);
+  assert.equal(getWebSocketObserverStatus({ windowObject }).hookInstalled, false);
+});
+
+test("marks the hook installed only after replacing WebSocket", () => {
+  let clock = 100;
+  const windowObject = { WebSocket: FakeWebSocket };
+
+  assert.equal(
+    installWebSocketObserver({
+      onPayload() {},
+      windowObject,
+      now: () => clock
+    }),
+    true
+  );
+
+  assert.equal(windowObject[HOOK_FLAG], true);
+  assert.notEqual(windowObject.WebSocket, FakeWebSocket);
+
+  const status = getWebSocketObserverStatus({ windowObject });
+  assert.equal(status.hookInstalled, true);
+  assert.equal(status.installedAtMs, 100);
+  assert.equal(status.socketsCreated, 0);
+});
+
+test("serializes async message decoding per socket", async () => {
+  let clock = 1000;
+  const received = [];
+  const windowObject = { WebSocket: FakeWebSocket };
+  const protocolAdapter = {
+    adapt(payload) {
+      return [payload];
+    }
+  };
+
+  installWebSocketObserver({
+    onPayload(payload, socketId) {
+      received.push([payload.seq, socketId]);
+    },
+    windowObject,
+    protocolAdapter,
+    now: () => ++clock
+  });
+
+  const socket = new windowObject.WebSocket("wss://example.test");
+  socket.emit("message", {
+    data: new DelayedBlob(['{"type":"first","seq":1}'], 25)
+  });
+  socket.emit("message", {
+    data: new DelayedBlob(['{"type":"second","seq":2}'], 0)
+  });
+
+  await waitUntil(() => received.length === 2);
+
+  assert.deepEqual(received, [[1, 1], [2, 1]]);
+
+  const status = getWebSocketObserverStatus({ windowObject });
+  assert.equal(status.messagesReceived, 2);
+  assert.equal(status.parsedMessages, 2);
+  assert.equal(status.canonicalPayloads, 2);
+  assert.equal(status.queueDepth, 0);
+  assert.equal(status.maxQueueDepth, 2);
+  assert.equal(status.lastPayloadType, "second");
 });
