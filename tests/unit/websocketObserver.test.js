@@ -124,9 +124,10 @@ test("marks the hook installed only after replacing WebSocket", () => {
   assert.equal(status.hookInstalled, true);
   assert.equal(status.installedAtMs, 100);
   assert.equal(status.socketsCreated, 0);
+  assert.deepEqual(status.rawTypes, {});
 });
 
-test("serializes async message decoding per socket", async () => {
+test("serializes async message decoding per socket and tracks raw type timing", async () => {
   let clock = 1000;
   const received = [];
   const windowObject = { WebSocket: FakeWebSocket };
@@ -152,16 +153,23 @@ test("serializes async message decoding per socket", async () => {
   socket.emit("message", {
     data: new DelayedBlob(['{"type":"second","seq":2}'], 0)
   });
+  socket.emit("message", {
+    data: new DelayedBlob(['{"type":"first","seq":3}'], 0)
+  });
 
-  await waitUntil(() => received.length === 2);
+  await waitUntil(() => received.length === 3);
 
-  assert.deepEqual(received, [[1, 1], [2, 1]]);
+  assert.deepEqual(received, [[1, 1], [2, 1], [3, 1]]);
 
   const status = getWebSocketObserverStatus({ windowObject });
-  assert.equal(status.messagesReceived, 2);
-  assert.equal(status.parsedMessages, 2);
-  assert.equal(status.canonicalPayloads, 2);
+  assert.equal(status.messagesReceived, 3);
+  assert.equal(status.parsedMessages, 3);
+  assert.equal(status.canonicalPayloads, 3);
   assert.equal(status.queueDepth, 0);
-  assert.equal(status.maxQueueDepth, 2);
-  assert.equal(status.lastPayloadType, "second");
+  assert.equal(status.maxQueueDepth, 3);
+  assert.equal(status.lastPayloadType, "first");
+  assert.equal(status.rawTypes.first.count, 2);
+  assert.equal(status.rawTypes.second.count, 1);
+  assert.ok(status.rawTypes.first.firstAtMs <= status.rawTypes.first.lastAtMs);
+  assert.ok(status.rawTypes.second.firstAtMs <= status.rawTypes.second.lastAtMs);
 });
