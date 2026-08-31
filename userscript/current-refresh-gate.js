@@ -14,7 +14,6 @@ export function createCurrentRefreshGate(task, { now = Date.now } = {}) {
 
   async function drain() {
     let isRerun = false;
-    let firstError = null;
 
     do {
       if (isRerun) reruns += 1;
@@ -24,8 +23,6 @@ export function createCurrentRefreshGate(task, { now = Date.now } = {}) {
       const startedAt = now();
       try {
         await task();
-      } catch (error) {
-        firstError ??= error;
       } finally {
         const duration = Math.max(0, now() - startedAt);
         lastDurationMs = duration;
@@ -34,8 +31,6 @@ export function createCurrentRefreshGate(task, { now = Date.now } = {}) {
 
       isRerun = rerunRequested;
     } while (rerunRequested);
-
-    if (firstError) throw firstError;
   }
 
   function run() {
