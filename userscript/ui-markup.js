@@ -198,6 +198,7 @@ export function createUiMarkup() {
       .live-card.hunt-collapsed .metric-cards { display:none; }
       .live-card.hunt-collapsed .actions { justify-content:flex-end; }
 
+      /* Match the compact capture-strip labels (Captured / Failed). */
       #rarity-section .section-head h3 { font-size:9px; }
 
       .encounter-section { overflow:visible; }
