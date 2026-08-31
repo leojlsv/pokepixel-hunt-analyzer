@@ -37,6 +37,8 @@ Acompanha a Hunt atual em tempo real:
 - Captured mostra o breakdown de IVs em `HP · Atk · sAtk · Def · sDef · SpD`;
 - detalhes de Captured incluem Capsule, timestamp e Chance quando disponível.
 
+Desde a v1.12.1, o caminho de tracking/refresh foi endurecido para preservar a ordem dos frames WebSocket e refletir encontros persistidos imediatamente após transições de Hunt, mantendo `loot.received` como fonte autoritativa de XP.
+
 O Current usa cache de snapshots e agregados reutilizáveis para evitar reprocessamento excessivo em Hunts longas.
 
 ### Closed HUD customizável
