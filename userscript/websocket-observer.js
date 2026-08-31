@@ -54,8 +54,17 @@ function createObserverStatus(now) {
     lastMessageAtMs: null,
     lastPayloadAtMs: null,
     lastPayloadType: null,
+    rawTypes: Object.create(null),
     now
   };
+}
+
+function cloneRawTypes(rawTypes) {
+  const snapshot = {};
+  for (const [type, value] of Object.entries(rawTypes || {})) {
+    snapshot[type] = { ...value };
+  }
+  return snapshot;
 }
 
 export function getWebSocketObserverStatus({ windowObject = window } = {}) {
@@ -77,12 +86,13 @@ export function getWebSocketObserverStatus({ windowObject = window } = {}) {
       lastSocketId: null,
       lastMessageAtMs: null,
       lastPayloadAtMs: null,
-      lastPayloadType: null
+      lastPayloadType: null,
+      rawTypes: {}
     };
   }
 
-  const { now: _now, ...snapshot } = status;
-  return { ...snapshot };
+  const { now: _now, rawTypes, ...snapshot } = status;
+  return { ...snapshot, rawTypes: cloneRawTypes(rawTypes) };
 }
 
 export function installWebSocketObserver({
@@ -140,10 +150,22 @@ export function installWebSocketObserver({
             }
 
             status.parsedMessages += 1;
-            status.lastPayloadAtMs = now();
+            const payloadAtMs = now();
+            status.lastPayloadAtMs = payloadAtMs;
             status.lastPayloadType = typeof payload.type === "string"
               ? payload.type
               : null;
+
+            if (status.lastPayloadType) {
+              const rawType = status.rawTypes[status.lastPayloadType] || {
+                count: 0,
+                firstAtMs: payloadAtMs,
+                lastAtMs: null
+              };
+              rawType.count += 1;
+              rawType.lastAtMs = payloadAtMs;
+              status.rawTypes[status.lastPayloadType] = rawType;
+            }
 
             let canonicalPayloads;
             try {
