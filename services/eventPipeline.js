@@ -24,9 +24,17 @@ import { createDiagnosticsRepository } from "../data/diagnosticsRepository.js";
 import { SCHEMA_VERSION } from "../data/migrations.js";
 
 const KNOWN_EVENT_TYPES = new Set(EVENT_TYPES);
+const DIAGNOSTICS_FLUSH_MS = 1_000;
+const RECENT_EVENT_LIMIT = 50;
 
 function protocolDedupeKey(message) {
   return `${message.socketId}|${message.type}|${message.seq}`;
+}
+
+function addPatch(target, patch) {
+  for (const [field, amount] of Object.entries(patch)) {
+    target[field] = (target[field] || 0) + amount;
+  }
 }
 
 export function createEventPipeline(db, { now = Date.now, appVersion = null } = {}) {
@@ -42,12 +50,76 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
   // ever-growing Set once or twice for every protocol event.
   const seenEventKeys = new Set();
 
-  // Diagnostics are best-effort and must never break analytics processing.
+  // Diagnostics must never sit in front of encounter persistence. Counters are
+  // accumulated in memory and flushed as a best-effort background batch.
+  let pendingDiagnostics = {};
+  let diagnosticsFlushTimer = null;
+  let diagnosticsFlushPromise = Promise.resolve();
+
+  function scheduleDiagnosticsFlush() {
+    if (diagnosticsFlushTimer !== null) return;
+
+    diagnosticsFlushTimer = setTimeout(() => {
+      diagnosticsFlushTimer = null;
+      void flushDiagnostics();
+    }, DIAGNOSTICS_FLUSH_MS);
+    diagnosticsFlushTimer?.unref?.();
+  }
+
   function bumpDiagnostics(patch) {
-    return diagnosticsRepo.increment(patch).catch(() => {});
+    addPatch(pendingDiagnostics, patch);
+    scheduleDiagnosticsFlush();
+  }
+
+  function flushDiagnostics() {
+    if (diagnosticsFlushTimer !== null) {
+      clearTimeout(diagnosticsFlushTimer);
+      diagnosticsFlushTimer = null;
+    }
+
+    const patch = pendingDiagnostics;
+    pendingDiagnostics = {};
+    if (Object.keys(patch).length === 0) return diagnosticsFlushPromise;
+
+    diagnosticsFlushPromise = diagnosticsFlushPromise
+      .then(() => diagnosticsRepo.increment(patch))
+      .catch(() => {});
+
+    return diagnosticsFlushPromise;
+  }
+
+  async function drainDiagnostics() {
+    // A flush can race with new increments. Drain until no in-memory patch is
+    // left so a requested snapshot remains exact for tests/support tooling.
+    while (Object.keys(pendingDiagnostics).length > 0) {
+      await flushDiagnostics();
+    }
+    await diagnosticsFlushPromise;
   }
 
   let trackerState = createTrackerState();
+  let lastReceivedEvent = null;
+  let lastAcceptedEvent = null;
+  const recentEvents = [];
+
+  function runtimeEvent(message, outcome) {
+    return {
+      atMs: now(),
+      type: message?.type ?? null,
+      seq: message?.seq ?? null,
+      socketId: message?.socketId ?? null,
+      protocolTs: message?.ts ?? null,
+      outcome
+    };
+  }
+
+  function recordRuntimeEvent(message, outcome) {
+    const entry = runtimeEvent(message, outcome);
+    lastReceivedEvent = entry;
+    if (outcome === "accepted") lastAcceptedEvent = entry;
+    recentEvents.push(entry);
+    if (recentEvents.length > RECENT_EVENT_LIMIT) recentEvents.shift();
+  }
 
   // No reliable protocol EXP-rate field is confirmed, so configuration
   // snapshots keep the existing "unknown" default.
@@ -206,23 +278,25 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
    * persistence failures still reject so the runtime can report them.
    */
   async function handle(message) {
-    await bumpDiagnostics({ eventsReceived: 1 });
+    bumpDiagnostics({ eventsReceived: 1 });
 
     const normalized = normalizeEvent(message.type, message.data);
 
     if (!normalized) {
       // A known type rejected by its normalizer is a parse error; an unknown
       // type is an expected ignore.
-      await bumpDiagnostics(
+      bumpDiagnostics(
         KNOWN_EVENT_TYPES.has(message.type) ? { parseErrors: 1 } : { eventsIgnored: 1 }
       );
+      recordRuntimeEvent(message, "ignored");
 
       return { ok: false, reason: "ignored" };
     }
 
     const dedupeKey = protocolDedupeKey(message);
     if (seenEventKeys.has(dedupeKey)) {
-      await bumpDiagnostics({ duplicateEvents: 1 });
+      bumpDiagnostics({ duplicateEvents: 1 });
+      recordRuntimeEvent(message, "duplicate");
       return { ok: true, duplicate: true };
     }
     seenEventKeys.add(dedupeKey);
@@ -254,18 +328,24 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
     ).length;
 
     if (orphansCreated > 0) {
-      await bumpDiagnostics({ orphanEvents: orphansCreated });
+      bumpDiagnostics({ orphanEvents: orphansCreated });
     }
 
+    recordRuntimeEvent(message, "accepted");
     return { ok: true, terminalAlert };
   }
 
   async function getDiagnosticsSnapshot() {
+    await drainDiagnostics();
     const counters = await diagnosticsRepo.getCounters();
 
     return {
       ...counters,
       activeEncounters: trackerState.inProgress.size,
+      dedupeRegistrySize: seenEventKeys.size,
+      lastReceivedEvent: lastReceivedEvent ? { ...lastReceivedEvent } : null,
+      lastAcceptedEvent: lastAcceptedEvent ? { ...lastAcceptedEvent } : null,
+      recentEvents: recentEvents.map((entry) => ({ ...entry })),
       dbVersion: SCHEMA_VERSION,
       appVersion
     };
@@ -274,6 +354,7 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
   return {
     handle,
     recoverOnStartup: sessionsRepo.recoverOnStartup,
-    getDiagnosticsSnapshot
+    getDiagnosticsSnapshot,
+    flushDiagnostics
   };
 }

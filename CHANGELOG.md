@@ -5,6 +5,25 @@ The project follows Semantic Versioning.
 
 > Detailed historical notes that previously lived in this file through v1.11.1 are preserved verbatim in [`docs/CHANGELOG_ARCHIVE_PRE_1.12.md`](docs/CHANGELOG_ARCHIVE_PRE_1.12.md). This file keeps the release-level history concise from v1.12.0 forward.
 
+## [1.12.1] - 2026-08-31
+
+### Tracker integrity hotfix
+- Hardened WebSocket observer installation so the runtime only reports the hook as active after the page constructor is successfully replaced, while preserving native constructor/subclass semantics.
+- Serialized asynchronous WebSocket decode/adaptation per socket so Blob/async parsing cannot reorder frames before protocol correlation reaches the event pipeline.
+- Moved persistent diagnostics writes off the event hot path and batch-flushed them to reduce avoidable IndexedDB latency.
+- Added a coalesced Current/Closed HUD refresh after persisted events and a rerun-safe refresh gate so state changes that arrive during an in-flight read are rendered immediately afterward.
+- Retained `loot.received` as the authoritative Trainer/Pokémon XP source; no provisional XP mapping from `hunt.kill_reward.exp` was introduced.
+
+### Diagnostics and UI
+- Added lightweight runtime health diagnostics for WebSocket state, queue depth, recent pipeline events, cache revisions and current render state without persisting raw WebSocket payloads.
+- Reduced `BY RARITY` to 9px, matching the `CAPTURED` / `FAILED` label size.
+
+### Validation
+- Repeated live validation across `City → Hunt A → Hunt B → City → Hunt C` transitions showed immediate Seen/Captured/Failed tracking without F5 or Stop/Start recovery.
+- No duplicate drops were observed during the validated transitions; XP/h startup settled to approximately 0–2 seconds and then updated normally according to authoritative reward arrival.
+- Added regression coverage for observer installation, per-socket ordering, derived WebSocket constructors, refresh coalescing, refresh timing and recovery after read failures.
+- No IndexedDB migration, dependency change, ACTIVE/STANDBY redesign, session/dedupe semantic change or reward-accounting rule change.
+
 ## [1.12.0] - 2026-08-28
 
 ### Customizable Closed HUD

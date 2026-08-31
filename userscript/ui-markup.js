@@ -198,6 +198,8 @@ export function createUiMarkup() {
       .live-card.hunt-collapsed .metric-cards { display:none; }
       .live-card.hunt-collapsed .actions { justify-content:flex-end; }
 
+      #rarity-section .section-head h3 { font-size:9px; }
+
       .encounter-section { overflow:visible; }
       .filters .filter-field {
         min-width:90px;
