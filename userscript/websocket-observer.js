@@ -60,11 +60,9 @@ function createObserverStatus(now) {
 }
 
 function cloneRawTypes(rawTypes) {
-  const snapshot = {};
-  for (const [type, value] of Object.entries(rawTypes || {})) {
-    snapshot[type] = { ...value };
-  }
-  return snapshot;
+  return Object.fromEntries(
+    Object.entries(rawTypes || {}).map(([type, value]) => [type, { ...value }])
+  );
 }
 
 export function getWebSocketObserverStatus({ windowObject = window } = {}) {
