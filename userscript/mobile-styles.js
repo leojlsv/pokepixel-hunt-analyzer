@@ -53,6 +53,17 @@ export const MOBILE_STYLES = String.raw`
   position: relative;
   top: auto;
   flex: 0 0 auto;
+  min-height: 44px;
+  padding: 5px 8px;
+}
+
+:host([data-ui-mode="mobile"]) .tabs .tab {
+  min-height: 36px;
+  padding: 7px 12px;
+}
+
+:host([data-ui-mode="mobile"]) .hunt-time {
+  font-size: 14px;
 }
 
 :host([data-ui-mode="mobile"]) .view {
@@ -68,6 +79,167 @@ export const MOBILE_STYLES = String.raw`
   min-width: 0;
 }
 
+:host([data-ui-mode="mobile"]) .current-view {
+  gap: 8px;
+  padding: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .live-card {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "status"
+    "actions"
+    "metrics";
+  gap: 8px;
+  padding: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .status-row {
+  width: 100%;
+  min-height: 30px;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .status-row > span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:host([data-ui-mode="mobile"]) .hunt-status {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  font-size: 9px;
+}
+
+:host([data-ui-mode="mobile"]) .actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 42px;
+  gap: 6px;
+}
+
+:host([data-ui-mode="mobile"]) .actions button {
+  min-height: 42px;
+  padding: 7px 6px;
+  font-size: 10px;
+}
+
+:host([data-ui-mode="mobile"]) .actions .collapse-button {
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  padding: 0;
+}
+
+:host([data-ui-mode="mobile"]) .live-card.hunt-collapsed {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "status actions";
+  gap: 8px;
+  padding: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .live-card.hunt-collapsed .status-row {
+  display: flex;
+}
+
+:host([data-ui-mode="mobile"]) .live-card.hunt-collapsed .metric-cards {
+  display: none;
+}
+
+:host([data-ui-mode="mobile"]) .live-card.hunt-collapsed .actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+:host([data-ui-mode="mobile"]) .live-card.hunt-collapsed .actions > :not(.collapse-button) {
+  display: none;
+}
+
+:host([data-ui-mode="mobile"]) .metric-cards,
+:host([data-ui-mode="mobile"]) .capture-strip {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+:host([data-ui-mode="mobile"]) .metric-cards article,
+:host([data-ui-mode="mobile"]) .capture-strip article {
+  min-height: 64px;
+  padding: 8px;
+  gap: 4px;
+}
+
+:host([data-ui-mode="mobile"]) .metric-cards article > span,
+:host([data-ui-mode="mobile"]) .capture-strip article > span {
+  font-size: 9px;
+}
+
+:host([data-ui-mode="mobile"]) .metric-cards article > strong,
+:host([data-ui-mode="mobile"]) .capture-strip article > strong {
+  font-size: 17px;
+}
+
+:host([data-ui-mode="mobile"]) .metric-cards article > small {
+  font-size: 9px;
+}
+
+:host([data-ui-mode="mobile"]) #rarity-section {
+  overflow: hidden;
+}
+
+:host([data-ui-mode="mobile"]) #rarity-section .section-head {
+  min-height: 44px;
+  padding: 5px 8px 5px 10px;
+}
+
+:host([data-ui-mode="mobile"]) #rarity-section .section-meta {
+  gap: 4px;
+}
+
+:host([data-ui-mode="mobile"]) #rarity-section .collapse-button {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+}
+
+:host([data-ui-mode="mobile"]) #rarity-section .table-wrap {
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+:host([data-ui-mode="mobile"]) #rarity-section table {
+  width: 100%;
+  table-layout: fixed;
+  white-space: nowrap;
+}
+
+:host([data-ui-mode="mobile"]) #rarity-section th,
+:host([data-ui-mode="mobile"]) #rarity-section td {
+  padding: 6px 4px;
+  overflow: hidden;
+  font-size: 10px;
+  text-overflow: ellipsis;
+}
+
+:host([data-ui-mode="mobile"]) #rarity-section th:first-child,
+:host([data-ui-mode="mobile"]) #rarity-section td:first-child {
+  width: 28%;
+  padding-left: 8px;
+}
+
+:host([data-ui-mode="mobile"]) #rarity-section th:not(:first-child),
+:host([data-ui-mode="mobile"]) #rarity-section td:not(:first-child) {
+  width: 18%;
+  text-align: right;
+}
+
 :host([data-ui-mode="mobile"]) .resize-bottom-left {
   display: none !important;
 }
@@ -75,5 +247,11 @@ export const MOBILE_STYLES = String.raw`
 :host([data-ui-mode="mobile"]) .launcher {
   right: calc(8px + var(--pha-safe-right));
   bottom: calc(8px + var(--pha-safe-bottom));
+}
+
+@media (orientation: landscape) and (min-width: 640px) {
+  :host([data-ui-mode="mobile"]) .metric-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 `;
