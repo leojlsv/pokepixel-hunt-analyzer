@@ -26,30 +26,38 @@ test("mobile By Rarity removes horizontal scrolling and uses the full header as 
   );
 });
 
-test("mobile encounter sections use cards instead of the desktop table viewport", () => {
+test("mobile Captured and Failed keep the existing table presentation", () => {
   assert.match(
     MOBILE_STYLES,
-    /\.encounter-section \.table-wrap \{\s*\n\s*display: none !important;/
+    /\.encounter-section \.table-wrap \{\s*\n\s*display: block;/
   );
-  assert.match(
-    MOBILE_STYLES,
-    /\.mobile-encounter-list \{[\s\S]*display: grid;[\s\S]*overflow: visible;/
-  );
-  assert.match(MOBILE_STYLES, /\.mobile-encounter-card \{[\s\S]*touch-action: manipulation;/);
+  assert.doesNotMatch(MOBILE_STYLES, /\.mobile-encounter-card/);
+  assert.doesNotMatch(MOBILE_STYLES, /\.mobile-encounter-list/);
 });
 
-test("mobile encounter filters and collapse controls are touch-sized", () => {
+test("mobile encounter filters are touch-sized and rarity expands inline", () => {
   assert.match(
     MOBILE_STYLES,
     /\.encounter-section \.filters \{\s*\n\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important;/
   );
   assert.match(
     MOBILE_STYLES,
-    /\.encounter-section \.collapse-button \{[\s\S]*inset: 0;[\s\S]*pointer-events: auto;/
+    /\.encounter-section \.rarity-multiselect summary \{\s*\n\s*min-height: 42px;/
   );
   assert.match(
     MOBILE_STYLES,
-    /\.encounter-section \.rarity-multiselect summary \{\s*\n\s*min-height: 42px;/
+    /\.encounter-section \.rarity-check-menu \{\s*\n\s*position: static;/
+  );
+  assert.match(
+    MOBILE_STYLES,
+    /\.encounter-section \.rarity-check-option \{\s*\n\s*min-height: 40px;/
+  );
+});
+
+test("mobile Captured and Failed use the full section header as collapse target", () => {
+  assert.match(
+    MOBILE_STYLES,
+    /\.encounter-section \.collapse-button \{[\s\S]*inset: 0;[\s\S]*pointer-events: auto;/
   );
 });
 
