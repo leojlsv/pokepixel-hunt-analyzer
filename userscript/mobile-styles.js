@@ -264,7 +264,6 @@ export const MOBILE_STYLES = String.raw`
   bottom: calc(8px + var(--pha-safe-bottom));
 }
 
-
 :host([data-ui-mode="mobile"]) .encounter-section .filters {
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   gap: 8px;
@@ -280,6 +279,8 @@ export const MOBILE_STYLES = String.raw`
 :host([data-ui-mode="mobile"]) .encounter-section .filters input,
 :host([data-ui-mode="mobile"]) .encounter-section .rarity-multiselect summary {
   min-height: 42px;
+  padding-top: 8px;
+  padding-bottom: 8px;
   font-size: 11px;
 }
 
@@ -292,23 +293,21 @@ export const MOBILE_STYLES = String.raw`
   width: 100%;
   max-height: none;
   margin-top: 4px;
+  padding: 4px;
   box-shadow: none;
 }
 
 :host([data-ui-mode="mobile"]) .encounter-section .rarity-check-option {
-  min-height: 38px;
+  min-height: 40px;
+  padding: 8px;
+  gap: 10px;
+  font-size: 11px;
 }
 
-:host([data-ui-mode="mobile"]) .mobile-sort-field {
-  grid-column: 1 / -1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  color: #c0ad72;
-  font-size: 9px;
-  letter-spacing: .025em;
-  text-transform: uppercase;
+:host([data-ui-mode="mobile"]) .encounter-section .rarity-check-option input {
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
 }
 
 :host([data-ui-mode="mobile"]) .encounter-section .section-head {
@@ -340,140 +339,14 @@ export const MOBILE_STYLES = String.raw`
 }
 
 :host([data-ui-mode="mobile"]) .encounter-section .table-wrap {
-  display: none !important;
+  display: block;
 }
 
-:host([data-ui-mode="mobile"]) .mobile-encounter-list {
-  width: 100%;
-  min-width: 0;
-  padding: 8px;
-  display: grid;
-  gap: 7px;
-  overflow: visible;
-}
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-card {
-  min-width: 0;
-  padding: 10px;
-  display: grid;
-  gap: 6px;
-  border: 1px solid var(--border-soft);
-  border-radius: 4px;
-  background: #272823;
-  color: var(--text);
+:host([data-ui-mode="mobile"]) .encounter-section th[data-encounter-sort] {
+  min-height: 40px;
+  padding-top: 10px;
+  padding-bottom: 10px;
   touch-action: manipulation;
-}
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-card-captured { cursor: pointer; }
-:host([data-ui-mode="mobile"]) .mobile-encounter-card:active { background: #30312c; }
-:host([data-ui-mode="mobile"]) .mobile-encounter-card:focus-visible {
-  outline: 2px solid var(--gold-soft);
-  outline-offset: 1px;
-}
-:host([data-ui-mode="mobile"]) .encounter-card-shiny { background: #383323; }
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-card-top,
-:host([data-ui-mode="mobile"]) .mobile-encounter-card-meta,
-:host([data-ui-mode="mobile"]) .mobile-encounter-card-footer {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-name {
-  min-width: 0;
-  overflow: hidden;
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-iv {
-  flex: 0 0 auto;
-  color: var(--text);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-card-meta,
-:host([data-ui-mode="mobile"]) .mobile-encounter-card-footer {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-card-meta > span,
-:host([data-ui-mode="mobile"]) .mobile-encounter-card-footer > span,
-:host([data-ui-mode="mobile"]) .mobile-encounter-card-footer > time {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-time {
-  margin-left: auto;
-  font-variant-numeric: tabular-nums;
-}
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-chevron {
-  flex: 0 0 auto;
-  color: var(--gold);
-  font-size: 13px;
-}
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-detail {
-  margin-top: 3px;
-  padding-top: 8px;
-  display: grid;
-  gap: 7px;
-  border-top: 1px solid var(--border-soft);
-}
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-iv-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 5px;
-}
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-iv-grid > span {
-  min-width: 0;
-  padding: 5px 6px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  border-radius: 3px;
-  background: #22231f;
-}
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-iv-grid small {
-  color: var(--muted);
-  font-size: 8px;
-}
-:host([data-ui-mode="mobile"]) .mobile-encounter-iv-grid strong {
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
-
-:host([data-ui-mode="mobile"]) .mobile-encounter-detail-row {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 9px;
-}
-:host([data-ui-mode="mobile"]) .mobile-encounter-detail-label { color: #c0ad72; }
-:host([data-ui-mode="mobile"]) .mobile-encounter-detail-value {
-  min-width: 0;
-  overflow: hidden;
-  color: #c7c3b7;
-  font-size: 9px;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 @media (orientation: landscape) and (min-width: 640px) {
