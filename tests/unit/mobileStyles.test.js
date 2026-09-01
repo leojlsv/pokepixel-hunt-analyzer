@@ -22,7 +22,7 @@ test("mobile By Rarity removes horizontal scrolling and uses the full header as 
   );
   assert.match(
     MOBILE_STYLES,
-    /#rarity-section \.collapse-button \{\s*\n\s*position: absolute;\s*\n\s*inset: 0;/
+    /#rarity-section \.collapse-button \{[\s\S]*position: absolute;[\s\S]*inset: 0;[\s\S]*pointer-events: auto;/
   );
 });
 
