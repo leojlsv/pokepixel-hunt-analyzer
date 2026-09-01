@@ -26,6 +26,33 @@ test("mobile By Rarity removes horizontal scrolling and uses the full header as 
   );
 });
 
+test("mobile encounter sections use cards instead of the desktop table viewport", () => {
+  assert.match(
+    MOBILE_STYLES,
+    /\.encounter-section \.table-wrap \{\s*\n\s*display: none !important;/
+  );
+  assert.match(
+    MOBILE_STYLES,
+    /\.mobile-encounter-list \{[\s\S]*display: grid;[\s\S]*overflow: visible;/
+  );
+  assert.match(MOBILE_STYLES, /\.mobile-encounter-card \{[\s\S]*touch-action: manipulation;/);
+});
+
+test("mobile encounter filters and collapse controls are touch-sized", () => {
+  assert.match(
+    MOBILE_STYLES,
+    /\.encounter-section \.filters \{\s*\n\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important;/
+  );
+  assert.match(
+    MOBILE_STYLES,
+    /\.encounter-section \.collapse-button \{[\s\S]*inset: 0;[\s\S]*pointer-events: auto;/
+  );
+  assert.match(
+    MOBILE_STYLES,
+    /\.encounter-section \.rarity-multiselect summary \{\s*\n\s*min-height: 42px;/
+  );
+});
+
 test("landscape may promote only core metrics to four columns", () => {
   assert.match(MOBILE_STYLES, /@media \(orientation: landscape\) and \(min-width: 640px\)/);
   assert.match(
