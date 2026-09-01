@@ -194,18 +194,32 @@ export const MOBILE_STYLES = String.raw`
 }
 
 :host([data-ui-mode="mobile"]) #rarity-section .section-head {
+  position: relative;
   min-height: 44px;
   padding: 5px 8px 5px 10px;
 }
 
 :host([data-ui-mode="mobile"]) #rarity-section .section-meta {
   gap: 4px;
+  padding-right: 34px;
+  pointer-events: none;
 }
 
 :host([data-ui-mode="mobile"]) #rarity-section .collapse-button {
-  width: 40px;
-  min-width: 40px;
-  height: 40px;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  min-width: 100%;
+  height: 100%;
+  padding: 0 10px 0 0;
+  justify-content: flex-end;
+  border: 0;
+  background: transparent;
+}
+
+:host([data-ui-mode="mobile"]) #rarity-section .collapse-button:active {
+  background: rgba(255,255,255,.035);
 }
 
 :host([data-ui-mode="mobile"]) #rarity-section .table-wrap {
