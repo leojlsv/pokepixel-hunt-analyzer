@@ -216,6 +216,7 @@ export const MOBILE_STYLES = String.raw`
   justify-content: flex-end;
   border: 0;
   background: transparent;
+  pointer-events: auto;
 }
 
 :host([data-ui-mode="mobile"]) #rarity-section .collapse-button:active {
