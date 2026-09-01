@@ -170,7 +170,7 @@ export const MOBILE_STYLES = String.raw`
 
 :host([data-ui-mode="mobile"]) .metric-cards article,
 :host([data-ui-mode="mobile"]) .capture-strip article {
-  min-height: 64px;
+  min-height: 60px;
   padding: 8px;
   gap: 4px;
 }
