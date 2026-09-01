@@ -17,6 +17,7 @@ import {
   sortEncounters
 } from "./encounter-list-model.js";
 import { latestSpeciesEncounter } from "./hunt-view-model.js";
+import { createMobileEncounterRenderer } from "./mobile-encounter-renderer.js";
 
 const RARE_PLUS_KEYS = new Set(["rare", "epic", "legendary", "mythical"]);
 const RARITY_LABELS = new Map(RARITIES);
@@ -114,6 +115,21 @@ export function createCurrentView(shadow) {
     captured: createListState("captured"),
     failed: createListState("failed")
   };
+  const mobileEncounterRenderer = shadow.host?.dataset.uiMode === "mobile"
+    ? createMobileEncounterRenderer(shadow, {
+        onSort(prefix, sort) {
+          lists[prefix].sort = sort;
+          updateSortIndicators(prefix);
+          rebuildEncounterList(prefix, { resetScroll: false });
+        },
+        onNeedMore(prefix) {
+          appendEncounterBatch(prefix);
+        },
+        onToggleCaptured(encounterId) {
+          toggleEncounterDetail("captured", encounterId);
+        }
+      })
+    : null;
 
   bindListControls("captured");
   bindListControls("failed");
@@ -348,6 +364,20 @@ export function createCurrentView(shadow) {
     updateCount(prefix);
   }
 
+  function renderMobileEncounterList(prefix) {
+    if (!mobileEncounterRenderer) return;
+    const state = lists[prefix];
+    mobileEncounterRenderer.render(
+      prefix,
+      state.visible.slice(0, state.renderedCount),
+      {
+        expandedIds: state.expandedIds,
+        currentHuntStartedAtMs,
+        sort: state.sort
+      }
+    );
+  }
+
   function updateSortIndicators(prefix) {
     const state = lists[prefix];
     for (const header of shadow.querySelectorAll(`[data-encounter-sort="${prefix}"]`)) {
@@ -357,6 +387,7 @@ export function createCurrentView(shadow) {
         ? state.sort.direction === "desc" ? "▼" : "▲"
         : "";
     }
+    mobileEncounterRenderer?.syncSort(prefix, state.sort);
   }
 
   function rebuildEncounterList(prefix, { resetScroll = true } = {}) {
@@ -375,6 +406,7 @@ export function createCurrentView(shadow) {
     state.rendering = false;
     state.renderedCount = 0;
     body.replaceChildren();
+    renderMobileEncounterList(prefix);
     if (resetScroll && tableWrap) tableWrap.scrollTop = 0;
     updateCount(prefix);
 
@@ -420,6 +452,7 @@ export function createCurrentView(shadow) {
       body.appendChild(fragment);
       state.renderedCount = end;
       state.rendering = false;
+      renderMobileEncounterList(prefix);
 
       const requestedTarget = Number.isFinite(targetCount)
         ? Math.min(targetCount, state.visible.length)
@@ -500,6 +533,7 @@ export function createCurrentView(shadow) {
     }
 
     state.renderedCount = desiredRenderedCount;
+    renderMobileEncounterList(prefix);
   }
 
   function createEncounterRow(prefix, encounter) {
@@ -618,6 +652,7 @@ export function createCurrentView(shadow) {
       rowState.detail?.remove();
       rowState.detail = null;
       rowState.main.setAttribute("aria-expanded", "false");
+      renderMobileEncounterList(prefix);
       return;
     }
 
@@ -626,6 +661,7 @@ export function createCurrentView(shadow) {
     rowState.detail = detail;
     rowState.main.setAttribute("aria-expanded", "true");
     rowState.main.after(detail);
+    renderMobileEncounterList(prefix);
   }
 
   function updateCount(prefix) {
