@@ -35,7 +35,7 @@ test("mobile Captured and Failed keep the existing table presentation", () => {
   assert.doesNotMatch(MOBILE_STYLES, /\.mobile-encounter-list/);
 });
 
-test("mobile encounter filters are touch-sized, two-column, and rarity expands inline beside Shiny", () => {
+test("mobile encounter filters are touch-sized, two-column, and rarity floats beside Shiny", () => {
   assert.match(
     MOBILE_STYLES,
     /\.encounter-section \.filters \{\s*\n\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important;/
@@ -50,7 +50,11 @@ test("mobile encounter filters are touch-sized, two-column, and rarity expands i
   );
   assert.match(
     MOBILE_STYLES,
-    /\.encounter-section \.rarity-check-menu \{\s*\n\s*position: static;/
+    /\.encounter-section \.rarity-check-menu \{[\s\S]*position: absolute;[\s\S]*top: calc\(100% \+ 4px\);[\s\S]*z-index: 40;/
+  );
+  assert.doesNotMatch(
+    MOBILE_STYLES,
+    /\.encounter-section \.rarity-check-menu \{[\s\S]*position: static;/
   );
   assert.match(
     MOBILE_STYLES,
