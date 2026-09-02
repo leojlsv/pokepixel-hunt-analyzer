@@ -33,6 +33,34 @@ function ensureOneColumnOption(select) {
   else select.appendChild(option);
 }
 
+function hudFieldId(field) {
+  if (field.matches?.("[data-hud-zero-mode]")) return "pha-hud-columns";
+  if (field.matches?.("[data-hud-preset]")) return "pha-hud-preset";
+  if (field.matches?.("[data-hud-widget]")) return `pha-hud-widget-${field.dataset.hudWidget}`;
+  if (field.matches?.("[data-hud-item]")) return `pha-hud-item-${field.dataset.hudItem}`;
+  if (field.matches?.("[data-hud-rarity-width]")) return `pha-hud-rarity-width-${field.dataset.hudRarityWidth}`;
+  if (field.matches?.("[data-hud-rarity-failed]")) return `pha-hud-rarity-failed-${field.dataset.hudRarityFailed}`;
+  if (field.matches?.("[data-hud-rarity-key]")) {
+    return `pha-hud-rarity-${field.dataset.hudRarityKey}-${field.value}`;
+  }
+  return "";
+}
+
+export function ensureHudFormFieldIds(shadow) {
+  const settings = shadow?.getElementById?.("pha-hud-settings");
+  if (!settings) return 0;
+
+  let assigned = 0;
+  for (const field of settings.querySelectorAll("input, select, textarea")) {
+    if (field.id) continue;
+    const id = hudFieldId(field);
+    if (!id) continue;
+    field.id = id;
+    assigned += 1;
+  }
+  return assigned;
+}
+
 function restoreSlotConfig(config, index) {
   config.removeAttribute("data-hud-one-hidden");
   const label = config.querySelector(":scope > span");
@@ -108,6 +136,7 @@ function bindOneColumnMode(shadow) {
   if (!select || !settings || select.dataset.hudOneColumnBound === "true") return false;
 
   ensureOneColumnOption(select);
+  ensureHudFormFieldIds(shadow);
   select.dataset.hudOneColumnBound = "true";
 
   select.addEventListener("change", (event) => {
