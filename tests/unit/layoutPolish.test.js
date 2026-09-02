@@ -20,6 +20,32 @@ test("header metadata shows only the compact v-prefixed version label", () => {
   assert.match(RUNTIME, /version\.textContent = `v\$\{text\.slice\("Userscript "\.length\)\}`/);
 });
 
+test("shared topbar keeps only identity and minimize after runtime layout polish", () => {
+  assert.match(RUNTIME, /\.pha-hud-topbar \{[\s\S]*grid-template-columns:minmax\(0,1fr\) auto;/);
+  assert.match(RUNTIME, /\.pha-hud-topbar #pha-close \{[\s\S]*grid-column:2;/);
+  assert.match(RUNTIME, /function placeOperationalStatus\(\)/);
+  assert.match(RUNTIME, /huntTime\.after\(state\)/);
+});
+
+test("UI mode and opacity are staged out of the header and mounted inside Misc", () => {
+  assert.match(RUNTIME, /const INTERFACE_SECTION_ID = "pha-interface-settings"/);
+  assert.match(RUNTIME, /const INTERFACE_STAGING_ID = "pha-interface-staging"/);
+  assert.match(RUNTIME, /function stageInterfaceControls\(\)/);
+  assert.match(RUNTIME, /function ensureMiscInterfaceSettings\(\)/);
+  assert.match(RUNTIME, /<h3>Interface<\/h3>/);
+  assert.match(RUNTIME, /<span>UI Mode<\/span>/);
+  assert.match(RUNTIME, /<span>Opacity<\/span>/);
+  assert.match(RUNTIME, /modeSlot\.appendChild\(modeSelect\)/);
+  assert.match(RUNTIME, /alphaSlot\.appendChild\(alphaButton\)/);
+});
+
+test("Mobile header and nav use compact shared hierarchy without a second layout", () => {
+  assert.match(RUNTIME, /:host\(\[data-ui-mode="mobile"\]\) \.pha-hud-topbar \{[\s\S]*min-height:46px;[\s\S]*padding:5px 8px;/);
+  assert.match(RUNTIME, /:host\(\[data-ui-mode="mobile"\]\) \.tabs \{[\s\S]*min-height:44px;[\s\S]*gap:4px;/);
+  assert.match(RUNTIME, /:host\(\[data-ui-mode="mobile"\]\) \.tabs #pha-tab-state \{[\s\S]*font-size:8px;/);
+  assert.doesNotMatch(RUNTIME, /grid-template-rows: minmax\(40px, auto\) 30px/);
+});
+
 test("Mobile capture summary stays in one four-column row", () => {
   assert.match(
     RUNTIME,
@@ -29,9 +55,4 @@ test("Mobile capture summary stays in one four-column row", () => {
     RUNTIME,
     /:host\(\[data-ui-mode="mobile"\]\) \.capture-strip article \{[\s\S]*min-width:0;[\s\S]*min-height:56px;/
   );
-});
-
-test("rejected two-row Mobile topbar stylesheet is no longer loaded", () => {
-  assert.doesNotMatch(RUNTIME, /MOBILE_TOPBAR_STYLES/);
-  assert.doesNotMatch(RUNTIME, /grid-template-rows: minmax\(40px, auto\) 30px/);
 });
