@@ -8,6 +8,10 @@ const RUNTIME = await readFile(
   new URL("../../userscript/closed-hud-runtime.js", import.meta.url),
   "utf8"
 );
+const MOBILE_HUD_STYLES = await readFile(
+  new URL("../../userscript/closed-hud-mobile-styles.js", import.meta.url),
+  "utf8"
+);
 
 test("isolated Closed HUD checkpoint only accepts PX-only or the current two-column HUD", () => {
   assert.equal(normalizeHudColumns(0), 0);
@@ -38,4 +42,11 @@ test("PX-only mode hides the HUD grid and keeps only the PX launcher footprint",
     /#pha-toggle\.pha-custom-hud\[data-hud-columns="0"\] \.pha-hud-grid \{[\s\S]*display:none !important;/
   );
   assert.match(RUNTIME, /window\.dispatchEvent\(new Event\("resize"\)\)/);
+});
+
+test("Mobile PX-only mode overrides the validated 220px mobile HUD footprint", () => {
+  assert.match(
+    MOBILE_HUD_STYLES,
+    /:host\(\[data-ui-mode="mobile"\]\) #pha-toggle\.pha-custom-hud\[data-hud-columns="0"\] \{[\s\S]*width: 52px !important;[\s\S]*min-width: 52px !important;[\s\S]*max-width: 52px !important;/
+  );
 });
