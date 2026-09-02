@@ -406,10 +406,22 @@ export function createClosedHud(options = {}) {
     const state = shadow.getElementById("pha-tab-state");
     const tabs = shadow.querySelector(".tabs");
     const huntTime = shadow.getElementById("hunt-time");
-    if (!state || !tabs || !huntTime) return;
-    if (state.parentElement !== tabs || huntTime.nextElementSibling !== state) {
-      huntTime.after(state);
+    const statusRow = shadow.querySelector(".live-card .status-row");
+    const actions = shadow.querySelector(".live-card .actions");
+    const collapseButton = actions?.querySelector('[data-collapse="hunt"]')
+      || statusRow?.querySelector('[data-collapse="hunt"]');
+    if (!state || !tabs || !huntTime || !statusRow || !actions || !collapseButton) return;
+
+    if (shadow.host?.dataset.uiMode === "mobile") {
+      if (huntTime.parentElement !== statusRow) statusRow.appendChild(huntTime);
+      if (state.parentElement !== statusRow) statusRow.appendChild(state);
+      if (collapseButton.parentElement !== statusRow) statusRow.appendChild(collapseButton);
+      return;
     }
+
+    if (collapseButton.parentElement !== actions) actions.appendChild(collapseButton);
+    if (huntTime.parentElement !== tabs) tabs.appendChild(huntTime);
+    if (state.parentElement !== tabs || huntTime.nextElementSibling !== state) huntTime.after(state);
   }
 
   function hideHudView() {
@@ -481,6 +493,7 @@ export function createClosedHud(options = {}) {
     settingsButton.classList.add("tab");
 
     if (miscTab) {
+      if (miscTab.parentElement !== tabs) tabs.appendChild(miscTab);
       if (miscTab.nextElementSibling !== settingsButton) miscTab.after(settingsButton);
       return;
     }

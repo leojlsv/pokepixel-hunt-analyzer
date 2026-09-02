@@ -11,6 +11,7 @@ test("HUD configuration moves out of the topbar and sits beside Misc in every UI
   assert.match(RUNTIME, /const MISC_TAB_ID = "alerts-tab"/);
   assert.match(RUNTIME, /settingsButton\.classList\.remove\("alpha-button"\)/);
   assert.match(RUNTIME, /settingsButton\.classList\.add\("tab"\)/);
+  assert.match(RUNTIME, /miscTab\.parentElement !== tabs\) tabs\.appendChild\(miscTab\)/);
   assert.match(RUNTIME, /miscTab\.after\(settingsButton\)/);
   assert.match(RUNTIME, /huntTime\.before\(settingsButton\)/);
 });
@@ -51,6 +52,15 @@ test("shared topbar pins minimize to the physical right edge", () => {
   );
   assert.match(RUNTIME, /function placeOperationalStatus\(\)/);
   assert.match(RUNTIME, /huntTime\.after\(state\)/);
+});
+
+test("Mobile merges the existing operational nodes into the Hunt header and restores Desktop", () => {
+  assert.match(RUNTIME, /shadow\.host\?\.dataset\.uiMode === "mobile"/);
+  assert.match(RUNTIME, /statusRow\.appendChild\(huntTime\)/);
+  assert.match(RUNTIME, /statusRow\.appendChild\(state\)/);
+  assert.match(RUNTIME, /statusRow\.appendChild\(collapseButton\)/);
+  assert.match(RUNTIME, /actions\.appendChild\(collapseButton\)/);
+  assert.match(RUNTIME, /tabs\.appendChild\(huntTime\)/);
 });
 
 test("Desktop compact width removes the reserved gutter and only migrates the old 430px minimum", () => {

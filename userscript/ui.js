@@ -176,6 +176,8 @@ export function createUi({
     const badge = shadow.getElementById("pha-tab-state");
     badge.textContent = isActive ? "ACTIVE" : "STANDBY";
     badge.className = isActive ? "state active" : "state standby";
+    badge.title = `Analyzer ${badge.textContent}`;
+    badge.setAttribute("aria-label", badge.title);
   }
 
   function setPanelOpen(open) {

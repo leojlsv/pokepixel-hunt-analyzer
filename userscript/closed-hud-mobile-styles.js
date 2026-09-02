@@ -154,7 +154,7 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
   font-size: 9px;
 }
 
-/* Bottom-navigation checkpoint 1: visual shell only. No navigation nodes move yet. */
+/* Bottom-navigation checkpoint 4: reuse all four native view buttons. */
 :host([data-ui-mode="mobile"]) .panel::after {
   content: "";
   width: 100%;
@@ -166,5 +166,82 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
   background: var(--bg-elevated);
   box-shadow: 0 -4px 12px rgba(0, 0, 0, .24);
   pointer-events: none;
+}
+
+:host([data-ui-mode="mobile"]) .tabs > [data-view="current"],
+:host([data-ui-mode="mobile"]) .tabs > [data-view="history"],
+:host([data-ui-mode="mobile"]) .tabs > #alerts-tab,
+:host([data-ui-mode="mobile"]) .tabs > .pha-hud-settings-button {
+  position: fixed;
+  bottom: calc(var(--pha-safe-bottom) + 5px);
+  z-index: 11;
+  width: calc((100vw - var(--pha-safe-left) - var(--pha-safe-right) - 26px) / 4);
+  min-height: 44px;
+}
+
+:host([data-ui-mode="mobile"]) .tabs > [data-view="current"] {
+  left: calc(var(--pha-safe-left) + 7px);
+}
+
+:host([data-ui-mode="mobile"]) .tabs > [data-view="history"] {
+  left: calc(var(--pha-safe-left) + 11px + ((100vw - var(--pha-safe-left) - var(--pha-safe-right) - 26px) / 4));
+}
+
+:host([data-ui-mode="mobile"]) .tabs > #alerts-tab {
+  right: calc(var(--pha-safe-right) + 11px + ((100vw - var(--pha-safe-left) - var(--pha-safe-right) - 26px) / 4));
+}
+
+:host([data-ui-mode="mobile"]) .tabs > .pha-hud-settings-button {
+  right: calc(var(--pha-safe-right) + 7px);
+}
+
+/* The remaining operational row merges into the Hunt header on Mobile. */
+:host([data-ui-mode="mobile"]) .tabs {
+  min-height: 0;
+  height: 0;
+  padding: 0;
+  gap: 0;
+  border: 0;
+}
+
+:host([data-ui-mode="mobile"]) .live-card .status-row {
+  justify-content: flex-start;
+}
+
+:host([data-ui-mode="mobile"]) .live-card .status-row > span:first-child {
+  flex: 1 1 auto;
+  order: 0;
+}
+
+:host([data-ui-mode="mobile"]) .live-card .status-row .hunt-time {
+  margin-left: auto;
+  padding: 0;
+  font-size: 12px;
+  order: 2;
+}
+
+:host([data-ui-mode="mobile"]) .live-card .status-row .hunt-status {
+  order: 3;
+}
+
+:host([data-ui-mode="mobile"]) .live-card .status-row #pha-tab-state {
+  width: 8px;
+  min-width: 8px;
+  height: 8px;
+  min-height: 8px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 50%;
+  background: currentColor;
+  font-size: 0;
+  order: 1;
+}
+
+:host([data-ui-mode="mobile"]) .live-card .status-row [data-collapse="hunt"] {
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  order: 4;
 }
 `;
