@@ -399,6 +399,165 @@ export const MOBILE_STYLES = String.raw`
   background: #30312c;
 }
 
+/* M6: secondary controls keep their existing layouts while gaining Mobile touch targets. */
+:host([data-ui-mode="mobile"]) .alpha-button {
+  min-width: 58px;
+  height: 36px;
+  padding: 0 8px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([data-ui-mode="mobile"]) #pha-close {
+  width: 40px;
+  height: 40px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([data-ui-mode="mobile"]) .pha-ui-mode-select {
+  height: 30px;
+  max-width: 72px;
+  padding: 0 4px;
+  font-size: 9px;
+  touch-action: manipulation;
+}
+
+:host([data-ui-mode="mobile"]) .refcode {
+  min-height: 30px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([data-ui-mode="mobile"]) .alpha-button:active,
+:host([data-ui-mode="mobile"]) #pha-close:active,
+:host([data-ui-mode="mobile"]) .refcode:active {
+  border-color: #8e7943;
+  background: #3a382f;
+}
+
+:host([data-ui-mode="mobile"]) .alert-grid {
+  grid-template-columns: minmax(64px, .8fr) repeat(2, minmax(0, 1fr));
+  gap: 8px 4px;
+  padding: 8px 6px;
+}
+
+:host([data-ui-mode="mobile"]) .alert-choice-pair {
+  gap: 2px;
+}
+
+:host([data-ui-mode="mobile"]) .alert-choice {
+  min-width: 26px;
+  min-height: 38px;
+  justify-content: center;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([data-ui-mode="mobile"]) .alert-choice input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
+:host([data-ui-mode="mobile"]) .custom-audio-manage {
+  width: 28px;
+  min-width: 28px;
+  height: 38px;
+  line-height: 36px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([data-ui-mode="mobile"]) .custom-audio-popover {
+  top: 42px;
+  min-width: min(200px, calc(100vw - 32px));
+  padding: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .custom-audio-actions button {
+  min-height: 38px;
+  padding: 6px 8px;
+  font-size: 9px;
+  touch-action: manipulation;
+}
+
+:host([data-ui-mode="mobile"]) .catch-gallery-filters input,
+:host([data-ui-mode="mobile"]) .catch-gallery-filters select {
+  height: 42px;
+  min-height: 42px;
+  padding: 8px;
+  font-size: 11px;
+}
+
+:host([data-ui-mode="mobile"]) .catch-gallery-sort {
+  min-height: 40px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([data-ui-mode="mobile"]) .catch-gallery-actions {
+  gap: 3px;
+}
+
+:host([data-ui-mode="mobile"]) .catch-gallery-action,
+:host([data-ui-mode="mobile"]) .catch-gallery-action.generate {
+  min-width: 0;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 4px;
+  flex: 1 1 0;
+  line-height: 1.1;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([data-ui-mode="mobile"]) .catch-gallery-collapse {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  touch-action: manipulation;
+}
+
+:host([data-ui-mode="mobile"]) .catch-gallery-pagination {
+  min-height: 50px;
+}
+
+:host([data-ui-mode="mobile"]) .catch-gallery-page-button {
+  min-width: 54px;
+  height: 40px;
+  min-height: 40px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([data-ui-mode="mobile"]) .catch-gallery-action:active:not(:disabled),
+:host([data-ui-mode="mobile"]) .catch-gallery-page-button:active:not(:disabled),
+:host([data-ui-mode="mobile"]) .catch-gallery-collapse:active,
+:host([data-ui-mode="mobile"]) .custom-audio-manage:active,
+:host([data-ui-mode="mobile"]) .custom-audio-actions button:active {
+  border-color: #8e7943;
+  background: #3a382f;
+}
+
+:host([data-ui-mode="mobile"]) .history-delete-button {
+  min-width: 72px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0 10px;
+  line-height: 38px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([data-ui-mode="mobile"]) .history-delete-button:active:not(:disabled) {
+  border-color: #b45f59;
+  background: #432824;
+  color: #ffaaa2;
+}
+
 @media (orientation: landscape) and (min-width: 640px) {
   :host([data-ui-mode="mobile"]) .metric-cards {
     grid-template-columns: repeat(4, minmax(0, 1fr));
