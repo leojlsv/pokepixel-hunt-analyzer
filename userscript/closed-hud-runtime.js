@@ -96,6 +96,9 @@ const POLISH_STYLE = `
   .pha-hud-settings.pha-hud-exclusive-view[hidden] {
     display:none !important;
   }
+  .pha-hud-settings-toolbar {
+    grid-template-columns:minmax(0,1fr) minmax(90px,.65fr) auto;
+  }
   .pha-hud-columns-control select {
     width:100%;
   }
@@ -177,6 +180,12 @@ const POLISH_STYLE = `
   :host([data-ui-mode="mobile"]) .tabs #pha-tab-state {
     padding:3px 4px;
     font-size:8px;
+  }
+  :host([data-ui-mode="mobile"]) .pha-hud-settings-toolbar {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  :host([data-ui-mode="mobile"]) .pha-hud-settings-toolbar > [data-hud-reset] {
+    grid-column:1 / -1;
   }
   :host([data-ui-mode="mobile"]) .pha-interface-controls {
     padding:8px;
@@ -380,7 +389,10 @@ export function createClosedHud(options = {}) {
 
     try {
       if (localStorage.getItem(DESKTOP_COMPACT_WIDTH_STORAGE_KEY) === "1") return;
-      const width = panel.getBoundingClientRect().width;
+      const inlineWidth = Number.parseFloat(panel.style.width);
+      const measuredWidth = panel.getBoundingClientRect().width;
+      const width = Number.isFinite(inlineWidth) && inlineWidth > 0 ? inlineWidth : measuredWidth;
+      if (!(width > 0)) return;
       if (width > DESKTOP_COMPACT_WIDTH_PX && width <= 431) {
         panel.style.width = `${DESKTOP_COMPACT_WIDTH_PX}px`;
       }
@@ -593,6 +605,8 @@ export function createClosedHud(options = {}) {
       if (slotElements[index]) slotElements[index].hidden = !enabled;
       if (configElements[index]) {
         configElements[index].hidden = !enabled;
+        const label = configElements[index].querySelector(":scope > span");
+        if (label) label.textContent = hudColumns === 1 && index === 2 ? "2" : String(index + 1);
         for (const field of configElements[index].querySelectorAll("select, input, button")) {
           field.disabled = !enabled;
         }
