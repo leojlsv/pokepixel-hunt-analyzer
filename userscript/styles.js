@@ -5,16 +5,46 @@ export const STYLES = String.raw`
   color: #f0eee6;
   font-size: 12px;
 
-  --bg: #20211e;
-  --bg-elevated: #252621;
-  --bg-header: #2b2c27;
-  --border: #4b4a43;
-  --border-soft: #3d3d37;
-  --text: #f0eee6;
-  --muted: #aaa79c;
-  --gold: #d7b45d;
-  --gold-soft: #9d874f;
-  --cyan: #79e6f2;
+  --hunt-surface-canvas: #20211e;
+  --hunt-surface-raised: #252621;
+  --hunt-surface-header: #2b2c27;
+  --hunt-surface-topbar: #2c2c28;
+  --hunt-surface-launcher: #292a26;
+  --hunt-surface-control: #30312c;
+  --hunt-surface-control-active: #3a382f;
+  --hunt-border-default: #4b4a43;
+  --hunt-border-soft: #3d3d37;
+  --hunt-text-primary: #f0eee6;
+  --hunt-text-muted: #aaa79c;
+  --hunt-accent-primary: #d7b45d;
+  --hunt-accent-border: #9d874f;
+  --hunt-accent-info: #79e6f2;
+  --hunt-focus-ring: var(--hunt-accent-primary);
+  --hunt-state-active-bg: #173b2c;
+  --hunt-state-active-text: #70dfaa;
+  --hunt-state-standby-bg: #4b3520;
+  --hunt-state-standby-text: #ffc477;
+  --hunt-action-start-bg: #314331;
+  --hunt-action-start-border: #597258;
+  --hunt-action-start-text: #cbe2c7;
+  --hunt-action-pause-bg: #51472a;
+  --hunt-action-pause-border: #82713c;
+  --hunt-action-pause-text: #f0d987;
+  --hunt-action-end-bg: #50302e;
+  --hunt-action-end-border: #80504b;
+  --hunt-action-end-text: #efbbb5;
+
+  /* Compatibility aliases used by feature styles during gradual migration. */
+  --bg: var(--hunt-surface-canvas);
+  --bg-elevated: var(--hunt-surface-raised);
+  --bg-header: var(--hunt-surface-header);
+  --border: var(--hunt-border-default);
+  --border-soft: var(--hunt-border-soft);
+  --text: var(--hunt-text-primary);
+  --muted: var(--hunt-text-muted);
+  --gold: var(--hunt-accent-primary);
+  --gold-soft: var(--hunt-accent-border);
+  --cyan: var(--hunt-accent-info);
 }
 
 * {
@@ -44,7 +74,7 @@ select:focus-visible,
 input:focus-visible,
 [tabindex="0"]:focus-visible,
 th.sortable:focus-visible {
-  outline: 2px solid var(--gold);
+  outline: 2px solid var(--hunt-focus-ring);
   outline-offset: 2px;
 }
 
@@ -64,7 +94,7 @@ th.sortable:focus-visible {
   align-items: center;
   border: 1px solid #5b594f;
   border-radius: 5px;
-  background: #292a26;
+  background: var(--hunt-surface-launcher);
   color: var(--text);
   box-shadow: 0 5px 15px #0009;
   cursor: pointer;
@@ -159,7 +189,7 @@ th.sortable:focus-visible {
   container-name: analyzer;
   border: 1px solid var(--border);
   border-radius: 5px;
-  background: var(--bg);
+  background: var(--hunt-surface-canvas);
   color: var(--text);
   box-shadow: 0 10px 26px #000b;
   overscroll-behavior: contain;
@@ -177,7 +207,7 @@ th.sortable:focus-visible {
   gap: 8px;
   align-items: center;
   border-bottom: 1px solid var(--border);
-  background: #2c2c28;
+  background: var(--hunt-surface-topbar);
   cursor: move;
   touch-action: none;
 }
@@ -234,8 +264,8 @@ th.sortable:focus-visible {
   font-size: 9px;
   font-weight: 800;
 }
-.state.active { background: #173b2c; color: #70dfaa; }
-.state.standby { background: #4b3520; color: #ffc477; }
+.state.active { background: var(--hunt-state-active-bg); color: var(--hunt-state-active-text); }
+.state.standby { background: var(--hunt-state-standby-bg); color: var(--hunt-state-standby-text); }
 
 .alpha-button,
 .icon-button,
@@ -245,7 +275,7 @@ th.sortable:focus-visible {
   appearance: none;
   border: 1px solid #55544c;
   border-radius: 3px;
-  background: #30312c;
+  background: var(--hunt-surface-control);
   color: var(--text);
   box-shadow: none;
   cursor: pointer;
@@ -288,7 +318,7 @@ th.sortable:focus-visible {
 .tab { padding: 6px 10px; }
 .tab.active {
   border-color: var(--gold-soft);
-  background: #3a382f;
+  background: var(--hunt-surface-control-active);
   color: var(--gold);
 }
 
@@ -365,9 +395,21 @@ th.sortable:focus-visible {
 }
 
 .actions button { padding: 5px 8px; font-size: 10px; }
-#new-hunt { background: #314331; border-color: #597258; color: #cbe2c7; }
-#pause-resume { background: #51472a; border-color: #82713c; color: #f0d987; }
-#end-hunt { background: #50302e; border-color: #80504b; color: #efbbb5; }
+#new-hunt {
+  background: var(--hunt-action-start-bg);
+  border-color: var(--hunt-action-start-border);
+  color: var(--hunt-action-start-text);
+}
+#pause-resume {
+  background: var(--hunt-action-pause-bg);
+  border-color: var(--hunt-action-pause-border);
+  color: var(--hunt-action-pause-text);
+}
+#end-hunt {
+  background: var(--hunt-action-end-bg);
+  border-color: var(--hunt-action-end-border);
+  color: var(--hunt-action-end-text);
+}
 #new-hunt:disabled,
 #pause-resume:disabled,
 #end-hunt:disabled { opacity: .42; }

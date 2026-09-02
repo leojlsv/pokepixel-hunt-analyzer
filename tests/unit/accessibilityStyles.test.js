@@ -12,6 +12,6 @@ test("interactive Analyzer controls expose a shared visible keyboard focus", () 
   assert.match(SOURCE, /select:focus-visible,/);
   assert.match(SOURCE, /input:focus-visible,/);
   assert.match(SOURCE, /\[tabindex="0"\]:focus-visible,/);
-  assert.match(SOURCE, /th\.sortable:focus-visible \{[\s\S]*outline: 2px solid var\(--gold\);[\s\S]*outline-offset: 2px;/);
+  assert.match(SOURCE, /th\.sortable:focus-visible \{[\s\S]*outline: 2px solid var\(--hunt-focus-ring\);[\s\S]*outline-offset: 2px;/);
   assert.doesNotMatch(SOURCE, /outline:\s*none/);
 });
