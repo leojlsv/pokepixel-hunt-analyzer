@@ -3,6 +3,9 @@ const HUD_COLUMNS_STORAGE_KEY = "pokepixel_hunt_analyzer_closed_hud_columns_v1";
 const ONE_COLUMN_VALUE = "1";
 const MAX_BIND_ATTEMPTS = 200;
 
+let formFieldObserver = null;
+let observedFormShadow = null;
+
 export function isOneColumnModeValue(value) {
   return value === 1 || value === ONE_COLUMN_VALUE;
 }
@@ -46,19 +49,51 @@ function hudFieldId(field) {
   return "";
 }
 
-export function ensureHudFormFieldIds(shadow) {
-  const settings = shadow?.getElementById?.("pha-hud-settings");
-  if (!settings) return 0;
+function analyzerFieldId(field) {
+  const hudId = hudFieldId(field);
+  if (hudId) return hudId;
+  if (field.matches?.(".pha-ui-mode-select")) return "pha-ui-mode";
+  if (field.matches?.("[data-sound-volume]")) return "pha-sound-volume";
+  if (field.matches?.(".catch-gallery-pokemon-filter")) return "catch-gallery-pokemon-filter";
+  if (field.matches?.(".catch-gallery-rarity-filter")) return "catch-gallery-rarity-filter";
+  return "";
+}
 
+function assignFormFieldIds(root, resolver) {
+  if (!root?.querySelectorAll) return 0;
   let assigned = 0;
-  for (const field of settings.querySelectorAll("input, select, textarea")) {
-    if (field.id) continue;
-    const id = hudFieldId(field);
+  for (const field of root.querySelectorAll("input, select, textarea")) {
+    if (field.id || field.name) continue;
+    const id = resolver(field);
     if (!id) continue;
     field.id = id;
     assigned += 1;
   }
   return assigned;
+}
+
+export function ensureHudFormFieldIds(shadow) {
+  const settings = shadow?.getElementById?.("pha-hud-settings");
+  return assignFormFieldIds(settings, hudFieldId);
+}
+
+export function ensureAnalyzerFormFieldIds(shadow) {
+  return assignFormFieldIds(shadow, analyzerFieldId);
+}
+
+function installAnalyzerFormFieldIds(shadow) {
+  if (!shadow) return;
+  ensureAnalyzerFormFieldIds(shadow);
+  if (typeof MutationObserver === "undefined") return;
+  if (formFieldObserver && observedFormShadow === shadow) return;
+
+  formFieldObserver?.disconnect();
+  observedFormShadow = shadow;
+  formFieldObserver = new MutationObserver((mutations) => {
+    if (!mutations.some((mutation) => mutation.addedNodes.length > 0)) return;
+    ensureAnalyzerFormFieldIds(shadow);
+  });
+  formFieldObserver.observe(shadow, { childList: true, subtree: true });
 }
 
 function restoreSlotConfig(config, index) {
@@ -137,6 +172,7 @@ function bindOneColumnMode(shadow) {
 
   ensureOneColumnOption(select);
   ensureHudFormFieldIds(shadow);
+  installAnalyzerFormFieldIds(shadow);
   select.dataset.hudOneColumnBound = "true";
 
   select.addEventListener("change", (event) => {
