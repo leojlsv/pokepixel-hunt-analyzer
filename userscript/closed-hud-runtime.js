@@ -3,6 +3,7 @@ import {
   createPotionUsageTracker,
   POTION_USAGE_STORAGE_KEY
 } from "./closed-hud.js";
+import { MOBILE_CLOSED_HUD_STYLES } from "./closed-hud-mobile-styles.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STYLE_ID = "pha-closed-hud-polish-style";
@@ -27,6 +28,7 @@ const POLISH_STYLE = `
     font-size:6px;
     opacity:.78;
   }
+  ${MOBILE_CLOSED_HUD_STYLES}
 `;
 
 export { createPotionUsageTracker, POTION_USAGE_STORAGE_KEY };
