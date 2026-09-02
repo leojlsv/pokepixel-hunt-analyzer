@@ -79,6 +79,22 @@ export const MOBILE_STYLES = String.raw`
   min-width: 0;
 }
 
+:host([data-ui-mode="mobile"]) .history-filter-block {
+  position: relative;
+  z-index: 10;
+  overflow: visible;
+}
+
+:host([data-ui-mode="mobile"]) .catch-gallery-section,
+:host([data-ui-mode="mobile"]) .catch-gallery-filters {
+  overflow: visible;
+}
+
+:host([data-ui-mode="mobile"]) .catch-gallery-filters {
+  position: relative;
+  z-index: 10;
+}
+
 :host([data-ui-mode="mobile"]) .current-view {
   gap: 8px;
   padding: 8px;
@@ -278,7 +294,7 @@ export const MOBILE_STYLES = String.raw`
 :host([data-ui-mode="mobile"]) .encounter-section .filters select,
 :host([data-ui-mode="mobile"]) .encounter-section .filters input,
 :host([data-ui-mode="mobile"]) .encounter-section .rarity-multiselect summary {
-  min-height: 42px;
+  min-height: 44px;
   padding-top: 8px;
   padding-bottom: 8px;
   font-size: 11px;
@@ -291,7 +307,7 @@ export const MOBILE_STYLES = String.raw`
   left: 0;
   width: 100%;
   min-width: 100%;
-  max-height: min(45dvh, 280px);
+  max-height: min(34dvh, 196px);
   margin-top: 0;
   padding: 4px;
   overflow-y: auto;
@@ -299,7 +315,7 @@ export const MOBILE_STYLES = String.raw`
 }
 
 :host([data-ui-mode="mobile"]) .encounter-section .rarity-check-option {
-  min-height: 40px;
+  min-height: 44px;
   padding: 8px;
   gap: 10px;
   font-size: 11px;
@@ -399,6 +415,19 @@ export const MOBILE_STYLES = String.raw`
   background: #30312c;
 }
 
+:host([data-ui-mode="mobile"]) .history-attempts-table th:nth-child(1),
+:host([data-ui-mode="mobile"]) .history-attempts-table td:nth-child(1) { width: 16%; }
+:host([data-ui-mode="mobile"]) .history-attempts-table th:nth-child(2),
+:host([data-ui-mode="mobile"]) .history-attempts-table td:nth-child(2) { width: 26%; }
+:host([data-ui-mode="mobile"]) .history-attempts-table th:nth-child(3),
+:host([data-ui-mode="mobile"]) .history-attempts-table td:nth-child(3) { width: 11%; }
+:host([data-ui-mode="mobile"]) .history-attempts-table th:nth-child(4),
+:host([data-ui-mode="mobile"]) .history-attempts-table td:nth-child(4) { width: 12%; }
+:host([data-ui-mode="mobile"]) .history-attempts-table th:nth-child(5),
+:host([data-ui-mode="mobile"]) .history-attempts-table td:nth-child(5) { width: 25%; }
+:host([data-ui-mode="mobile"]) .history-attempts-table th:nth-child(6),
+:host([data-ui-mode="mobile"]) .history-attempts-table td:nth-child(6) { width: 10%; }
+
 /* M6: secondary controls keep their existing layouts while gaining Mobile touch targets. */
 :host([data-ui-mode="mobile"]) .alpha-button {
   min-width: 58px;
@@ -424,7 +453,7 @@ export const MOBILE_STYLES = String.raw`
 }
 
 :host([data-ui-mode="mobile"]) .refcode {
-  min-height: 30px;
+  min-height: 44px;
   padding: 0 4px;
   display: inline-flex;
   align-items: center;
@@ -450,8 +479,8 @@ export const MOBILE_STYLES = String.raw`
 }
 
 :host([data-ui-mode="mobile"]) .alert-choice {
-  min-width: 26px;
-  min-height: 38px;
+  min-width: 44px;
+  min-height: 44px;
   justify-content: center;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
@@ -463,22 +492,22 @@ export const MOBILE_STYLES = String.raw`
 }
 
 :host([data-ui-mode="mobile"]) .custom-audio-manage {
-  width: 28px;
-  min-width: 28px;
-  height: 38px;
-  line-height: 36px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  line-height: 42px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
 :host([data-ui-mode="mobile"]) .custom-audio-popover {
-  top: 42px;
+  top: 48px;
   min-width: min(200px, calc(100vw - 32px));
   padding: 8px;
 }
 
 :host([data-ui-mode="mobile"]) .custom-audio-actions button {
-  min-height: 38px;
+  min-height: 44px;
   padding: 6px 8px;
   font-size: 9px;
   touch-action: manipulation;
@@ -486,14 +515,14 @@ export const MOBILE_STYLES = String.raw`
 
 :host([data-ui-mode="mobile"]) .catch-gallery-filters input,
 :host([data-ui-mode="mobile"]) .catch-gallery-filters select {
-  height: 42px;
-  min-height: 42px;
+  height: 44px;
+  min-height: 44px;
   padding: 8px;
   font-size: 11px;
 }
 
 :host([data-ui-mode="mobile"]) .catch-gallery-sort {
-  min-height: 40px;
+  min-height: 44px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
@@ -505,8 +534,8 @@ export const MOBILE_STYLES = String.raw`
 :host([data-ui-mode="mobile"]) .catch-gallery-action,
 :host([data-ui-mode="mobile"]) .catch-gallery-action.generate {
   min-width: 0;
-  height: 40px;
-  min-height: 40px;
+  height: 44px;
+  min-height: 44px;
   padding: 0 4px;
   flex: 1 1 0;
   line-height: 1.1;
@@ -515,9 +544,9 @@ export const MOBILE_STYLES = String.raw`
 }
 
 :host([data-ui-mode="mobile"]) .catch-gallery-collapse {
-  width: 40px;
-  min-width: 40px;
-  height: 40px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
   touch-action: manipulation;
 }
 
@@ -527,8 +556,8 @@ export const MOBILE_STYLES = String.raw`
 
 :host([data-ui-mode="mobile"]) .catch-gallery-page-button {
   min-width: 54px;
-  height: 40px;
-  min-height: 40px;
+  height: 44px;
+  min-height: 44px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
@@ -544,10 +573,10 @@ export const MOBILE_STYLES = String.raw`
 
 :host([data-ui-mode="mobile"]) .history-delete-button {
   min-width: 72px;
-  height: 40px;
-  min-height: 40px;
+  height: 44px;
+  min-height: 44px;
   padding: 0 10px;
-  line-height: 38px;
+  line-height: 42px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }

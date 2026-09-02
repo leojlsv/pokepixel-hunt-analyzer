@@ -109,6 +109,13 @@ test("UI mode and opacity are staged out of the header and mounted inside Misc",
   assert.match(RUNTIME, /alphaSlot\.appendChild\(alphaButton\)/);
 });
 
+test("bounded select proxies expose native selects on Desktop and custom summaries on Mobile", () => {
+  assert.match(RUNTIME, /function syncSelectProxyMode\(proxy, select, shadow\)/);
+  assert.match(RUNTIME, /if \(mode === "mobile"\) proxy\.prepend\(select\)/);
+  assert.match(RUNTIME, /else proxy\.before\(select\)/);
+  assert.match(RUNTIME, /syncSelectProxyMode\(proxy, select, shadow\)/);
+});
+
 test("Mobile header and nav use compact shared hierarchy without a second layout", () => {
   assert.match(RUNTIME, /:host\(\[data-ui-mode="mobile"\]\) \.pha-hud-topbar \{[\s\S]*min-height:46px;[\s\S]*padding:5px 52px 5px 8px;/);
   assert.match(RUNTIME, /:host\(\[data-ui-mode="mobile"\]\) \.tabs \{[\s\S]*min-height:44px;[\s\S]*gap:4px;/);

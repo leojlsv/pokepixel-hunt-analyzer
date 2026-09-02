@@ -17,12 +17,23 @@ const INTERFACE_STAGING_ID = "pha-interface-staging";
 const DESKTOP_COMPACT_WIDTH_PX = 415;
 const LEGACY_DESKTOP_MIN_WIDTH_PX = 430;
 const HUD_SYMBOLS = new Set(["✓", "✕", "$", "↓"]);
+const SELECT_PROXY_BY_ELEMENT = new WeakMap();
 const NAV_ITEMS = Object.freeze([
   { button: '[data-view="current"]', buttonId: "pha-tab-current", panelId: "view-current" },
   { button: '[data-view="history"]', buttonId: "pha-tab-history", panelId: "view-history" },
   { button: `#${MISC_TAB_ID}`, buttonId: MISC_TAB_ID, panelId: MISC_VIEW_ID },
   { button: `#${HUD_SETTINGS_BUTTON_ID}`, buttonId: HUD_SETTINGS_BUTTON_ID, panelId: HUD_SETTINGS_ID }
 ]);
+
+function syncSelectProxyMode(proxy, select, shadow) {
+  if (!proxy || !select || !shadow?.host) return;
+  const mode = shadow.host.dataset.uiMode === "mobile" ? "mobile" : "desktop";
+  if (proxy.dataset.uiMode === mode) return;
+  proxy.dataset.uiMode = mode;
+  proxy.open = false;
+  if (mode === "mobile") proxy.prepend(select);
+  else proxy.before(select);
+}
 
 const POLISH_STYLE = `
   .pha-hud-inventory-primary.has-symbol,
@@ -634,6 +645,467 @@ export function createClosedHud(options = {}) {
     applyHudZeroMode();
   }
 
+  function syncHudColumnsProxy() {
+    const select = shadow?.querySelector("[data-hud-zero-mode]");
+    const proxy = SELECT_PROXY_BY_ELEMENT.get(select);
+    const summary = proxy?.querySelector(".pha-hud-columns-summary");
+    if (!select || !summary) return;
+    syncSelectProxyMode(proxy, select, shadow);
+    const label = select.selectedOptions?.[0]?.textContent || "Columns";
+    if (summary.textContent !== label) summary.textContent = label;
+  }
+
+  function installHudColumnsProxy() {
+    const select = shadow?.querySelector("[data-hud-zero-mode]");
+    if (!select || SELECT_PROXY_BY_ELEMENT.has(select)) {
+      syncHudColumnsProxy();
+      return;
+    }
+
+    const proxy = document.createElement("details");
+    proxy.className = "pha-hud-columns-proxy";
+    const summary = document.createElement("summary");
+    summary.className = "pha-hud-columns-summary";
+    summary.setAttribute("aria-label", "Closed HUD columns");
+    const menu = document.createElement("div");
+    menu.className = "pha-hud-columns-menu";
+    menu.setAttribute("role", "listbox");
+
+    select.before(proxy);
+    proxy.append(select, summary, menu);
+    SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+
+    const rebuild = () => {
+      menu.replaceChildren();
+      for (const option of select.options) {
+        if (option.disabled) continue;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "pha-hud-columns-option";
+        button.setAttribute("role", "option");
+        button.setAttribute("aria-selected", String(option.selected));
+        button.textContent = option.textContent;
+        button.addEventListener("click", () => {
+          select.value = option.value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          proxy.open = false;
+          syncHudColumnsProxy();
+          summary.focus();
+        });
+        menu.appendChild(button);
+      }
+    };
+
+    proxy.addEventListener("toggle", () => {
+      if (proxy.open) rebuild();
+    });
+    select.addEventListener("change", () => queueMicrotask(syncHudColumnsProxy));
+    syncHudColumnsProxy();
+  }
+
+  function syncHudWidgetProxies() {
+    for (const select of shadow?.querySelectorAll("[data-hud-widget]") || []) {
+      const proxy = SELECT_PROXY_BY_ELEMENT.get(select);
+      const summary = proxy?.querySelector(".pha-hud-widget-summary");
+      if (!summary) continue;
+      syncSelectProxyMode(proxy, select, shadow);
+      const label = select.selectedOptions?.[0]?.textContent || "Widget";
+      if (summary.textContent !== label) summary.textContent = label;
+      if (proxy.hidden !== select.hidden) proxy.hidden = select.hidden;
+    }
+  }
+
+  function installHudWidgetProxies() {
+    for (const select of shadow?.querySelectorAll("[data-hud-widget]") || []) {
+      if (SELECT_PROXY_BY_ELEMENT.has(select)) continue;
+      const proxy = document.createElement("details");
+      proxy.className = "pha-hud-widget-proxy";
+      const summary = document.createElement("summary");
+      summary.className = "pha-hud-widget-summary";
+      summary.setAttribute("aria-label", `HUD widget ${Number(select.dataset.hudWidget) + 1}`);
+      const menu = document.createElement("div");
+      menu.className = "pha-hud-widget-menu";
+      menu.setAttribute("role", "listbox");
+      select.before(proxy);
+      proxy.append(select, summary, menu);
+      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+
+      const rebuild = () => {
+        menu.replaceChildren();
+        const appendOption = (option) => {
+          if (option.disabled) return;
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "pha-hud-widget-option";
+          button.setAttribute("role", "option");
+          button.setAttribute("aria-selected", String(option.selected));
+          button.textContent = option.textContent;
+          button.addEventListener("click", () => {
+            select.value = option.value;
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            proxy.open = false;
+            queueMicrotask(syncHudWidgetProxies);
+            summary.focus();
+          });
+          menu.appendChild(button);
+        };
+        for (const child of select.children) {
+          if (child.tagName === "OPTGROUP") {
+            const heading = document.createElement("span");
+            heading.className = "pha-hud-widget-group";
+            heading.textContent = child.label;
+            menu.appendChild(heading);
+            for (const option of child.querySelectorAll("option")) appendOption(option);
+          } else if (child.tagName === "OPTION") {
+            appendOption(child);
+          }
+        }
+      };
+
+      proxy.addEventListener("toggle", () => {
+        if (!proxy.open) return;
+        for (const other of shadow.querySelectorAll(".pha-hud-widget-proxy[open]")) {
+          if (other !== proxy) other.open = false;
+        }
+        rebuild();
+      });
+      select.addEventListener("change", () => queueMicrotask(syncHudWidgetProxies));
+    }
+    syncHudWidgetProxies();
+  }
+
+  function syncHudPresetProxy() {
+    const select = shadow?.querySelector("[data-hud-preset]");
+    const proxy = SELECT_PROXY_BY_ELEMENT.get(select);
+    const summary = proxy?.querySelector(".pha-hud-preset-summary");
+    if (!select || !summary) return;
+    syncSelectProxyMode(proxy, select, shadow);
+    const label = select.selectedOptions?.[0]?.textContent || "Preset";
+    if (summary.textContent !== label) summary.textContent = label;
+    if (proxy.hidden !== select.hidden) proxy.hidden = select.hidden;
+  }
+
+  function installHudPresetProxy() {
+    const select = shadow?.querySelector("[data-hud-preset]");
+    if (!select || SELECT_PROXY_BY_ELEMENT.has(select)) {
+      syncHudPresetProxy();
+      return;
+    }
+    const proxy = document.createElement("details");
+    proxy.className = "pha-hud-preset-proxy";
+    const summary = document.createElement("summary");
+    summary.className = "pha-hud-preset-summary";
+    summary.setAttribute("aria-label", "HUD preset");
+    const menu = document.createElement("div");
+    menu.className = "pha-hud-preset-menu";
+    menu.setAttribute("role", "listbox");
+    select.before(proxy);
+    proxy.append(select, summary, menu);
+    SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+
+    const rebuild = () => {
+      menu.replaceChildren();
+      for (const option of select.options) {
+        if (option.disabled) continue;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "pha-hud-preset-option";
+        button.setAttribute("role", "option");
+        button.setAttribute("aria-selected", String(option.selected));
+        button.textContent = option.textContent;
+        button.addEventListener("click", () => {
+          select.value = option.value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          proxy.open = false;
+          queueMicrotask(syncHudPresetProxy);
+          summary.focus();
+        });
+        menu.appendChild(button);
+      }
+    };
+    proxy.addEventListener("toggle", () => {
+      if (proxy.open) rebuild();
+    });
+    select.addEventListener("change", () => queueMicrotask(syncHudPresetProxy));
+    syncHudPresetProxy();
+  }
+
+  function syncHudRarityWidthProxies() {
+    for (const select of shadow?.querySelectorAll("[data-hud-rarity-width]") || []) {
+      const proxy = SELECT_PROXY_BY_ELEMENT.get(select);
+      const summary = proxy?.querySelector(".pha-hud-width-summary");
+      if (!summary) continue;
+      syncSelectProxyMode(proxy, select, shadow);
+      const label = select.selectedOptions?.[0]?.textContent || "Width";
+      if (summary.textContent !== label) summary.textContent = label;
+      if (proxy.hidden !== select.hidden) proxy.hidden = select.hidden;
+    }
+  }
+
+  function installHudRarityWidthProxies() {
+    for (const select of shadow?.querySelectorAll("[data-hud-rarity-width]") || []) {
+      if (SELECT_PROXY_BY_ELEMENT.has(select)) continue;
+      const proxy = document.createElement("details");
+      proxy.className = "pha-hud-width-proxy";
+      const summary = document.createElement("summary");
+      summary.className = "pha-hud-width-summary";
+      summary.setAttribute("aria-label", `Rarity widget width ${Number(select.dataset.hudRarityWidth) + 1}`);
+      const menu = document.createElement("div");
+      menu.className = "pha-hud-width-menu";
+      menu.setAttribute("role", "listbox");
+      select.before(proxy);
+      proxy.append(select, summary, menu);
+      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+
+      const rebuild = () => {
+        menu.replaceChildren();
+        for (const option of select.options) {
+          if (option.disabled) continue;
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "pha-hud-width-option";
+          button.setAttribute("role", "option");
+          button.setAttribute("aria-selected", String(option.selected));
+          button.textContent = option.textContent;
+          button.addEventListener("click", () => {
+            select.value = option.value;
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            proxy.open = false;
+            queueMicrotask(syncHudRarityWidthProxies);
+            summary.focus();
+          });
+          menu.appendChild(button);
+        }
+      };
+      proxy.addEventListener("toggle", () => {
+        if (proxy.open) rebuild();
+      });
+      select.addEventListener("change", () => queueMicrotask(syncHudRarityWidthProxies));
+    }
+    syncHudRarityWidthProxies();
+  }
+
+  function syncHudItemProxies() {
+    for (const select of shadow?.querySelectorAll("[data-hud-item]") || []) {
+      const proxy = SELECT_PROXY_BY_ELEMENT.get(select);
+      const summary = proxy?.querySelector(".pha-hud-item-summary");
+      if (!summary) continue;
+      syncSelectProxyMode(proxy, select, shadow);
+      const label = select.selectedOptions?.[0]?.textContent || "Select item";
+      if (summary.textContent !== label) summary.textContent = label;
+      if (proxy.hidden !== select.hidden) proxy.hidden = select.hidden;
+    }
+  }
+
+  function installHudItemProxies() {
+    for (const select of shadow?.querySelectorAll("[data-hud-item]") || []) {
+      if (SELECT_PROXY_BY_ELEMENT.has(select)) continue;
+      const proxy = document.createElement("details");
+      proxy.className = "pha-hud-item-proxy";
+      const summary = document.createElement("summary");
+      summary.className = "pha-hud-item-summary";
+      summary.setAttribute("aria-label", `HUD item ${Number(select.dataset.hudItem) + 1}`);
+      const menu = document.createElement("div");
+      menu.className = "pha-hud-item-menu";
+      menu.setAttribute("role", "listbox");
+      select.before(proxy);
+      proxy.append(select, summary, menu);
+      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+
+      const rebuild = () => {
+        menu.replaceChildren();
+        for (const option of select.options) {
+          if (option.disabled) continue;
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "pha-hud-item-option";
+          button.setAttribute("role", "option");
+          button.setAttribute("aria-selected", String(option.selected));
+          button.textContent = option.textContent;
+          button.addEventListener("click", () => {
+            select.value = option.value;
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            proxy.open = false;
+            queueMicrotask(syncHudItemProxies);
+            summary.focus();
+          });
+          menu.appendChild(button);
+        }
+      };
+      proxy.addEventListener("toggle", () => {
+        if (proxy.open) rebuild();
+      });
+      select.addEventListener("change", () => queueMicrotask(syncHudItemProxies));
+    }
+    syncHudItemProxies();
+  }
+
+  function syncCurrentShinyProxies() {
+    for (const select of shadow?.querySelectorAll("#view-current .encounter-section select") || []) {
+      const proxy = SELECT_PROXY_BY_ELEMENT.get(select);
+      const summary = proxy?.querySelector(".pha-current-select-summary");
+      if (!summary) continue;
+      syncSelectProxyMode(proxy, select, shadow);
+      const label = select.selectedOptions?.[0]?.textContent || "All (*)";
+      if (summary.textContent !== label) summary.textContent = label;
+    }
+  }
+
+  function installCurrentShinyProxies() {
+    for (const select of shadow?.querySelectorAll("#view-current .encounter-section select") || []) {
+      if (SELECT_PROXY_BY_ELEMENT.has(select)) continue;
+      const proxy = document.createElement("details");
+      proxy.className = "pha-current-select-proxy";
+      const summary = document.createElement("summary");
+      summary.className = "pha-current-select-summary";
+      summary.setAttribute("aria-label", select.getAttribute("aria-label") || "Current Shiny filter");
+      const menu = document.createElement("div");
+      menu.className = "pha-current-select-menu";
+      menu.setAttribute("role", "listbox");
+      select.before(proxy);
+      proxy.append(select, summary, menu);
+      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+
+      const rebuild = () => {
+        menu.replaceChildren();
+        for (const option of select.options) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "pha-current-select-option";
+          button.setAttribute("role", "option");
+          button.setAttribute("aria-selected", String(option.selected));
+          button.textContent = option.textContent;
+          button.addEventListener("click", () => {
+            select.value = option.value;
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            proxy.open = false;
+            syncCurrentShinyProxies();
+            summary.focus();
+          });
+          menu.appendChild(button);
+        }
+      };
+      proxy.addEventListener("toggle", () => {
+        if (proxy.open) rebuild();
+      });
+      select.addEventListener("change", syncCurrentShinyProxies);
+    }
+    syncCurrentShinyProxies();
+  }
+
+  function syncHistoryFilterProxies() {
+    for (const select of shadow?.querySelectorAll("#view-history .history-filter-grid select") || []) {
+      const proxy = SELECT_PROXY_BY_ELEMENT.get(select);
+      const summary = proxy?.querySelector(".pha-history-select-summary");
+      if (!summary) continue;
+      syncSelectProxyMode(proxy, select, shadow);
+      const label = select.selectedOptions?.[0]?.textContent || "All (*)";
+      if (summary.textContent !== label) summary.textContent = label;
+      if (proxy.hidden !== select.hidden) proxy.hidden = select.hidden;
+    }
+  }
+
+  function installHistoryFilterProxies() {
+    for (const select of shadow?.querySelectorAll("#view-history .history-filter-grid select") || []) {
+      if (SELECT_PROXY_BY_ELEMENT.has(select)) continue;
+      const proxy = document.createElement("details");
+      proxy.className = "pha-history-select-proxy";
+      const summary = document.createElement("summary");
+      summary.className = "pha-history-select-summary";
+      summary.setAttribute("aria-label", select.getAttribute("aria-label") || select.id || "History filter");
+      const menu = document.createElement("div");
+      menu.className = "pha-history-select-menu";
+      menu.setAttribute("role", "listbox");
+      select.before(proxy);
+      proxy.append(select, summary, menu);
+      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+
+      const rebuild = () => {
+        menu.replaceChildren();
+        for (const option of select.options) {
+          if (option.disabled) continue;
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "pha-history-select-option";
+          button.setAttribute("role", "option");
+          button.setAttribute("aria-selected", String(option.selected));
+          button.textContent = option.textContent;
+          button.addEventListener("click", () => {
+            select.value = option.value;
+            select.dispatchEvent(new Event("change", { bubbles: true }));
+            proxy.open = false;
+            queueMicrotask(syncHistoryFilterProxies);
+            summary.focus();
+          });
+          menu.appendChild(button);
+        }
+      };
+      proxy.addEventListener("toggle", () => {
+        if (!proxy.open) return;
+        for (const other of shadow.querySelectorAll(".pha-history-select-proxy[open]")) {
+          if (other !== proxy) other.open = false;
+        }
+        rebuild();
+      });
+      select.addEventListener("change", () => queueMicrotask(syncHistoryFilterProxies));
+    }
+    syncHistoryFilterProxies();
+  }
+
+  function syncCatchGalleryProxy() {
+    const select = shadow?.querySelector(".catch-gallery-rarity-filter");
+    const proxy = SELECT_PROXY_BY_ELEMENT.get(select);
+    const summary = proxy?.querySelector(".pha-gallery-select-summary");
+    if (!select || !summary) return;
+    syncSelectProxyMode(proxy, select, shadow);
+    const label = select.selectedOptions?.[0]?.textContent || "All rarities";
+    if (summary.textContent !== label) summary.textContent = label;
+  }
+
+  function installCatchGalleryProxy() {
+    const select = shadow?.querySelector(".catch-gallery-rarity-filter");
+    if (!select || SELECT_PROXY_BY_ELEMENT.has(select)) {
+      syncCatchGalleryProxy();
+      return;
+    }
+    const proxy = document.createElement("details");
+    proxy.className = "pha-gallery-select-proxy";
+    const summary = document.createElement("summary");
+    summary.className = "pha-gallery-select-summary";
+    summary.setAttribute("aria-label", "Filter Catch Gallery by rarity");
+    const menu = document.createElement("div");
+    menu.className = "pha-gallery-select-menu";
+    menu.setAttribute("role", "listbox");
+    select.before(proxy);
+    proxy.append(select, summary, menu);
+    SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+
+    const rebuild = () => {
+      menu.replaceChildren();
+      for (const option of select.options) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "pha-gallery-select-option";
+        button.setAttribute("role", "option");
+        button.setAttribute("aria-selected", String(option.selected));
+        button.textContent = option.textContent;
+        button.addEventListener("click", () => {
+          select.value = option.value;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+          proxy.open = false;
+          syncCatchGalleryProxy();
+          summary.focus();
+        });
+        menu.appendChild(button);
+      }
+    };
+    proxy.addEventListener("toggle", () => {
+      if (proxy.open) rebuild();
+    });
+    select.addEventListener("change", syncCatchGalleryProxy);
+    syncCatchGalleryProxy();
+  }
+
   function applyLayoutPolish() {
     normalizeHeaderVersion();
     compactLegacyDesktopWidth();
@@ -644,6 +1116,14 @@ export function createClosedHud(options = {}) {
     bindHudExclusiveNavigation();
     bindNavigationKeyboard();
     syncNavigationSemantics();
+    syncHudColumnsProxy();
+    syncHudWidgetProxies();
+    syncHudPresetProxy();
+    syncHudRarityWidthProxies();
+    syncHudItemProxies();
+    syncCurrentShinyProxies();
+    syncHistoryFilterProxies();
+    installCatchGalleryProxy();
   }
 
   function observeLayout() {
@@ -709,6 +1189,13 @@ export function createClosedHud(options = {}) {
     ensureStyle();
     applyLayoutPolish();
     installHudZeroModeControl();
+    installHudColumnsProxy();
+    installHudWidgetProxies();
+    installHudPresetProxy();
+    installHudRarityWidthProxies();
+    installHudItemProxies();
+    installCurrentShinyProxies();
+    installHistoryFilterProxies();
     observeLayout();
     observeGrid();
     decorateSupplySymbols();
