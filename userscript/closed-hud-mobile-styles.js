@@ -87,8 +87,8 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
 :host([data-ui-mode="mobile"]) .pha-hud-settings select,
 :host([data-ui-mode="mobile"]) .pha-hud-settings button {
   width: 100%;
-  height: 42px;
-  min-height: 42px;
+  height: 44px;
+  min-height: 44px;
   padding: 0 8px;
   font-size: 11px;
 }
@@ -172,6 +172,16 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
   border-top: 1px solid var(--border);
   background: var(--bg-elevated);
   box-shadow: 0 -4px 12px rgba(0, 0, 0, .24);
+}
+
+:host([data-ui-mode="mobile"]) .pha-interface-setting .pha-ui-mode-select,
+:host([data-ui-mode="mobile"]) .pha-interface-setting .alpha-button {
+  height: 44px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-topbar #pha-close {
+  width: 44px;
+  height: 44px;
 }
 
 :host([data-ui-mode="mobile"]) .tabs > [data-view="current"],

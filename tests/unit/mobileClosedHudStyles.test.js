@@ -17,11 +17,15 @@ test("Mobile Closed HUD keeps the validated 220x52 footprint and touch drag surf
 test("Mobile Closed HUD settings expose touch-sized controls", () => {
   assert.match(
     MOBILE_CLOSED_HUD_STYLES,
-    /\.pha-hud-settings select,[\s\S]*\.pha-hud-settings button \{[\s\S]*min-height: 42px;/
+    /\.pha-hud-settings select,[\s\S]*\.pha-hud-settings button \{[\s\S]*min-height: 44px;/
   );
   assert.match(
     MOBILE_CLOSED_HUD_STYLES,
     /\.pha-hud-slot-configs \{[\s\S]*grid-template-columns: minmax\(0, 1fr\);/
+  );
+  assert.match(
+    MOBILE_CLOSED_HUD_STYLES,
+    /\.pha-hud-topbar #pha-close \{[\s\S]*width: 44px;[\s\S]*height: 44px;/
   );
 });
 

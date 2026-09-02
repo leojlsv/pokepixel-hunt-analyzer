@@ -21,8 +21,8 @@ test("mobile Current keeps core metrics in two columns and final capture summary
 });
 
 test("mobile Hunt actions expose touch-sized controls", () => {
-  assert.match(MOBILE_STYLES, /\.actions button \{\s*\n\s*min-height: 42px/);
-  assert.match(MOBILE_STYLES, /\.actions \.collapse-button \{\s*\n\s*width: 42px/);
+  assert.match(MOBILE_STYLES, /\.actions button \{\s*\n\s*min-height: 44px/);
+  assert.match(MOBILE_STYLES, /\.actions \.collapse-button \{\s*\n\s*width: 44px/);
 });
 
 test("mobile By Rarity removes horizontal scrolling and uses the full header as collapse target", () => {
@@ -82,15 +82,15 @@ test("mobile Captured and Failed use the full section header as collapse target"
 test("mobile History improves button hit targets without replacing the original layout", () => {
   assert.match(
     MOBILE_STYLES,
-    /\.history-subtabs \.tab \{[\s\S]*min-height: 36px;[\s\S]*touch-action: manipulation;/
+    /\.history-subtabs \.tab \{[\s\S]*min-height: 44px;[\s\S]*touch-action: manipulation;/
   );
   assert.match(
     MOBILE_STYLES,
-    /\.history-more-button \{[\s\S]*min-height: 40px;[\s\S]*height: 40px;[\s\S]*touch-action: manipulation;/
+    /\.history-more-button \{[\s\S]*min-height: 44px;[\s\S]*height: 44px;[\s\S]*touch-action: manipulation;/
   );
   assert.match(
     MOBILE_STYLES,
-    /\.history-notable-button \{[\s\S]*min-height: 38px;[\s\S]*height: 38px;[\s\S]*touch-action: manipulation;/
+    /\.history-notable-button \{[\s\S]*min-height: 44px;[\s\S]*height: 44px;[\s\S]*touch-action: manipulation;/
   );
   assert.doesNotMatch(
     MOBILE_STYLES,
@@ -113,9 +113,9 @@ test("mobile History rows and buttons provide pressed feedback", () => {
 });
 
 test("M6 mobile global secondary controls are touch-sized", () => {
-  assert.match(MOBILE_STYLES, /\.alpha-button \{[\s\S]*height: 36px;[\s\S]*touch-action: manipulation;/);
-  assert.match(MOBILE_STYLES, /#pha-close \{[\s\S]*width: 40px;[\s\S]*height: 40px;/);
-  assert.match(MOBILE_STYLES, /\.pha-ui-mode-select \{[\s\S]*height: 30px;/);
+  assert.match(MOBILE_STYLES, /\.alpha-button \{[\s\S]*height: 44px;[\s\S]*touch-action: manipulation;/);
+  assert.match(MOBILE_STYLES, /#pha-close \{[\s\S]*width: 44px;[\s\S]*height: 44px;/);
+  assert.match(MOBILE_STYLES, /\.pha-ui-mode-select \{[\s\S]*height: 44px;/);
   assert.match(MOBILE_STYLES, /\.refcode \{[\s\S]*min-height: 30px;[\s\S]*touch-action: manipulation;/);
 });
 

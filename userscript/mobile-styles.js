@@ -120,20 +120,20 @@ export const MOBILE_STYLES = String.raw`
 
 :host([data-ui-mode="mobile"]) .actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) 42px;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 44px;
   gap: 6px;
 }
 
 :host([data-ui-mode="mobile"]) .actions button {
-  min-height: 42px;
+  min-height: 44px;
   padding: 7px 6px;
   font-size: 10px;
 }
 
 :host([data-ui-mode="mobile"]) .actions .collapse-button {
-  width: 42px;
-  min-width: 42px;
-  height: 42px;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
   padding: 0;
 }
 
@@ -352,7 +352,7 @@ export const MOBILE_STYLES = String.raw`
 
 /* History Mobile: interaction-only improvements; preserve the original layout. */
 :host([data-ui-mode="mobile"]) .history-subtabs .tab {
-  min-height: 36px;
+  min-height: 44px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
@@ -363,8 +363,8 @@ export const MOBILE_STYLES = String.raw`
 }
 
 :host([data-ui-mode="mobile"]) .history-more-button {
-  min-height: 40px;
-  height: 40px;
+  min-height: 44px;
+  height: 44px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
@@ -375,8 +375,8 @@ export const MOBILE_STYLES = String.raw`
 }
 
 :host([data-ui-mode="mobile"]) .history-notable-button {
-  min-height: 38px;
-  height: 38px;
+  min-height: 44px;
+  height: 44px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
@@ -402,21 +402,21 @@ export const MOBILE_STYLES = String.raw`
 /* M6: secondary controls keep their existing layouts while gaining Mobile touch targets. */
 :host([data-ui-mode="mobile"]) .alpha-button {
   min-width: 58px;
-  height: 36px;
+  height: 44px;
   padding: 0 8px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
 :host([data-ui-mode="mobile"]) #pha-close {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 
 :host([data-ui-mode="mobile"]) .pha-ui-mode-select {
-  height: 30px;
+  height: 44px;
   max-width: 72px;
   padding: 0 4px;
   font-size: 9px;
