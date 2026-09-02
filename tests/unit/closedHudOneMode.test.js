@@ -45,6 +45,19 @@ test("one-column mode restores controls from PX-only and blocks two-slot rarity 
   assert.match(ONE_COLUMN, /2 stacked widgets · 1 column/);
 });
 
+test("Closed HUD form controls receive stable ids for browser form-field validation", () => {
+  assert.match(ONE_COLUMN, /return "pha-hud-columns"/);
+  assert.match(ONE_COLUMN, /return "pha-hud-preset"/);
+  assert.match(ONE_COLUMN, /pha-hud-widget-\$\{field\.dataset\.hudWidget\}/);
+  assert.match(ONE_COLUMN, /pha-hud-item-\$\{field\.dataset\.hudItem\}/);
+  assert.match(ONE_COLUMN, /pha-hud-rarity-width-\$\{field\.dataset\.hudRarityWidth\}/);
+  assert.match(ONE_COLUMN, /pha-hud-rarity-failed-\$\{field\.dataset\.hudRarityFailed\}/);
+  assert.match(ONE_COLUMN, /pha-hud-rarity-\$\{field\.dataset\.hudRarityKey\}-\$\{field\.value\}/);
+  assert.match(ONE_COLUMN, /settings\.querySelectorAll\("input, select, textarea"\)/);
+  assert.match(ONE_COLUMN, /field\.id = id/);
+  assert.match(ONE_COLUMN, /ensureHudFormFieldIds\(shadow\)/);
+});
+
 test("mobile one-column footprint overrides the validated 220px mobile HUD width", () => {
   assert.match(
     MOBILE_STYLES,
