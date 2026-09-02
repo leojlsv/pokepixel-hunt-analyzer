@@ -69,6 +69,39 @@ test("mobile Captured and Failed use the full section header as collapse target"
   );
 });
 
+test("mobile History improves button hit targets without replacing the original layout", () => {
+  assert.match(
+    MOBILE_STYLES,
+    /\.history-subtabs \.tab \{[\s\S]*min-height: 36px;[\s\S]*touch-action: manipulation;/
+  );
+  assert.match(
+    MOBILE_STYLES,
+    /\.history-more-button \{[\s\S]*min-height: 40px;[\s\S]*height: 40px;[\s\S]*touch-action: manipulation;/
+  );
+  assert.match(
+    MOBILE_STYLES,
+    /\.history-notable-button \{[\s\S]*min-height: 38px;[\s\S]*height: 38px;[\s\S]*touch-action: manipulation;/
+  );
+  assert.doesNotMatch(
+    MOBILE_STYLES,
+    /\.history-subtabs \{[\s\S]*grid-template-columns:/
+  );
+  assert.doesNotMatch(
+    MOBILE_STYLES,
+    /\.history-filter-grid \{[\s\S]*grid-template-columns:/
+  );
+});
+
+test("mobile History rows and buttons provide pressed feedback", () => {
+  assert.match(MOBILE_STYLES, /\.history-subtabs \.tab:active \{/);
+  assert.match(MOBILE_STYLES, /\.history-more-button:active \{/);
+  assert.match(MOBILE_STYLES, /\.history-notable-button:active:not\(:disabled\) \{/);
+  assert.match(
+    MOBILE_STYLES,
+    /\.history-hunt-row:active > td,[\s\S]*\.history-pokemon-row:active > td,[\s\S]*\.history-attempt-row:active > td \{[\s\S]*background: #30312c;/
+  );
+});
+
 test("landscape may promote only core metrics to four columns", () => {
   assert.match(MOBILE_STYLES, /@media \(orientation: landscape\) and \(min-width: 640px\)/);
   assert.match(
