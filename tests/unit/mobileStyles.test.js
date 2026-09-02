@@ -35,10 +35,14 @@ test("mobile Captured and Failed keep the existing table presentation", () => {
   assert.doesNotMatch(MOBILE_STYLES, /\.mobile-encounter-list/);
 });
 
-test("mobile encounter filters are touch-sized and rarity expands inline", () => {
+test("mobile encounter filters are touch-sized, two-column, and rarity expands inline beside Shiny", () => {
   assert.match(
     MOBILE_STYLES,
     /\.encounter-section \.filters \{\s*\n\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\) !important;/
+  );
+  assert.doesNotMatch(
+    MOBILE_STYLES,
+    /\.encounter-section \.filter-field:has\(\.rarity-multiselect\) \{[\s\S]*grid-column: 1 \/ -1;/
   );
   assert.match(
     MOBILE_STYLES,
