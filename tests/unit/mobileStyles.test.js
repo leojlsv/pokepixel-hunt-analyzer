@@ -125,10 +125,8 @@ test("M6 Catch Gallery keeps the table and enlarges interactive controls", () =>
 });
 
 test("M6 History delete remains in place with a larger destructive touch target", () => {
-  assert.match(
-    MOBILE_STYLES,
-    /\.history-delete-button \{[\s\S]*height: 40px;[\s\S]*border-color: #b45f59|\.history-delete-button:active:not\(:disabled\)/
-  );
+  assert.match(MOBILE_STYLES, /\.history-delete-button \{[\s\S]*height: 40px;[\s\S]*touch-action: manipulation;/);
+  assert.match(MOBILE_STYLES, /\.history-delete-button:active:not\(:disabled\) \{/);
 });
 
 test("landscape may promote only core metrics to four columns", () => {
