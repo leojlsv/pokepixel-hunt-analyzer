@@ -15,6 +15,22 @@ test("HUD configuration moves out of the topbar and sits beside Misc in every UI
   assert.match(RUNTIME, /huntTime\.before\(settingsButton\)/);
 });
 
+test("HUD opens as an exclusive navigation view instead of inline collapse", () => {
+  assert.match(RUNTIME, /const HUD_SETTINGS_ID = "pha-hud-settings"/);
+  assert.match(RUNTIME, /function showHudView\(\)/);
+  assert.match(RUNTIME, /currentView\.hidden = true/);
+  assert.match(RUNTIME, /historyView\.hidden = true/);
+  assert.match(RUNTIME, /miscView\.hidden = true/);
+  assert.match(RUNTIME, /settings\.hidden = false/);
+  assert.match(RUNTIME, /settings\.classList\.add\("pha-hud-exclusive-view"\)/);
+  assert.match(RUNTIME, /settingsButton\.classList\.add\("active"\)/);
+  assert.match(RUNTIME, /event\.stopImmediatePropagation\(\)/);
+  assert.match(RUNTIME, /settingsButton\.addEventListener\("click",[\s\S]*true\);/);
+  assert.match(RUNTIME, /function hideHudView\(\)/);
+  assert.match(RUNTIME, /tab\.addEventListener\("click", hideHudView\)/);
+  assert.match(RUNTIME, /miscTab\.addEventListener\("click", hideHudView\)/);
+});
+
 test("header metadata shows only the compact v-prefixed version label", () => {
   assert.match(RUNTIME, /text\.startsWith\("Userscript "\)/);
   assert.match(RUNTIME, /version\.textContent = `v\$\{text\.slice\("Userscript "\.length\)\}`/);
