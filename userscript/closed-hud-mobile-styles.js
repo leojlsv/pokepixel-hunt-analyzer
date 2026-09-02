@@ -8,6 +8,12 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
   touch-action: none;
 }
 
+:host([data-ui-mode="mobile"]) #pha-toggle.pha-custom-hud[data-hud-columns="0"] {
+  width: 52px !important;
+  min-width: 52px !important;
+  max-width: 52px !important;
+}
+
 :host([data-ui-mode="mobile"]) #pha-toggle.pha-custom-hud:active {
   border-color: var(--gold-soft);
 }
