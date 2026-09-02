@@ -9,6 +9,8 @@ const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STYLE_ID = "pha-closed-hud-polish-style";
 const HUD_SETTINGS_BUTTON_ID = "pha-hud-settings-button";
 const MISC_TAB_ID = "alerts-tab";
+const INTERFACE_SECTION_ID = "pha-interface-settings";
+const INTERFACE_STAGING_ID = "pha-interface-staging";
 const HUD_SYMBOLS = new Set(["✓", "✕", "$", "↓"]);
 
 const POLISH_STYLE = `
@@ -30,10 +32,140 @@ const POLISH_STYLE = `
     font-size:6px;
     opacity:.78;
   }
+
+  /* Shared header hierarchy: identity only in the topbar. */
+  .pha-hud-topbar {
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:8px;
+  }
+  .pha-hud-topbar .brand {
+    grid-column:1;
+    min-width:0;
+  }
+  .pha-hud-topbar .brand-meta {
+    min-width:0;
+    overflow:hidden;
+  }
+  .pha-hud-topbar .brand-meta > span {
+    min-width:0;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  .pha-hud-topbar .refcode {
+    flex:0 0 auto;
+  }
+  .pha-hud-topbar #pha-close {
+    grid-column:2;
+    justify-self:end;
+  }
+
+  /* Operational controls live in the navigation row. */
   .tabs .pha-hud-settings-button {
     min-width:38px;
     white-space:nowrap;
   }
+  .tabs #pha-tab-state {
+    flex:0 0 auto;
+    white-space:nowrap;
+  }
+
+  /* UI mode and opacity are configuration, so they belong to Misc. */
+  .pha-interface-controls {
+    padding:10px;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+    background:var(--bg-elevated);
+  }
+  .pha-interface-setting {
+    min-width:0;
+    min-height:38px;
+    padding:6px 8px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    border:1px solid var(--border-soft);
+    border-radius:3px;
+    background:var(--bg);
+  }
+  .pha-interface-setting > span {
+    color:var(--muted);
+    font-size:9px;
+    font-weight:700;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    white-space:nowrap;
+  }
+  .pha-interface-setting .pha-ui-mode-select {
+    width:96px;
+    max-width:96px;
+    height:28px;
+  }
+  .pha-interface-setting .alpha-button {
+    min-width:72px;
+    height:28px;
+  }
+
+  :host([data-ui-mode="mobile"]) .pha-hud-topbar {
+    min-height:46px;
+    padding:5px 8px;
+    gap:6px;
+  }
+  :host([data-ui-mode="mobile"]) .pha-hud-topbar .brand strong {
+    font-size:12px;
+  }
+  :host([data-ui-mode="mobile"]) .pha-hud-topbar .brand-meta {
+    gap:3px;
+    font-size:8px;
+  }
+  :host([data-ui-mode="mobile"]) .pha-hud-topbar .refcode {
+    min-height:20px;
+    padding:0 2px;
+  }
+  :host([data-ui-mode="mobile"]) .pha-hud-topbar #pha-close {
+    width:36px;
+    height:36px;
+  }
+  :host([data-ui-mode="mobile"]) .tabs {
+    min-height:44px;
+    padding:4px 6px;
+    gap:4px;
+  }
+  :host([data-ui-mode="mobile"]) .tabs .tab {
+    min-height:36px;
+    padding:6px 7px;
+    font-size:9px;
+  }
+  :host([data-ui-mode="mobile"]) .tabs .hunt-time {
+    margin-left:auto;
+    padding:0 1px;
+    font-size:12px;
+  }
+  :host([data-ui-mode="mobile"]) .tabs #pha-tab-state {
+    padding:3px 4px;
+    font-size:8px;
+  }
+  :host([data-ui-mode="mobile"]) .pha-interface-controls {
+    padding:8px;
+    gap:6px;
+  }
+  :host([data-ui-mode="mobile"]) .pha-interface-setting {
+    min-height:44px;
+    padding:6px;
+  }
+  :host([data-ui-mode="mobile"]) .pha-interface-setting > span {
+    font-size:8px;
+  }
+  :host([data-ui-mode="mobile"]) .pha-interface-setting .pha-ui-mode-select,
+  :host([data-ui-mode="mobile"]) .pha-interface-setting .alpha-button {
+    min-width:0;
+    width:min(92px,45vw);
+    max-width:92px;
+    height:38px;
+  }
+
   :host([data-ui-mode="mobile"]) .capture-strip {
     grid-template-columns:repeat(4,minmax(0,1fr));
     gap:4px;
@@ -135,6 +267,73 @@ export function createClosedHud(options = {}) {
     }
   }
 
+  function stageInterfaceControls() {
+    if (!shadow) return;
+    const panel = shadow.getElementById("pha-panel");
+    const alphaButton = shadow.getElementById("pha-alpha");
+    const modeSelect = shadow.querySelector(".pha-ui-mode-select");
+    if (!panel || (!alphaButton && !modeSelect)) return;
+    if (shadow.getElementById(INTERFACE_SECTION_ID)) return;
+
+    let staging = shadow.getElementById(INTERFACE_STAGING_ID);
+    if (!staging) {
+      staging = document.createElement("div");
+      staging.id = INTERFACE_STAGING_ID;
+      staging.hidden = true;
+      panel.appendChild(staging);
+    }
+
+    if (modeSelect && modeSelect.parentElement !== staging) staging.appendChild(modeSelect);
+    if (alphaButton && alphaButton.parentElement !== staging) staging.appendChild(alphaButton);
+  }
+
+  function ensureMiscInterfaceSettings() {
+    if (!shadow) return;
+    const alertsView = shadow.getElementById("view-alerts");
+    const alphaButton = shadow.getElementById("pha-alpha");
+    const modeSelect = shadow.querySelector(".pha-ui-mode-select");
+    if (!alertsView || !alphaButton || !modeSelect) return;
+
+    let section = shadow.getElementById(INTERFACE_SECTION_ID);
+    if (!section) {
+      section = document.createElement("section");
+      section.id = INTERFACE_SECTION_ID;
+      section.className = "section pha-interface-settings";
+      section.innerHTML = `
+        <div class="section-head">
+          <h3>Interface</h3>
+        </div>
+        <div class="pha-interface-controls">
+          <div class="pha-interface-setting">
+            <span>UI Mode</span>
+            <span data-interface-mode></span>
+          </div>
+          <div class="pha-interface-setting">
+            <span>Opacity</span>
+            <span data-interface-alpha></span>
+          </div>
+        </div>`;
+      alertsView.prepend(section);
+    }
+
+    const modeSlot = section.querySelector("[data-interface-mode]");
+    const alphaSlot = section.querySelector("[data-interface-alpha]");
+    if (modeSlot && modeSelect.parentElement !== modeSlot) modeSlot.appendChild(modeSelect);
+    if (alphaSlot && alphaButton.parentElement !== alphaSlot) alphaSlot.appendChild(alphaButton);
+    shadow.getElementById(INTERFACE_STAGING_ID)?.remove();
+  }
+
+  function placeOperationalStatus() {
+    if (!shadow) return;
+    const state = shadow.getElementById("pha-tab-state");
+    const tabs = shadow.querySelector(".tabs");
+    const huntTime = shadow.getElementById("hunt-time");
+    if (!state || !tabs || !huntTime) return;
+    if (state.parentElement !== tabs || huntTime.nextElementSibling !== state) {
+      huntTime.after(state);
+    }
+  }
+
   function placeHudSettingsNextToMisc() {
     if (!shadow) return;
     const settingsButton = shadow.getElementById(HUD_SETTINGS_BUTTON_ID);
@@ -156,6 +355,9 @@ export function createClosedHud(options = {}) {
 
   function applyLayoutPolish() {
     normalizeHeaderVersion();
+    stageInterfaceControls();
+    ensureMiscInterfaceSettings();
+    placeOperationalStatus();
     placeHudSettingsNextToMisc();
   }
 
