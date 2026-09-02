@@ -1,4 +1,30 @@
+import "./closed-hud-one-column.js";
+
 export const MOBILE_CLOSED_HUD_STYLES = String.raw`
+#pha-toggle.pha-custom-hud[data-hud-columns="1"] {
+  width: 145px !important;
+  min-width: 145px !important;
+}
+
+#pha-toggle.pha-custom-hud[data-hud-columns="1"] .pha-hud-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+  column-gap: 0 !important;
+}
+
+#pha-toggle.pha-custom-hud[data-hud-columns="1"] [data-hud-slot="1"],
+#pha-toggle.pha-custom-hud[data-hud-columns="1"] [data-hud-slot="3"] {
+  display: none !important;
+}
+
+#pha-toggle.pha-custom-hud[data-hud-columns="1"] .pha-hud-slot.is-wide {
+  grid-column: span 1 !important;
+}
+
+.pha-hud-slot-config[data-hud-one-hidden="true"] {
+  display: none !important;
+}
+
 :host([data-ui-mode="mobile"]) #pha-toggle.pha-custom-hud {
   width: 220px !important;
   min-width: 0 !important;
@@ -12,6 +38,12 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
   width: 52px !important;
   min-width: 52px !important;
   max-width: 52px !important;
+}
+
+:host([data-ui-mode="mobile"]) #pha-toggle.pha-custom-hud[data-hud-columns="1"] {
+  width: 145px !important;
+  min-width: 145px !important;
+  max-width: 145px !important;
 }
 
 :host([data-ui-mode="mobile"]) #pha-toggle.pha-custom-hud:active {
