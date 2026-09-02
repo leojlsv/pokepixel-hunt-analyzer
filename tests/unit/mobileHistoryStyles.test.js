@@ -17,7 +17,7 @@ test("Mobile History preserves the original filter and More Filters presentation
   assert.doesNotMatch(HISTORY_STYLES, /:host\(\[data-ui-mode="mobile"\]\) \.history-more-button/);
 });
 
-test("Mobile History presents Hunts, Pokemon and Attempts as two-column touch cards", () => {
+test("Mobile History keeps the accepted card treatment for data rows only", () => {
   assert.match(HISTORY_STYLES, /\.history-hunt-row,[\s\S]*\.history-pokemon-row,[\s\S]*\.history-attempt-row \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);[\s\S]*touch-action: manipulation;/);
   assert.match(HISTORY_STYLES, /\.history-hunt-row > td:nth-child\(7\)::before \{ content: "Mythical"; \}/);
   assert.match(HISTORY_STYLES, /\.history-pokemon-row > td:nth-child\(7\)::before \{ content: "\$\/Cycle"; \}/);
