@@ -11,10 +11,6 @@ const HUD_SETTINGS_BUTTON_ID = "pha-hud-settings-button";
 const MISC_TAB_ID = "alerts-tab";
 const INTERFACE_SECTION_ID = "pha-interface-settings";
 const INTERFACE_STAGING_ID = "pha-interface-staging";
-const HUD_COLUMNS_STORAGE_KEY = "pokepixel_hunt_analyzer_closed_hud_columns_v1";
-const DESKTOP_COMPACT_WIDTH_STORAGE_KEY = "pokepixel_hunt_analyzer_desktop_compact_width_v1";
-const DESKTOP_COMPACT_WIDTH_PX = 400;
-const HUD_COLUMN_WIDTHS = Object.freeze({ 0: 52, 1: 140, 2: 220 });
 const HUD_SYMBOLS = new Set(["✓", "✕", "$", "↓"]);
 
 const POLISH_STYLE = `
@@ -39,10 +35,8 @@ const POLISH_STYLE = `
 
   /* Shared header hierarchy: identity only in the topbar. */
   .pha-hud-topbar {
-    position:relative;
-    grid-template-columns:minmax(0,1fr);
-    gap:0;
-    padding-right:44px;
+    grid-template-columns:minmax(0,1fr) auto;
+    gap:8px;
   }
   .pha-hud-topbar .brand {
     grid-column:1;
@@ -62,17 +56,8 @@ const POLISH_STYLE = `
     flex:0 0 auto;
   }
   .pha-hud-topbar #pha-close {
-    position:absolute;
-    top:50%;
-    right:10px;
-    transform:translateY(-50%);
-    margin:0;
-  }
-
-  /* Desktop keeps the compact content width instead of stretching into a reserved scrollbar gutter. */
-  :host([data-ui-mode="desktop"]) .panel {
-    min-width:${DESKTOP_COMPACT_WIDTH_PX}px !important;
-    scrollbar-gutter:auto;
+    grid-column:2;
+    justify-self:end;
   }
 
   /* Operational controls live in the navigation row. */
@@ -83,24 +68,6 @@ const POLISH_STYLE = `
   .tabs #pha-tab-state {
     flex:0 0 auto;
     white-space:nowrap;
-  }
-
-  /* HUD configuration is an exclusive view, never an inline collapse below the tabs. */
-  .pha-hud-settings.pha-hud-exclusive-view {
-    min-height:0;
-    flex:1 1 auto;
-    overflow-x:hidden;
-    overflow-y:auto;
-    border-bottom:0;
-  }
-  .pha-hud-settings.pha-hud-exclusive-view[hidden] {
-    display:none !important;
-  }
-  .pha-hud-settings-toolbar {
-    grid-template-columns:minmax(0,1fr) minmax(90px,.65fr) auto;
-  }
-  .pha-hud-columns-control select {
-    width:100%;
   }
 
   /* UI mode and opacity are configuration, so they belong to Misc. */
@@ -143,8 +110,8 @@ const POLISH_STYLE = `
 
   :host([data-ui-mode="mobile"]) .pha-hud-topbar {
     min-height:46px;
-    padding:5px 50px 5px 8px;
-    gap:0;
+    padding:5px 8px;
+    gap:6px;
   }
   :host([data-ui-mode="mobile"]) .pha-hud-topbar .brand strong {
     font-size:12px;
@@ -158,7 +125,6 @@ const POLISH_STYLE = `
     padding:0 2px;
   }
   :host([data-ui-mode="mobile"]) .pha-hud-topbar #pha-close {
-    right:8px;
     width:36px;
     height:36px;
   }
@@ -180,12 +146,6 @@ const POLISH_STYLE = `
   :host([data-ui-mode="mobile"]) .tabs #pha-tab-state {
     padding:3px 4px;
     font-size:8px;
-  }
-  :host([data-ui-mode="mobile"]) .pha-hud-settings-toolbar {
-    grid-template-columns:repeat(2,minmax(0,1fr));
-  }
-  :host([data-ui-mode="mobile"]) .pha-hud-settings-toolbar > [data-hud-reset] {
-    grid-column:1 / -1;
   }
   :host([data-ui-mode="mobile"]) .pha-interface-controls {
     padding:8px;
@@ -225,58 +185,7 @@ const POLISH_STYLE = `
   :host([data-ui-mode="mobile"]) .capture-strip article > strong {
     font-size:15px;
   }
-
   ${MOBILE_CLOSED_HUD_STYLES}
-
-  /* Column count controls the closed HUD footprint in both UI modes. */
-  #pha-toggle.pha-custom-hud[data-hud-columns="2"] {
-    width:${HUD_COLUMN_WIDTHS[2]}px !important;
-    min-width:${HUD_COLUMN_WIDTHS[2]}px !important;
-    grid-template-columns:32px minmax(0,1fr) !important;
-  }
-  #pha-toggle.pha-custom-hud[data-hud-columns="1"] {
-    width:${HUD_COLUMN_WIDTHS[1]}px !important;
-    min-width:${HUD_COLUMN_WIDTHS[1]}px !important;
-    grid-template-columns:32px minmax(0,1fr) !important;
-  }
-  #pha-toggle.pha-custom-hud[data-hud-columns="1"] .pha-hud-grid {
-    grid-template-columns:minmax(0,1fr) !important;
-    grid-template-rows:repeat(2,minmax(0,1fr)) !important;
-  }
-  #pha-toggle.pha-custom-hud[data-hud-columns="1"] .pha-hud-slot.is-wide {
-    grid-column:span 1 !important;
-  }
-  #pha-toggle.pha-custom-hud[data-hud-columns="1"] .pha-hud-slot:nth-child(2),
-  #pha-toggle.pha-custom-hud[data-hud-columns="1"] .pha-hud-slot:nth-child(4) {
-    display:none !important;
-  }
-  #pha-toggle.pha-custom-hud[data-hud-columns="0"] {
-    width:${HUD_COLUMN_WIDTHS[0]}px !important;
-    min-width:${HUD_COLUMN_WIDTHS[0]}px !important;
-    grid-template-columns:32px !important;
-    justify-content:center;
-  }
-  #pha-toggle.pha-custom-hud[data-hud-columns="0"] .pha-hud-grid {
-    display:none !important;
-  }
-
-  :host([data-ui-mode="mobile"]) #pha-toggle.pha-custom-hud[data-hud-columns="2"],
-  :host([data-ui-mode="mobile"]) #pha-toggle.pha-custom-hud[data-hud-columns="1"],
-  :host([data-ui-mode="mobile"]) #pha-toggle.pha-custom-hud[data-hud-columns="0"] {
-    max-width:calc(100vw - var(--pha-safe-left) - var(--pha-safe-right) - 16px) !important;
-  }
-
-  .pha-hud-settings[data-hud-columns="1"] .pha-hud-slot-config:nth-child(2),
-  .pha-hud-settings[data-hud-columns="1"] .pha-hud-slot-config:nth-child(4),
-  .pha-hud-settings[data-hud-columns="0"] .pha-hud-slot-configs,
-  .pha-hud-settings[data-hud-columns="0"] .pha-hud-inventory-status {
-    display:none !important;
-  }
-  .pha-hud-settings[data-hud-columns="0"] [data-hud-preset],
-  .pha-hud-settings[data-hud-columns="0"] [data-hud-reset] {
-    opacity:.45;
-    pointer-events:none;
-  }
 `;
 
 export { createPotionUsageTracker, POTION_USAGE_STORAGE_KEY };
@@ -289,27 +198,6 @@ export function splitHudSymbolValue(value) {
     symbol,
     value: text.slice(1).trimStart()
   };
-}
-
-function normalizeHudColumns(value) {
-  const columns = Number(value);
-  return columns === 0 || columns === 1 || columns === 2 ? columns : 2;
-}
-
-function readHudColumns() {
-  try {
-    return normalizeHudColumns(localStorage.getItem(HUD_COLUMNS_STORAGE_KEY));
-  } catch {
-    return 2;
-  }
-}
-
-function writeHudColumns(columns) {
-  try {
-    localStorage.setItem(HUD_COLUMNS_STORAGE_KEY, String(normalizeHudColumns(columns)));
-  } catch {
-    // In-memory layout remains valid if storage is unavailable.
-  }
 }
 
 function installPrePaintLauncherGuard() {
@@ -354,8 +242,6 @@ export function createClosedHud(options = {}) {
   let observer = null;
   let layoutObserver = null;
   let decorating = false;
-  let hudColumns = readHudColumns();
-  let hudViewBound = false;
 
   function resolveElements() {
     shadow = document.getElementById(ROOT_ID)?.shadowRoot || null;
@@ -378,27 +264,6 @@ export function createClosedHud(options = {}) {
     const text = String(version.textContent || "").trim();
     if (text.startsWith("Userscript ")) {
       version.textContent = `v${text.slice("Userscript ".length)}`;
-    }
-  }
-
-  function compactDesktopPanelOnce() {
-    if (!shadow || shadow.host?.dataset.uiMode !== "desktop") return;
-    const panel = shadow.getElementById("pha-panel");
-    if (!panel) return;
-    panel.style.minWidth = `${DESKTOP_COMPACT_WIDTH_PX}px`;
-
-    try {
-      if (localStorage.getItem(DESKTOP_COMPACT_WIDTH_STORAGE_KEY) === "1") return;
-      const inlineWidth = Number.parseFloat(panel.style.width);
-      const measuredWidth = panel.getBoundingClientRect().width;
-      const width = Number.isFinite(inlineWidth) && inlineWidth > 0 ? inlineWidth : measuredWidth;
-      if (!(width > 0)) return;
-      if (width > DESKTOP_COMPACT_WIDTH_PX && width <= 431) {
-        panel.style.width = `${DESKTOP_COMPACT_WIDTH_PX}px`;
-      }
-      localStorage.setItem(DESKTOP_COMPACT_WIDTH_STORAGE_KEY, "1");
-    } catch {
-      // Compact min-width still applies even if migration persistence is unavailable.
     }
   }
 
@@ -488,167 +353,12 @@ export function createClosedHud(options = {}) {
     if (huntTime && settingsButton.parentElement !== tabs) huntTime.before(settingsButton);
   }
 
-  function hideHudView() {
-    if (!shadow) return;
-    const settings = shadow.getElementById("pha-hud-settings");
-    const settingsButton = shadow.getElementById(HUD_SETTINGS_BUTTON_ID);
-    if (settings) settings.hidden = true;
-    settingsButton?.classList.remove("active");
-  }
-
-  function showHudView() {
-    if (!shadow) return;
-    const historyTab = shadow.querySelector('[data-view="history"]');
-    const settings = shadow.getElementById("pha-hud-settings");
-    const settingsButton = shadow.getElementById(HUD_SETTINGS_BUTTON_ID);
-    if (!settings || !settingsButton) return;
-
-    // Reuse the existing non-Current state so the one-second Current refresh remains suspended.
-    historyTab?.click();
-    shadow.getElementById("view-current")?.setAttribute("hidden", "");
-    shadow.getElementById("view-history")?.setAttribute("hidden", "");
-    shadow.getElementById("view-alerts")?.setAttribute("hidden", "");
-    for (const tab of shadow.querySelectorAll(".tabs .tab")) tab.classList.remove("active");
-    settings.hidden = false;
-    settings.classList.add("pha-hud-exclusive-view");
-    settingsButton.classList.add("active");
-  }
-
-  function bindHudExclusiveView() {
-    if (!shadow) return;
-    const settingsButton = shadow.getElementById(HUD_SETTINGS_BUTTON_ID);
-    if (settingsButton && !hudViewBound) {
-      hudViewBound = true;
-      settingsButton.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        showHudView();
-      }, true);
-    }
-
-    for (const tab of shadow.querySelectorAll('[data-view], #alerts-tab')) {
-      if (tab.dataset.hudExitBound === "true") continue;
-      tab.dataset.hudExitBound = "true";
-      tab.addEventListener("click", hideHudView);
-    }
-  }
-
-  function ensureHudColumnsControl() {
-    if (!shadow) return;
-    const settings = shadow.getElementById("pha-hud-settings");
-    const toolbar = settings?.querySelector(".pha-hud-settings-toolbar");
-    if (!settings || !toolbar) return;
-
-    settings.classList.add("pha-hud-exclusive-view");
-    let control = toolbar.querySelector(".pha-hud-columns-control");
-    if (!control) {
-      control = document.createElement("label");
-      control.className = "pha-hud-columns-control";
-      control.innerHTML = `Columns
-        <select data-hud-columns aria-label="Closed HUD columns">
-          <option value="0">0 · PX only</option>
-          <option value="1">1 column</option>
-          <option value="2">2 columns</option>
-        </select>`;
-      const reset = toolbar.querySelector("[data-hud-reset]");
-      if (reset) reset.before(control);
-      else toolbar.appendChild(control);
-      control.querySelector("[data-hud-columns]")?.addEventListener("change", (event) => {
-        hudColumns = normalizeHudColumns(event.currentTarget.value);
-        writeHudColumns(hudColumns);
-        applyHudColumns();
-      });
-    }
-
-    const select = control.querySelector("[data-hud-columns]");
-    if (select) select.value = String(hudColumns);
-  }
-
-  function clampLauncherAfterColumnChange() {
-    if (!shadow) return;
-    const launcher = shadow.getElementById("pha-toggle");
-    if (!launcher || launcher.hidden) return;
-    const rect = launcher.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) return;
-
-    const visual = window.visualViewport;
-    const offsetLeft = Number.isFinite(visual?.offsetLeft) ? visual.offsetLeft : 0;
-    const offsetTop = Number.isFinite(visual?.offsetTop) ? visual.offsetTop : 0;
-    const viewportWidth = Number.isFinite(visual?.width) ? visual.width : window.innerWidth;
-    const viewportHeight = Number.isFinite(visual?.height) ? visual.height : window.innerHeight;
-    const gap = 8;
-    const maxLeft = offsetLeft + viewportWidth - rect.width - gap;
-    const maxTop = offsetTop + viewportHeight - rect.height - gap;
-    const nextLeft = Math.min(Math.max(rect.left, offsetLeft + gap), Math.max(offsetLeft + gap, maxLeft));
-    const nextTop = Math.min(Math.max(rect.top, offsetTop + gap), Math.max(offsetTop + gap, maxTop));
-    if (nextLeft !== rect.left || nextTop !== rect.top) {
-      launcher.style.left = `${nextLeft}px`;
-      launcher.style.top = `${nextTop}px`;
-      launcher.style.right = "auto";
-      launcher.style.bottom = "auto";
-    }
-  }
-
-  function applyHudColumns() {
-    if (!shadow) return;
-    const launcher = shadow.getElementById("pha-toggle");
-    const settings = shadow.getElementById("pha-hud-settings");
-    if (!launcher || !settings) return;
-
-    launcher.dataset.hudColumns = String(hudColumns);
-    settings.dataset.hudColumns = String(hudColumns);
-
-    const slotElements = [...launcher.querySelectorAll(".pha-hud-slot")];
-    const configElements = [...settings.querySelectorAll(".pha-hud-slot-config")];
-    for (let index = 0; index < 4; index += 1) {
-      const enabled = hudColumns === 2 || (hudColumns === 1 && (index === 0 || index === 2));
-      if (slotElements[index]) slotElements[index].hidden = !enabled;
-      if (configElements[index]) {
-        configElements[index].hidden = !enabled;
-        const label = configElements[index].querySelector(":scope > span");
-        if (label) label.textContent = hudColumns === 1 && index === 2 ? "2" : String(index + 1);
-        for (const field of configElements[index].querySelectorAll("select, input, button")) {
-          field.disabled = !enabled;
-        }
-      }
-    }
-
-    const preset = settings.querySelector("[data-hud-preset]");
-    const reset = settings.querySelector("[data-hud-reset]");
-    if (preset) preset.disabled = hudColumns === 0;
-    if (reset) reset.disabled = hudColumns === 0;
-
-    // In one-column mode every visible row has only one display column.
-    for (const widthSelect of settings.querySelectorAll("[data-hud-rarity-width]")) {
-      const index = Number(widthSelect.dataset.hudRarityWidth);
-      const active = hudColumns === 2 || (hudColumns === 1 && (index === 0 || index === 2));
-      for (const option of widthSelect.options) {
-        option.disabled = hudColumns === 1 && active && option.value === "2";
-      }
-      if (hudColumns === 1 && active && widthSelect.value === "2") widthSelect.value = "1";
-    }
-
-    if (hudColumns === 1) {
-      for (const index of [0, 2]) {
-        slotElements[index]?.classList.remove("is-wide", "is-consumed");
-      }
-    }
-
-    const columnsSelect = settings.querySelector("[data-hud-columns]");
-    if (columnsSelect) columnsSelect.value = String(hudColumns);
-    window.requestAnimationFrame?.(clampLauncherAfterColumnChange);
-  }
-
   function applyLayoutPolish() {
     normalizeHeaderVersion();
-    compactDesktopPanelOnce();
     stageInterfaceControls();
     ensureMiscInterfaceSettings();
     placeOperationalStatus();
     placeHudSettingsNextToMisc();
-    ensureHudColumnsControl();
-    bindHudExclusiveView();
-    applyHudColumns();
   }
 
   function observeLayout() {
@@ -700,7 +410,6 @@ export function createClosedHud(options = {}) {
 
     observer = new MutationObserver(() => {
       decorateSupplySymbols();
-      applyHudColumns();
     });
     observer.observe(grid, {
       childList: true,
@@ -727,7 +436,6 @@ export function createClosedHud(options = {}) {
     if (!layoutObserver) observeLayout();
     if (!observer) observeGrid();
     decorateSupplySymbols();
-    applyHudColumns();
   }
 
   function dispose() {
@@ -740,7 +448,6 @@ export function createClosedHud(options = {}) {
     shadow = null;
     grid = null;
     style = null;
-    hudViewBound = false;
   }
 
   return {
