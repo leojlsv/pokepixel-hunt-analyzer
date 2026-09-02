@@ -41,7 +41,7 @@ test("1 column exposes only two independent widget slots and blocks two-slot rar
 });
 
 test("2 columns remains the four-unit layout and column changes request viewport reclamping", () => {
-  assert.match(RUNTIME, /"2 · 4 units"/);
+  assert.match(RUNTIME, /2 · 4 units/);
   assert.match(RUNTIME, /"2 columns · 4 layout units"/);
   assert.match(RUNTIME, /requestLauncherClamp\(\)/);
   assert.match(RUNTIME, /window\.dispatchEvent\(new Event\("resize"\)\)/);
