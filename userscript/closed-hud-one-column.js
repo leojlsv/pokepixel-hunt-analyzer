@@ -42,9 +42,27 @@ function restoreSlotConfig(config, index) {
   if (twoSlots) twoSlots.disabled = false;
 }
 
+function restoreZeroModeControls(settings) {
+  const slotConfigs = settings.querySelector(".pha-hud-slot-configs");
+  if (slotConfigs) {
+    slotConfigs.hidden = false;
+    for (const control of slotConfigs.querySelectorAll("select,input,button")) {
+      control.disabled = false;
+    }
+  }
+
+  const preset = settings.querySelector("[data-hud-preset]");
+  const reset = settings.querySelector("[data-hud-reset]");
+  const inventoryStatus = settings.querySelector("[data-hud-inventory-status]");
+  if (preset) preset.disabled = false;
+  if (reset) reset.disabled = false;
+  if (inventoryStatus) inventoryStatus.hidden = false;
+}
+
 function applyOneColumnSettings(shadow, enabled) {
   const settings = shadow?.getElementById("pha-hud-settings");
   if (!settings) return;
+  if (enabled) restoreZeroModeControls(settings);
 
   const configs = [...settings.querySelectorAll(".pha-hud-slot-configs > .pha-hud-slot-config")];
   configs.forEach((config, index) => {
@@ -65,9 +83,6 @@ function applyOneColumnSettings(shadow, enabled) {
     if (twoSlots) twoSlots.disabled = true;
     if (width?.value === "2") width.value = "1";
   });
-
-  const inventoryStatus = settings.querySelector("[data-hud-inventory-status]");
-  if (enabled && inventoryStatus) inventoryStatus.hidden = false;
 
   const summary = settings.querySelector(".pha-hud-settings-head small");
   if (enabled && summary) summary.textContent = "2 stacked widgets · 1 column";
