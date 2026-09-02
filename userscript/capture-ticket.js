@@ -81,6 +81,7 @@ const THEMES = Object.freeze({
 const GOOGLE_FONT_URL = "https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&display=swap";
 const FONT_LINK_ID = "pha-capture-ticket-silkscreen";
 const PREVIEW_HOST_ID = "pha-capture-ticket-preview";
+const ANALYZER_ROOT_ID = "pokepixel-hunt-analyzer-root";
 const FRAME_FINGERPRINT = "rhyxus.pp-prize-ticket.v1";
 
 function ptToPx(points) {
@@ -259,6 +260,12 @@ function safeFilename(value) {
     .replace(/^-+|-+$/g, "") || "pokemon";
 }
 
+function currentUiMode() {
+  return document.getElementById(ANALYZER_ROOT_ID)?.dataset?.uiMode === "mobile"
+    ? "mobile"
+    : "desktop";
+}
+
 export async function generateCaptureTicket(encounter) {
   if (!canGenerateCaptureTicket(encounter)) {
     throw new Error("Capture ticket is unavailable for this encounter");
@@ -330,6 +337,7 @@ export async function openCaptureTicketPreview(encounter) {
 
   const host = document.createElement("div");
   host.id = PREVIEW_HOST_ID;
+  host.dataset.uiMode = currentUiMode();
   host.style.cssText = "all:initial;position:fixed;inset:0;display:block;width:100vw;height:100vh;z-index:2147483647;pointer-events:auto;";
   const shadow = host.attachShadow({ mode: "open" });
   shadow.innerHTML = `
@@ -342,6 +350,48 @@ export async function openCaptureTicketPreview(encounter) {
       button{background:#2c2d29;color:#ddd;border:1px solid #5a5b53;border-radius:3px;padding:5px 9px;font:11px Arial,sans-serif;cursor:pointer}
       button:hover{background:#373832}
       .download{color:#e7d79f}
+
+      :host([data-ui-mode="mobile"]){height:100dvh}
+      :host([data-ui-mode="mobile"]) .backdrop{
+        padding-top:max(8px, env(safe-area-inset-top, 0px));
+        padding-right:max(8px, env(safe-area-inset-right, 0px));
+        padding-bottom:max(8px, env(safe-area-inset-bottom, 0px));
+        padding-left:max(8px, env(safe-area-inset-left, 0px));
+        overflow:hidden;
+        overscroll-behavior:contain;
+      }
+      :host([data-ui-mode="mobile"]) .box{
+        width:auto;
+        max-width:calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 16px);
+        max-height:calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
+        padding:8px;
+        display:flex;
+        flex-direction:column;
+        overflow:hidden;
+      }
+      :host([data-ui-mode="mobile"]) img{
+        width:auto;
+        height:auto;
+        max-width:calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px) - 34px);
+        max-height:calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 86px);
+        align-self:center;
+        object-fit:contain;
+      }
+      :host([data-ui-mode="mobile"]) .actions{
+        display:grid;
+        grid-template-columns:repeat(2,minmax(0,1fr));
+        width:100%;
+        gap:8px;
+        margin-top:8px;
+      }
+      :host([data-ui-mode="mobile"]) button{
+        min-height:44px;
+        padding:8px 10px;
+        font-size:12px;
+        touch-action:manipulation;
+        -webkit-tap-highlight-color:transparent;
+      }
+      :host([data-ui-mode="mobile"]) button:active{background:#3d3e37;border-color:#77776d}
     </style>
     <div class="backdrop">
       <div class="box" role="dialog" aria-modal="true" aria-label="Capture Ticket preview">
