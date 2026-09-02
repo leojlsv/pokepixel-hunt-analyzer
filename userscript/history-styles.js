@@ -360,48 +360,11 @@ export const HISTORY_STYLES = String.raw`
   .history-notable-list td:nth-child(2) { width: 96px; }
 }
 
-/* Mobile History: retain the shared controller/data model and restyle only presentation. */
+/* Mobile History: preserve original navigation/filters and adapt data presentation only. */
 :host([data-ui-mode="mobile"]) .history-view {
   min-width: 0;
   padding: 8px;
   gap: 8px;
-}
-
-:host([data-ui-mode="mobile"]) .history-subtabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
-}
-
-:host([data-ui-mode="mobile"]) .history-subtabs .tab {
-  min-height: 42px;
-  padding: 7px 6px;
-  font-size: 10px;
-}
-
-:host([data-ui-mode="mobile"]) .history-filter-grid,
-:host([data-ui-mode="mobile"]) .history-filter-grid-advanced {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 8px;
-}
-
-:host([data-ui-mode="mobile"]) .history-filter-grid-advanced {
-  padding-top: 0;
-}
-
-:host([data-ui-mode="mobile"]) .history-filter-grid select {
-  min-height: 42px;
-  height: 42px;
-  font-size: 11px;
-}
-
-:host([data-ui-mode="mobile"]) .history-more-button {
-  width: calc(100% - 16px);
-  min-height: 42px;
-  height: 42px;
-  margin: 0 8px 8px;
-  font-size: 10px;
 }
 
 :host([data-ui-mode="mobile"]) .history-toolbar {
