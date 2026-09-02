@@ -474,6 +474,21 @@ export const MOBILE_STYLES = String.raw`
   padding: 8px 6px;
 }
 
+:host([data-ui-mode="mobile"]) .alert-volume-control {
+  min-height: 52px;
+  padding: 4px 8px;
+  grid-template-columns: auto minmax(0, 1fr) 42px;
+}
+
+:host([data-ui-mode="mobile"]) .alert-volume-control input[type="range"] {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+:host([data-ui-mode="mobile"]) .alert-volume-value {
+  font-size: 11px;
+}
+
 :host([data-ui-mode="mobile"]) .alert-choice-pair {
   width: 100%;
   gap: 2px;

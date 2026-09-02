@@ -20,6 +20,13 @@ test("Sound Alerts visually separates Captured from Fled", () => {
   );
 });
 
+test("Sound Alerts exposes one persistent global volume control", () => {
+  assert.match(AUDIO_ALERTS, /const VOLUME_STORAGE_KEY = "pokepixel_hunt_analyzer_audio_volume_v1"/);
+  assert.match(AUDIO_ALERTS, /id="alerts-volume" type="range" min="0" max="100" step="5"/);
+  assert.match(AUDIO_ALERTS, /masterGain = context\.createGain\(\)/);
+  assert.match(AUDIO_ALERTS, /source\.connect\(destination\)/);
+});
+
 test("HUD configuration moves out of the topbar and sits beside Misc in every UI mode", () => {
   assert.match(RUNTIME, /const MISC_TAB_ID = "alerts-tab"/);
   assert.match(RUNTIME, /settingsButton\.classList\.remove\("alpha-button"\)/);

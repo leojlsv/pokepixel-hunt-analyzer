@@ -17,10 +17,16 @@ import {
   CUSTOM_AUDIO_MAX_BYTES,
   CUSTOM_AUDIO_MAX_DURATION_SECONDS
 } from "./custom-audio-repository.js";
+import {
+  audioVolumeGain,
+  DEFAULT_AUDIO_VOLUME_PERCENT,
+  normalizeAudioVolumePercent
+} from "../domain/audioVolume.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STORAGE_KEY = "pokepixel_hunt_analyzer_audio_alerts_v1";
 const CHOICE_STORAGE_KEY = "pokepixel_hunt_analyzer_audio_choices_v1";
+const VOLUME_STORAGE_KEY = "pokepixel_hunt_analyzer_audio_volume_v1";
 const STYLE_ID = "pha-audio-alert-styles";
 const TAB_ID = "alerts-tab";
 const VIEW_ID = "view-alerts";
@@ -85,6 +91,38 @@ const ALERT_STYLES = `
     align-items: center;
     justify-content: flex-start;
     gap: 5px;
+  }
+
+  .alert-volume-control {
+    min-height:38px;
+    padding:6px 10px;
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr) 38px;
+    gap:8px;
+    align-items:center;
+    border-bottom:1px solid var(--border-soft);
+    background:var(--bg-elevated);
+  }
+  .alert-volume-control > span {
+    color:var(--muted);
+    font-size:9px;
+    font-weight:700;
+    letter-spacing:.03em;
+    text-transform:uppercase;
+  }
+  .alert-volume-control input[type="range"] {
+    width:100%;
+    min-width:0;
+    margin:0;
+    accent-color:var(--gold);
+    cursor:pointer;
+  }
+  .alert-volume-value {
+    color:var(--gold);
+    font-size:10px;
+    font-weight:700;
+    font-variant-numeric:tabular-nums;
+    text-align:right;
   }
 
   .alert-fled-heading,
@@ -281,6 +319,17 @@ function formatBytes(bytes) {
   return `${Math.ceil(bytes / 1024)} KB`;
 }
 
+function readVolumePercent() {
+  try {
+    const stored = localStorage.getItem(VOLUME_STORAGE_KEY);
+    return stored === null
+      ? DEFAULT_AUDIO_VOLUME_PERCENT
+      : normalizeAudioVolumePercent(stored);
+  } catch {
+    return DEFAULT_AUDIO_VOLUME_PERCENT;
+  }
+}
+
 export function createAudioAlerts() {
   const choices = readChoices();
   const settings = settingsFromChoices(choices);
@@ -291,6 +340,8 @@ export function createAudioAlerts() {
   let customStorageAvailable = true;
   let sound2Buffer = null;
   let audioContext = null;
+  let masterGain = null;
+  let volumePercent = readVolumePercent();
   let currentSource = null;
   let currentPlayback = null;
   let boundShadow = null;
@@ -309,6 +360,31 @@ export function createAudioAlerts() {
     if (!AudioContextClass) return null;
     audioContext = new AudioContextClass();
     return audioContext;
+  }
+
+  function getAudioDestination(context) {
+    if (!context?.createGain) return context?.destination || null;
+    if (!masterGain) {
+      masterGain = context.createGain();
+      masterGain.connect(context.destination);
+    }
+    masterGain.gain.value = audioVolumeGain(volumePercent);
+    return masterGain;
+  }
+
+  function setVolumePercent(value, persist = false) {
+    volumePercent = normalizeAudioVolumePercent(value);
+    if (masterGain) masterGain.gain.value = audioVolumeGain(volumePercent);
+    const input = boundShadow?.getElementById("alerts-volume");
+    const output = boundShadow?.getElementById("alerts-volume-value");
+    if (input && input.value !== String(volumePercent)) input.value = String(volumePercent);
+    if (output) output.textContent = `${volumePercent}%`;
+    if (!persist) return;
+    try {
+      localStorage.setItem(VOLUME_STORAGE_KEY, String(volumePercent));
+    } catch {
+      // Current-page volume still applies if storage is unavailable.
+    }
   }
 
   async function unlock() {
@@ -413,7 +489,9 @@ export function createAudioAlerts() {
       stopCurrent();
       const source = context.createBufferSource();
       source.buffer = buffer;
-      source.connect(context.destination);
+      const destination = getAudioDestination(context);
+      if (!destination) return false;
+      source.connect(destination);
       source.addEventListener("ended", () => {
         if (currentSource !== source) return;
         source.disconnect();
@@ -580,6 +658,14 @@ export function createAudioAlerts() {
   function bindControls(shadow) {
     boundShadow = shadow;
 
+    const volumeInput = shadow.getElementById("alerts-volume");
+    if (volumeInput && volumeInput.dataset.audioBound !== "true") {
+      volumeInput.dataset.audioBound = "true";
+      volumeInput.addEventListener("input", () => setVolumePercent(volumeInput.value));
+      volumeInput.addEventListener("change", () => setVolumePercent(volumeInput.value, true));
+    }
+    setVolumePercent(volumePercent);
+
     for (const checkbox of shadow.querySelectorAll("[data-audio-key][data-audio-choice]")) {
       const key = checkbox.dataset.audioKey;
       const choice = normalizeChoice(checkbox.dataset.audioChoice);
@@ -728,6 +814,11 @@ export function createAudioAlerts() {
               <span id="alerts-enabled-count" class="section-badge">0/8</span>
             </div>
           </div>
+          <label class="alert-volume-control" for="alerts-volume">
+            <span>Volume</span>
+            <input id="alerts-volume" type="range" min="0" max="100" step="5" value="${volumePercent}" aria-label="Sound Alerts volume">
+            <output id="alerts-volume-value" class="alert-volume-value" for="alerts-volume">${volumePercent}%</output>
+          </label>
           <div class="alert-grid">
             <span></span><b>Captured</b><b class="alert-fled-heading">Fled</b>
             ${alertRowsMarkup()}
