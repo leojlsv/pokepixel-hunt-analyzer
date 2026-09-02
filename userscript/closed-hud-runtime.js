@@ -259,6 +259,7 @@ export function splitHudSymbolValue(value) {
 }
 
 export function normalizeHudColumns(value) {
+  if (value == null || value === "") return DEFAULT_HUD_COLUMNS;
   const columns = Number(value);
   return columns === 0 || columns === 1 || columns === 2
     ? columns
@@ -557,6 +558,11 @@ export function createClosedHud(options = {}) {
     }
   }
 
+  function scheduleHudColumnConstraints() {
+    if (typeof window === "undefined") return;
+    window.setTimeout(() => applyHudColumnConstraints(), 0);
+  }
+
   function ensureHudColumnsControl() {
     if (!shadow) return;
     const settings = shadow.getElementById(HUD_SETTINGS_ID);
@@ -588,6 +594,18 @@ export function createClosedHud(options = {}) {
           requestLauncherClamp();
         });
       }
+    }
+
+    if (settings.dataset.hudCapacityBound !== "true") {
+      settings.dataset.hudCapacityBound = "true";
+      settings.addEventListener("change", (event) => {
+        if (event.target.matches?.("[data-hud-widget], [data-hud-rarity-width], [data-hud-preset]")) {
+          scheduleHudColumnConstraints();
+        }
+      });
+      settings.addEventListener("click", (event) => {
+        if (event.target.matches?.("[data-hud-reset]")) scheduleHudColumnConstraints();
+      });
     }
 
     applyHudColumnConstraints();
