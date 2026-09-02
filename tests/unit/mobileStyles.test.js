@@ -119,7 +119,7 @@ test("M6 Sound Alerts preserves the grid while enlarging touch controls", () => 
 test("M6 Catch Gallery keeps the table and enlarges interactive controls", () => {
   assert.match(MOBILE_STYLES, /\.catch-gallery-filters input,[\s\S]*\.catch-gallery-filters select \{[\s\S]*height: 42px;/);
   assert.match(MOBILE_STYLES, /\.catch-gallery-sort \{[\s\S]*min-height: 40px;[\s\S]*touch-action: manipulation;/);
-  assert.match(MOBILE_STYLES, /\.catch-gallery-action,[\s\S]*\.catch-gallery-action\.generate \{[\s\S]*height: 40px;[\s\S]*min-width: 0;/);
+  assert.match(MOBILE_STYLES, /\.catch-gallery-action,[\s\S]*\.catch-gallery-action\.generate \{[\s\S]*min-width: 0;[\s\S]*height: 40px;/);
   assert.match(MOBILE_STYLES, /\.catch-gallery-page-button \{[\s\S]*height: 40px;/);
   assert.doesNotMatch(MOBILE_STYLES, /\.catch-gallery-card/);
 });
