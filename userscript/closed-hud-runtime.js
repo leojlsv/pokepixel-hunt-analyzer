@@ -11,7 +11,7 @@ const HUD_SETTINGS_BUTTON_ID = "pha-hud-settings-button";
 const MISC_TAB_ID = "alerts-tab";
 const INTERFACE_SECTION_ID = "pha-interface-settings";
 const INTERFACE_STAGING_ID = "pha-interface-staging";
-const DESKTOP_COMPACT_WIDTH_PX = 400;
+const DESKTOP_COMPACT_WIDTH_PX = 415;
 const LEGACY_DESKTOP_MIN_WIDTH_PX = 430;
 const HUD_SYMBOLS = new Set(["✓", "✕", "$", "↓"]);
 
