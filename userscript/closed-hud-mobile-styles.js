@@ -1,4 +1,5 @@
 import "./closed-hud-one-column.js";
+import { MOBILE_BOTTOM_NAV_STYLES } from "./mobile-bottom-nav.js";
 
 export const MOBILE_CLOSED_HUD_STYLES = String.raw`
 #pha-toggle.pha-custom-hud[data-hud-columns="1"] {
@@ -153,4 +154,6 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
   margin-top: 8px;
   font-size: 9px;
 }
+
+${MOBILE_BOTTOM_NAV_STYLES}
 `;
