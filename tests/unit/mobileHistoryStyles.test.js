@@ -3,29 +3,35 @@ import test from "node:test";
 
 import { HISTORY_STYLES } from "../../userscript/history-styles.js";
 
-test("Mobile History keeps three fixed touch-friendly subtabs", () => {
+test("Mobile History preserves the original Hunts/Pokemon/Attempts tab presentation", () => {
   assert.match(
     HISTORY_STYLES,
-    /:host\(\[data-ui-mode="mobile"\]\) \.history-subtabs \{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/
+    /\.history-subtabs \{\s*\n\s*display: flex;[\s\S]*gap: 5px;/
   );
-  assert.match(
+  assert.doesNotMatch(
     HISTORY_STYLES,
-    /:host\(\[data-ui-mode="mobile"\]\) \.history-subtabs \.tab \{[\s\S]*min-height: 42px;/
+    /:host\(\[data-ui-mode="mobile"\]\) \.history-subtabs/
   );
 });
 
-test("Mobile History filters use two columns and touch-sized controls", () => {
+test("Mobile History preserves the original filter and More Filters presentation", () => {
   assert.match(
     HISTORY_STYLES,
-    /\.history-filter-grid,[\s\S]*\.history-filter-grid-advanced \{[\s\S]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/
+    /\.history-filter-grid \{[\s\S]*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/
   );
   assert.match(
     HISTORY_STYLES,
-    /\.history-filter-grid select \{[\s\S]*min-height: 42px;/
+    /\.history-filter-grid-advanced \{[\s\S]*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/
   );
-  assert.match(
+  assert.match(HISTORY_STYLES, /\.history-filter-grid select \{[\s\S]*height: 27px;/);
+  assert.match(HISTORY_STYLES, /\.history-more-button \{[\s\S]*height: 22px;/);
+  assert.doesNotMatch(
     HISTORY_STYLES,
-    /\.history-more-button \{[\s\S]*min-height: 42px;/
+    /:host\(\[data-ui-mode="mobile"\]\) \.history-filter-grid/
+  );
+  assert.doesNotMatch(
+    HISTORY_STYLES,
+    /:host\(\[data-ui-mode="mobile"\]\) \.history-more-button/
   );
 });
 
