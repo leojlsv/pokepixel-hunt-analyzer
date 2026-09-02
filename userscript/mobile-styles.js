@@ -285,12 +285,17 @@ export const MOBILE_STYLES = String.raw`
 }
 
 :host([data-ui-mode="mobile"]) .encounter-section .rarity-check-menu {
-  position: static;
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
   width: 100%;
-  max-height: none;
-  margin-top: 4px;
+  min-width: 100%;
+  max-height: min(45dvh, 280px);
+  margin-top: 0;
   padding: 4px;
-  box-shadow: none;
+  overflow-y: auto;
+  box-shadow: 0 6px 18px rgba(0,0,0,.38);
 }
 
 :host([data-ui-mode="mobile"]) .encounter-section .rarity-check-option {
