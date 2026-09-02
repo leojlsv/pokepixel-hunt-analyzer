@@ -359,4 +359,263 @@ export const HISTORY_STYLES = String.raw`
   .history-notable-list th:nth-child(2),
   .history-notable-list td:nth-child(2) { width: 96px; }
 }
+
+/* Mobile History: retain the shared controller/data model and restyle only presentation. */
+:host([data-ui-mode="mobile"]) .history-view {
+  min-width: 0;
+  padding: 8px;
+  gap: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .history-subtabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+:host([data-ui-mode="mobile"]) .history-subtabs .tab {
+  min-height: 42px;
+  padding: 7px 6px;
+  font-size: 10px;
+}
+
+:host([data-ui-mode="mobile"]) .history-filter-grid,
+:host([data-ui-mode="mobile"]) .history-filter-grid-advanced {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .history-filter-grid-advanced {
+  padding-top: 0;
+}
+
+:host([data-ui-mode="mobile"]) .history-filter-grid select {
+  min-height: 42px;
+  height: 42px;
+  font-size: 11px;
+}
+
+:host([data-ui-mode="mobile"]) .history-more-button {
+  width: calc(100% - 16px);
+  min-height: 42px;
+  height: 42px;
+  margin: 0 8px 8px;
+  font-size: 10px;
+}
+
+:host([data-ui-mode="mobile"]) .history-toolbar {
+  min-height: 24px;
+}
+
+:host([data-ui-mode="mobile"]) [data-history-panel="hunts"] .history-table-wrap,
+:host([data-ui-mode="mobile"]) [data-history-panel="pokemon"] .history-table-wrap {
+  max-height: none;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+}
+
+/* Attempts keeps the existing 100-item batching scroll source for this checkpoint. */
+:host([data-ui-mode="mobile"]) #history-attempts-wrap {
+  max-height: min(62dvh, 560px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 0;
+  background: transparent;
+}
+
+:host([data-ui-mode="mobile"]) .history-hunts-table,
+:host([data-ui-mode="mobile"]) .history-pokemon-table,
+:host([data-ui-mode="mobile"]) .history-attempts-table {
+  width: 100%;
+  display: block;
+}
+
+:host([data-ui-mode="mobile"]) .history-hunts-table > thead,
+:host([data-ui-mode="mobile"]) .history-pokemon-table > thead,
+:host([data-ui-mode="mobile"]) .history-attempts-table > thead {
+  display: none;
+}
+
+:host([data-ui-mode="mobile"]) .history-hunts-table > tbody,
+:host([data-ui-mode="mobile"]) .history-pokemon-table > tbody,
+:host([data-ui-mode="mobile"]) .history-attempts-table > tbody {
+  width: 100%;
+  display: grid;
+  gap: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .history-hunt-row,
+:host([data-ui-mode="mobile"]) .history-pokemon-row,
+:host([data-ui-mode="mobile"]) .history-attempt-row {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  touch-action: manipulation;
+}
+
+:host([data-ui-mode="mobile"]) .history-hunt-row:active,
+:host([data-ui-mode="mobile"]) .history-pokemon-row:active,
+:host([data-ui-mode="mobile"]) .history-attempt-row:active {
+  background: #30312c;
+}
+
+:host([data-ui-mode="mobile"]) .history-hunt-row[aria-expanded="true"],
+:host([data-ui-mode="mobile"]) .history-pokemon-row[aria-expanded="true"],
+:host([data-ui-mode="mobile"]) .history-attempt-row[aria-expanded="true"] {
+  border-color: #6a6043;
+  background: #30312c;
+}
+
+:host([data-ui-mode="mobile"]) .history-hunt-row > td,
+:host([data-ui-mode="mobile"]) .history-pokemon-row > td,
+:host([data-ui-mode="mobile"]) .history-attempt-row > td {
+  width: auto !important;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  overflow: hidden;
+  background: transparent !important;
+  font-size: 10px;
+  text-align: right !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:host([data-ui-mode="mobile"]) .history-hunt-row > td::before,
+:host([data-ui-mode="mobile"]) .history-pokemon-row > td::before,
+:host([data-ui-mode="mobile"]) .history-attempt-row > td::before {
+  flex: 0 0 auto;
+  color: #9e9270;
+  font-size: 8px;
+  font-weight: 650;
+  letter-spacing: .025em;
+  text-transform: uppercase;
+}
+
+:host([data-ui-mode="mobile"]) .history-hunt-row > td:nth-child(1)::before { content: "Date"; }
+:host([data-ui-mode="mobile"]) .history-hunt-row > td:nth-child(2)::before { content: "Duration"; }
+:host([data-ui-mode="mobile"]) .history-hunt-row > td:nth-child(3)::before { content: "Seen"; }
+:host([data-ui-mode="mobile"]) .history-hunt-row > td:nth-child(4)::before { content: "Captured"; }
+:host([data-ui-mode="mobile"]) .history-hunt-row > td:nth-child(5)::before { content: "Shiny"; }
+:host([data-ui-mode="mobile"]) .history-hunt-row > td:nth-child(6)::before { content: "Legendary"; }
+:host([data-ui-mode="mobile"]) .history-hunt-row > td:nth-child(7)::before { content: "Mythical"; }
+
+:host([data-ui-mode="mobile"]) .history-pokemon-row > td:nth-child(1)::before { content: "Pokémon"; }
+:host([data-ui-mode="mobile"]) .history-pokemon-row > td:nth-child(2)::before { content: "Level"; }
+:host([data-ui-mode="mobile"]) .history-pokemon-row > td:nth-child(3)::before { content: "Seen"; }
+:host([data-ui-mode="mobile"]) .history-pokemon-row > td:nth-child(4)::before { content: "Captured"; }
+:host([data-ui-mode="mobile"]) .history-pokemon-row > td:nth-child(5)::before { content: "Rate"; }
+:host([data-ui-mode="mobile"]) .history-pokemon-row > td:nth-child(6)::before { content: "XP/Cycle"; }
+:host([data-ui-mode="mobile"]) .history-pokemon-row > td:nth-child(7)::before { content: "$/Cycle"; }
+
+:host([data-ui-mode="mobile"]) .history-attempt-row > td:nth-child(1)::before { content: "At"; }
+:host([data-ui-mode="mobile"]) .history-attempt-row > td:nth-child(2)::before { content: "Pokémon"; }
+:host([data-ui-mode="mobile"]) .history-attempt-row > td:nth-child(3)::before { content: "Rarity"; }
+:host([data-ui-mode="mobile"]) .history-attempt-row > td:nth-child(4)::before { content: "Result"; }
+:host([data-ui-mode="mobile"]) .history-attempt-row > td:nth-child(5)::before { content: "Ball"; }
+:host([data-ui-mode="mobile"]) .history-attempt-row > td:nth-child(6)::before { content: "IV"; }
+
+:host([data-ui-mode="mobile"]) .history-detail-row {
+  width: 100%;
+  display: block;
+  margin-top: -4px;
+}
+
+:host([data-ui-mode="mobile"]) .history-detail-row > td {
+  width: 100% !important;
+  display: block;
+  padding: 9px;
+  border: 1px solid #3d3d37;
+  border-top: 0;
+  border-radius: 0 0 4px 4px;
+  background: #22231f;
+  font-size: 10px;
+  white-space: normal;
+}
+
+:host([data-ui-mode="mobile"]) .history-detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .history-fled-line {
+  flex-wrap: wrap;
+  row-gap: 7px;
+  overflow: visible;
+  white-space: normal;
+}
+
+:host([data-ui-mode="mobile"]) .history-notable-controls {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+:host([data-ui-mode="mobile"]) .history-notable-controls > b {
+  width: 100%;
+}
+
+:host([data-ui-mode="mobile"]) .history-notable-button {
+  min-width: 0;
+  min-height: 38px;
+  height: 38px;
+  padding: 0 9px;
+}
+
+:host([data-ui-mode="mobile"]) .history-notable-list {
+  max-height: none;
+  overflow-x: hidden;
+  overflow-y: visible;
+}
+
+:host([data-ui-mode="mobile"]) .history-notable-list table,
+:host([data-ui-mode="mobile"]) .history-pokemon-rarity-table {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+:host([data-ui-mode="mobile"]) .history-notable-list thead,
+:host([data-ui-mode="mobile"]) .history-pokemon-rarity-table thead { display: table-header-group; }
+:host([data-ui-mode="mobile"]) .history-notable-list tbody,
+:host([data-ui-mode="mobile"]) .history-pokemon-rarity-table tbody { display: table-row-group; }
+:host([data-ui-mode="mobile"]) .history-notable-list tr,
+:host([data-ui-mode="mobile"]) .history-pokemon-rarity-table tr { display: table-row; }
+:host([data-ui-mode="mobile"]) .history-notable-list th,
+:host([data-ui-mode="mobile"]) .history-notable-list td,
+:host([data-ui-mode="mobile"]) .history-pokemon-rarity-table th,
+:host([data-ui-mode="mobile"]) .history-pokemon-rarity-table td {
+  display: table-cell;
+  width: auto;
+  padding: 5px 3px;
+  font-size: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .history-notable-list th:nth-child(1),
+:host([data-ui-mode="mobile"]) .history-notable-list td:nth-child(1) { width: 16%; }
+:host([data-ui-mode="mobile"]) .history-notable-list th:nth-child(2),
+:host([data-ui-mode="mobile"]) .history-notable-list td:nth-child(2) { width: 28%; }
+:host([data-ui-mode="mobile"]) .history-notable-list th:nth-child(3),
+:host([data-ui-mode="mobile"]) .history-notable-list td:nth-child(3) { width: 16%; }
+:host([data-ui-mode="mobile"]) .history-notable-list th:nth-child(4),
+:host([data-ui-mode="mobile"]) .history-notable-list td:nth-child(4) { width: 26%; }
+:host([data-ui-mode="mobile"]) .history-notable-list th:nth-child(5),
+:host([data-ui-mode="mobile"]) .history-notable-list td:nth-child(5) { width: 14%; }
+
+:host([data-ui-mode="mobile"]) .history-pokemon-rarity-table th:nth-child(1),
+:host([data-ui-mode="mobile"]) .history-pokemon-rarity-table td:nth-child(1) { width: 22%; }
+:host([data-ui-mode="mobile"]) .history-pokemon-rarity-table th:nth-child(n+2),
+:host([data-ui-mode="mobile"]) .history-pokemon-rarity-table td:nth-child(n+2) { width: 19.5%; }
 `;
