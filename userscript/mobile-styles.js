@@ -350,6 +350,55 @@ export const MOBILE_STYLES = String.raw`
   touch-action: manipulation;
 }
 
+/* History Mobile: interaction-only improvements; preserve the original layout. */
+:host([data-ui-mode="mobile"]) .history-subtabs .tab {
+  min-height: 36px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([data-ui-mode="mobile"]) .history-subtabs .tab:active {
+  border-color: #8e7943;
+  background: #3a382f;
+}
+
+:host([data-ui-mode="mobile"]) .history-more-button {
+  min-height: 40px;
+  height: 40px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([data-ui-mode="mobile"]) .history-more-button:active {
+  border-color: #8e7943;
+  background: #3a382f;
+}
+
+:host([data-ui-mode="mobile"]) .history-notable-button {
+  min-height: 38px;
+  height: 38px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([data-ui-mode="mobile"]) .history-notable-button:active:not(:disabled) {
+  border-color: #8e7943;
+  background: #3a382f;
+}
+
+:host([data-ui-mode="mobile"]) .history-hunt-row,
+:host([data-ui-mode="mobile"]) .history-pokemon-row,
+:host([data-ui-mode="mobile"]) .history-attempt-row {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:host([data-ui-mode="mobile"]) .history-hunt-row:active > td,
+:host([data-ui-mode="mobile"]) .history-pokemon-row:active > td,
+:host([data-ui-mode="mobile"]) .history-attempt-row:active > td {
+  background: #30312c;
+}
+
 @media (orientation: landscape) and (min-width: 640px) {
   :host([data-ui-mode="mobile"]) .metric-cards {
     grid-template-columns: repeat(4, minmax(0, 1fr));
