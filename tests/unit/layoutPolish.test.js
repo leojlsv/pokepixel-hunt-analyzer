@@ -20,11 +20,18 @@ test("header metadata shows only the compact v-prefixed version label", () => {
   assert.match(RUNTIME, /version\.textContent = `v\$\{text\.slice\("Userscript "\.length\)\}`/);
 });
 
-test("shared topbar keeps identity and minimize aligned to the right edge", () => {
-  assert.match(RUNTIME, /\.pha-hud-topbar \{[\s\S]*grid-template-columns:minmax\(0,1fr\) auto;/);
+test("shared topbar pins minimize to the physical right edge", () => {
   assert.match(
     RUNTIME,
-    /\.pha-hud-topbar #pha-close \{[\s\S]*grid-column:2;[\s\S]*justify-self:end;[\s\S]*margin:0;/
+    /\.pha-hud-topbar \{[\s\S]*position:relative;[\s\S]*grid-template-columns:minmax\(0,1fr\);[\s\S]*padding-right:54px;/
+  );
+  assert.match(
+    RUNTIME,
+    /\.pha-hud-topbar #pha-close \{[\s\S]*position:absolute;[\s\S]*top:50%;[\s\S]*right:8px;[\s\S]*transform:translateY\(-50%\);[\s\S]*margin:0;/
+  );
+  assert.match(
+    RUNTIME,
+    /:host\(\[data-ui-mode="mobile"\]\) \.pha-hud-topbar \{[\s\S]*padding:5px 52px 5px 8px;/
   );
   assert.match(RUNTIME, /function placeOperationalStatus\(\)/);
   assert.match(RUNTIME, /huntTime\.after\(state\)/);
@@ -58,7 +65,7 @@ test("UI mode and opacity are staged out of the header and mounted inside Misc",
 });
 
 test("Mobile header and nav use compact shared hierarchy without a second layout", () => {
-  assert.match(RUNTIME, /:host\(\[data-ui-mode="mobile"\]\) \.pha-hud-topbar \{[\s\S]*min-height:46px;[\s\S]*padding:5px 8px;/);
+  assert.match(RUNTIME, /:host\(\[data-ui-mode="mobile"\]\) \.pha-hud-topbar \{[\s\S]*min-height:46px;[\s\S]*padding:5px 52px 5px 8px;/);
   assert.match(RUNTIME, /:host\(\[data-ui-mode="mobile"\]\) \.tabs \{[\s\S]*min-height:44px;[\s\S]*gap:4px;/);
   assert.match(RUNTIME, /:host\(\[data-ui-mode="mobile"\]\) \.tabs #pha-tab-state \{[\s\S]*font-size:8px;/);
   assert.doesNotMatch(RUNTIME, /grid-template-rows: minmax\(40px, auto\) 30px/);
