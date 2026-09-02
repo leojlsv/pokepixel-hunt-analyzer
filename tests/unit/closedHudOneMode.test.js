@@ -53,9 +53,22 @@ test("Closed HUD form controls receive stable ids for browser form-field validat
   assert.match(ONE_COLUMN, /pha-hud-rarity-width-\$\{field\.dataset\.hudRarityWidth\}/);
   assert.match(ONE_COLUMN, /pha-hud-rarity-failed-\$\{field\.dataset\.hudRarityFailed\}/);
   assert.match(ONE_COLUMN, /pha-hud-rarity-\$\{field\.dataset\.hudRarityKey\}-\$\{field\.value\}/);
-  assert.match(ONE_COLUMN, /settings\.querySelectorAll\("input, select, textarea"\)/);
+  assert.match(ONE_COLUMN, /root\.querySelectorAll\("input, select, textarea"\)/);
   assert.match(ONE_COLUMN, /field\.id = id/);
   assert.match(ONE_COLUMN, /ensureHudFormFieldIds\(shadow\)/);
+});
+
+test("remaining dynamic Analyzer form fields receive ids as they are mounted", () => {
+  assert.match(ONE_COLUMN, /\.pha-ui-mode-select/);
+  assert.match(ONE_COLUMN, /return "pha-ui-mode"/);
+  assert.match(ONE_COLUMN, /\[data-sound-volume\]/);
+  assert.match(ONE_COLUMN, /return "pha-sound-volume"/);
+  assert.match(ONE_COLUMN, /\.catch-gallery-pokemon-filter/);
+  assert.match(ONE_COLUMN, /return "catch-gallery-pokemon-filter"/);
+  assert.match(ONE_COLUMN, /\.catch-gallery-rarity-filter/);
+  assert.match(ONE_COLUMN, /return "catch-gallery-rarity-filter"/);
+  assert.match(ONE_COLUMN, /new MutationObserver/);
+  assert.match(ONE_COLUMN, /formFieldObserver\.observe\(shadow, \{ childList: true, subtree: true \}\)/);
 });
 
 test("mobile one-column footprint overrides the validated 220px mobile HUD width", () => {
