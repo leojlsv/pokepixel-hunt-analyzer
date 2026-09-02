@@ -284,10 +284,6 @@ export const MOBILE_STYLES = String.raw`
   font-size: 11px;
 }
 
-:host([data-ui-mode="mobile"]) .encounter-section .filter-field:has(.rarity-multiselect) {
-  grid-column: 1 / -1;
-}
-
 :host([data-ui-mode="mobile"]) .encounter-section .rarity-check-menu {
   position: static;
   width: 100%;
