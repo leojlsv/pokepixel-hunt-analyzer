@@ -9,12 +9,14 @@ const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STYLE_ID = "pha-closed-hud-polish-style";
 const HUD_SETTINGS_BUTTON_ID = "pha-hud-settings-button";
 const HUD_SETTINGS_ID = "pha-hud-settings";
+const HUD_COLUMNS_STORAGE_KEY = "pokepixel_hunt_analyzer_closed_hud_columns_v1";
 const MISC_TAB_ID = "alerts-tab";
 const MISC_VIEW_ID = "view-alerts";
 const INTERFACE_SECTION_ID = "pha-interface-settings";
 const INTERFACE_STAGING_ID = "pha-interface-staging";
 const DESKTOP_COMPACT_WIDTH_PX = 415;
 const LEGACY_DESKTOP_MIN_WIDTH_PX = 430;
+const DEFAULT_HUD_COLUMNS = 2;
 const HUD_SYMBOLS = new Set(["✓", "✕", "$", "↓"]);
 
 const POLISH_STYLE = `
@@ -212,6 +214,36 @@ const POLISH_STYLE = `
     font-size:15px;
   }
   ${MOBILE_CLOSED_HUD_STYLES}
+
+  /* Closed HUD capacity: 0 = PX only, 1 = two stacked widgets, 2 = current 2x2 HUD. */
+  #pha-toggle.pha-custom-hud[data-hud-columns="0"] {
+    width:52px !important;
+    min-width:52px !important;
+    grid-template-columns:32px !important;
+    column-gap:0 !important;
+  }
+  #pha-toggle.pha-custom-hud[data-hud-columns="0"] .pha-hud-grid {
+    display:none !important;
+  }
+  #pha-toggle.pha-custom-hud[data-hud-columns="1"] {
+    width:145px !important;
+    min-width:145px !important;
+  }
+  #pha-toggle.pha-custom-hud[data-hud-columns="1"] .pha-hud-grid {
+    grid-template-columns:minmax(0,1fr) !important;
+    grid-template-rows:repeat(2,minmax(0,1fr)) !important;
+    column-gap:0 !important;
+  }
+  #pha-toggle.pha-custom-hud[data-hud-columns="1"] [data-hud-slot="2"],
+  #pha-toggle.pha-custom-hud[data-hud-columns="1"] [data-hud-slot="3"] {
+    display:none !important;
+  }
+  #pha-toggle.pha-custom-hud[data-hud-columns="1"] .pha-hud-slot.is-wide {
+    grid-column:span 1 !important;
+  }
+  .pha-hud-slot-config[data-hud-capacity-hidden="true"] {
+    display:none !important;
+  }
 `;
 
 export { createPotionUsageTracker, POTION_USAGE_STORAGE_KEY };
@@ -224,6 +256,29 @@ export function splitHudSymbolValue(value) {
     symbol,
     value: text.slice(1).trimStart()
   };
+}
+
+export function normalizeHudColumns(value) {
+  const columns = Number(value);
+  return columns === 0 || columns === 1 || columns === 2
+    ? columns
+    : DEFAULT_HUD_COLUMNS;
+}
+
+function readHudColumns() {
+  try {
+    return normalizeHudColumns(localStorage.getItem(HUD_COLUMNS_STORAGE_KEY));
+  } catch {
+    return DEFAULT_HUD_COLUMNS;
+  }
+}
+
+function writeHudColumns(columns) {
+  try {
+    localStorage.setItem(HUD_COLUMNS_STORAGE_KEY, String(normalizeHudColumns(columns)));
+  } catch {
+    // Current-page choice still applies if storage is unavailable.
+  }
 }
 
 function installPrePaintLauncherGuard() {
@@ -263,14 +318,17 @@ const launcherGuard = installPrePaintLauncherGuard();
 export function createClosedHud(options = {}) {
   const hud = createBaseClosedHud(options);
   let shadow = null;
+  let launcher = null;
   let grid = null;
   let style = null;
   let observer = null;
   let layoutObserver = null;
   let decorating = false;
+  let hudColumns = readHudColumns();
 
   function resolveElements() {
     shadow = document.getElementById(ROOT_ID)?.shadowRoot || null;
+    launcher = shadow?.getElementById("pha-toggle") || null;
     grid = shadow?.querySelector(".pha-hud-grid") || null;
   }
 
@@ -450,6 +508,91 @@ export function createClosedHud(options = {}) {
     if (huntTime && settingsButton.parentElement !== tabs) huntTime.before(settingsButton);
   }
 
+  function requestLauncherClamp() {
+    if (typeof window === "undefined" || typeof Event === "undefined") return;
+    window.requestAnimationFrame?.(() => window.dispatchEvent(new Event("resize")));
+  }
+
+  function applyHudColumnConstraints() {
+    if (!shadow || !launcher) return;
+    const settings = shadow.getElementById(HUD_SETTINGS_ID);
+    launcher.dataset.hudColumns = String(hudColumns);
+    if (!settings) return;
+
+    const columnsSelect = settings.querySelector("[data-hud-columns]");
+    if (columnsSelect) columnsSelect.value = String(hudColumns);
+
+    const activeSlots = hudColumns === 2 ? 4 : hudColumns === 1 ? 2 : 0;
+    const presetSelect = settings.querySelector("[data-hud-preset]");
+    const resetButton = settings.querySelector("[data-hud-reset]");
+    if (presetSelect) presetSelect.disabled = hudColumns === 0;
+    if (resetButton) resetButton.disabled = hudColumns === 0;
+
+    for (const slotConfig of settings.querySelectorAll(".pha-hud-slot-config")) {
+      const widgetSelect = slotConfig.querySelector("[data-hud-widget]");
+      const index = Number(widgetSelect?.dataset.hudWidget);
+      const active = Number.isInteger(index) && index < activeSlots;
+      slotConfig.dataset.hudCapacityHidden = active ? "false" : "true";
+      for (const control of slotConfig.querySelectorAll("select, input, button")) {
+        control.disabled = !active;
+      }
+
+      const widthSelect = slotConfig.querySelector("[data-hud-rarity-width]");
+      if (!active || !widthSelect) continue;
+      const twoSlotOption = widthSelect.querySelector('option[value="2"]');
+      if (twoSlotOption) twoSlotOption.disabled = hudColumns < 2;
+      if (hudColumns === 1 && widthSelect.value === "2") {
+        widthSelect.value = "1";
+        widthSelect.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    }
+
+    const info = settings.querySelector(".pha-hud-settings-head small");
+    if (info) {
+      info.textContent = hudColumns === 0
+        ? "PX icon only"
+        : hudColumns === 1
+          ? "1 column · 2 widgets"
+          : "2 columns · 4 layout units";
+    }
+  }
+
+  function ensureHudColumnsControl() {
+    if (!shadow) return;
+    const settings = shadow.getElementById(HUD_SETTINGS_ID);
+    const toolbar = settings?.querySelector(".pha-hud-settings-toolbar");
+    if (!settings || !toolbar) return;
+
+    let label = settings.querySelector(".pha-hud-columns-setting");
+    if (!label) {
+      label = document.createElement("label");
+      label.className = "pha-hud-columns-setting";
+      label.innerHTML = `Columns
+        <select data-hud-columns aria-label="Closed HUD columns">
+          <option value="0">0 · PX only</option>
+          <option value="1">1 · 2 widgets</option>
+          <option value="2">2 · 4 units</option>
+        </select>`;
+      toolbar.prepend(label);
+    }
+
+    const select = label.querySelector("[data-hud-columns]");
+    if (select) {
+      select.value = String(hudColumns);
+      if (select.dataset.hudColumnsBound !== "true") {
+        select.dataset.hudColumnsBound = "true";
+        select.addEventListener("change", (event) => {
+          hudColumns = normalizeHudColumns(event.currentTarget.value);
+          writeHudColumns(hudColumns);
+          applyHudColumnConstraints();
+          requestLauncherClamp();
+        });
+      }
+    }
+
+    applyHudColumnConstraints();
+  }
+
   function applyLayoutPolish() {
     normalizeHeaderVersion();
     compactLegacyDesktopWidth();
@@ -458,6 +601,7 @@ export function createClosedHud(options = {}) {
     placeOperationalStatus();
     placeHudSettingsNextToMisc();
     bindHudExclusiveNavigation();
+    ensureHudColumnsControl();
   }
 
   function observeLayout() {
@@ -545,6 +689,7 @@ export function createClosedHud(options = {}) {
     style?.remove();
     hud.dispose();
     shadow = null;
+    launcher = null;
     grid = null;
     style = null;
   }
