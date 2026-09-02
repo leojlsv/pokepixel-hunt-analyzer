@@ -153,4 +153,18 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
   margin-top: 8px;
   font-size: 9px;
 }
+
+/* Bottom-navigation checkpoint 1: visual shell only. No navigation nodes move yet. */
+:host([data-ui-mode="mobile"]) .panel::after {
+  content: "";
+  width: 100%;
+  min-height: 54px;
+  flex: 0 0 54px;
+  order: 999;
+  box-sizing: border-box;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elevated);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, .24);
+  pointer-events: none;
+}
 `;
