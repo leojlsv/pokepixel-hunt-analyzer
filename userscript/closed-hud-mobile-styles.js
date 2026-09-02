@@ -1,0 +1,118 @@
+export const MOBILE_CLOSED_HUD_STYLES = String.raw`
+:host([data-ui-mode="mobile"]) #pha-toggle.pha-custom-hud {
+  width: 220px !important;
+  min-width: 0 !important;
+  max-width: calc(100vw - var(--pha-safe-left) - var(--pha-safe-right) - 16px) !important;
+  height: 52px !important;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+:host([data-ui-mode="mobile"]) #pha-toggle.pha-custom-hud:active {
+  border-color: var(--gold-soft);
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-settings-button {
+  min-width: 44px;
+  min-height: 36px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-settings {
+  padding: 10px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-settings-head {
+  margin-bottom: 10px;
+  gap: 10px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-settings-head strong {
+  font-size: 11px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-settings-head small {
+  font-size: 9px;
+  text-align: right;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-settings-toolbar {
+  margin-bottom: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-settings label,
+:host([data-ui-mode="mobile"]) .pha-hud-slot-config > span {
+  font-size: 9px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-settings select,
+:host([data-ui-mode="mobile"]) .pha-hud-settings button {
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-slot-configs {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-slot-config {
+  padding: 8px;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 6px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-slot-config > span {
+  font-size: 10px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-rarity-config {
+  margin-top: 4px;
+  padding-top: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-rarity-toolbar {
+  gap: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-inline-check {
+  min-height: 42px;
+  height: 42px;
+  padding: 0 8px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-inline-check input {
+  width: 18px;
+  height: 18px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-rarity-checks {
+  margin-top: 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-rarity-checks label {
+  min-height: 40px;
+  height: 40px;
+  gap: 5px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-rarity-checks input {
+  width: 18px;
+  height: 18px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-rarity-checks span {
+  font-size: 10px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-hud-inventory-status {
+  margin-top: 8px;
+  font-size: 9px;
+}
+`;
