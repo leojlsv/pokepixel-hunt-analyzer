@@ -11,6 +11,8 @@ const HUD_SETTINGS_BUTTON_ID = "pha-hud-settings-button";
 const MISC_TAB_ID = "alerts-tab";
 const INTERFACE_SECTION_ID = "pha-interface-settings";
 const INTERFACE_STAGING_ID = "pha-interface-staging";
+const DESKTOP_COMPACT_WIDTH_PX = 400;
+const LEGACY_DESKTOP_MIN_WIDTH_PX = 430;
 const HUD_SYMBOLS = new Set(["✓", "✕", "$", "↓"]);
 
 const POLISH_STYLE = `
@@ -58,6 +60,13 @@ const POLISH_STYLE = `
   .pha-hud-topbar #pha-close {
     grid-column:2;
     justify-self:end;
+    margin:0;
+  }
+
+  /* Desktop keeps the compact footprint and does not reserve an empty scrollbar gutter. */
+  :host([data-ui-mode="desktop"]) .panel {
+    min-width:${DESKTOP_COMPACT_WIDTH_PX}px !important;
+    scrollbar-gutter:auto;
   }
 
   /* Operational controls live in the navigation row. */
@@ -267,6 +276,20 @@ export function createClosedHud(options = {}) {
     }
   }
 
+  function compactLegacyDesktopWidth() {
+    if (!shadow || shadow.host?.dataset.uiMode !== "desktop") return;
+    const panel = shadow.getElementById("pha-panel");
+    if (!panel) return;
+    const restoredWidth = Number.parseFloat(panel.style.width);
+    if (
+      Number.isFinite(restoredWidth)
+      && restoredWidth >= LEGACY_DESKTOP_MIN_WIDTH_PX
+      && restoredWidth <= LEGACY_DESKTOP_MIN_WIDTH_PX + 1
+    ) {
+      panel.style.width = `${DESKTOP_COMPACT_WIDTH_PX}px`;
+    }
+  }
+
   function stageInterfaceControls() {
     if (!shadow) return;
     const panel = shadow.getElementById("pha-panel");
@@ -355,6 +378,7 @@ export function createClosedHud(options = {}) {
 
   function applyLayoutPolish() {
     normalizeHeaderVersion();
+    compactLegacyDesktopWidth();
     stageInterfaceControls();
     ensureMiscInterfaceSettings();
     placeOperationalStatus();
