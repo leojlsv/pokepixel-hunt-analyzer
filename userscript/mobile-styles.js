@@ -469,12 +469,13 @@ export const MOBILE_STYLES = String.raw`
 }
 
 :host([data-ui-mode="mobile"]) .alert-grid {
-  grid-template-columns: minmax(64px, .8fr) repeat(2, minmax(0, 1fr));
+  grid-template-columns: 64px repeat(2, minmax(0, 1fr));
   gap: 8px 4px;
   padding: 8px 6px;
 }
 
 :host([data-ui-mode="mobile"]) .alert-choice-pair {
+  width: 100%;
   gap: 2px;
 }
 
@@ -484,8 +485,9 @@ export const MOBILE_STYLES = String.raw`
 }
 
 :host([data-ui-mode="mobile"]) .alert-choice {
-  min-width: 44px;
+  min-width: 0;
   min-height: 44px;
+  flex: 1 1 0;
   justify-content: center;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
