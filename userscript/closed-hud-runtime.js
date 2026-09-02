@@ -4,6 +4,7 @@ import {
   POTION_USAGE_STORAGE_KEY
 } from "./closed-hud.js";
 import { MOBILE_CLOSED_HUD_STYLES } from "./closed-hud-mobile-styles.js";
+import { MOBILE_TOPBAR_STYLES } from "./mobile-topbar-styles.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STYLE_ID = "pha-closed-hud-polish-style";
@@ -29,6 +30,7 @@ const POLISH_STYLE = `
     opacity:.78;
   }
   ${MOBILE_CLOSED_HUD_STYLES}
+  ${MOBILE_TOPBAR_STYLES}
 `;
 
 export { createPotionUsageTracker, POTION_USAGE_STORAGE_KEY };
