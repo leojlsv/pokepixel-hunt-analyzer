@@ -1,12 +1,22 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { MOBILE_STYLES } from "../../userscript/mobile-styles.js";
 
-test("mobile Current keeps core and capture metrics in two columns by default", () => {
+const RUNTIME_SOURCE = await readFile(
+  new URL("../../userscript/closed-hud-runtime.js", import.meta.url),
+  "utf8"
+);
+
+test("mobile Current keeps core metrics in two columns and final capture summary in four columns", () => {
   assert.match(
     MOBILE_STYLES,
     /\.metric-cards,\s*\n:host\(\[data-ui-mode="mobile"\]\) \.capture-strip \{\s*\n\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/
+  );
+  assert.match(
+    RUNTIME_SOURCE,
+    /:host\(\[data-ui-mode="mobile"\]\) \.capture-strip \{\s*\n\s*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/
   );
 });
 
