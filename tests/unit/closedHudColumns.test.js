@@ -2,15 +2,23 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
+import { normalizeHudColumns } from "../../userscript/closed-hud-runtime.js";
+
 const RUNTIME = await readFile(
   new URL("../../userscript/closed-hud-runtime.js", import.meta.url),
   "utf8"
 );
 
 test("Closed HUD columns persist independently and default to the current two-column layout", () => {
+  assert.equal(normalizeHudColumns(null), 2);
+  assert.equal(normalizeHudColumns(""), 2);
+  assert.equal(normalizeHudColumns("0"), 0);
+  assert.equal(normalizeHudColumns("1"), 1);
+  assert.equal(normalizeHudColumns("2"), 2);
+  assert.equal(normalizeHudColumns("invalid"), 2);
+
   assert.match(RUNTIME, /const HUD_COLUMNS_STORAGE_KEY = "pokepixel_hunt_analyzer_closed_hud_columns_v1"/);
   assert.match(RUNTIME, /const DEFAULT_HUD_COLUMNS = 2/);
-  assert.match(RUNTIME, /export function normalizeHudColumns\(value\)/);
   assert.match(RUNTIME, /localStorage\.setItem\(HUD_COLUMNS_STORAGE_KEY, String\(normalizeHudColumns\(columns\)\)\)/);
 });
 
@@ -29,6 +37,7 @@ test("1 column exposes only two independent widget slots and blocks two-slot rar
   assert.match(RUNTIME, /twoSlotOption\.disabled = hudColumns < 2/);
   assert.match(RUNTIME, /hudColumns === 1 && widthSelect\.value === "2"/);
   assert.match(RUNTIME, /widthSelect\.dispatchEvent\(new Event\("change", \{ bubbles: true \}\)\)/);
+  assert.match(RUNTIME, /scheduleHudColumnConstraints\(\)/);
 });
 
 test("2 columns remains the four-unit layout and column changes request viewport reclamping", () => {
