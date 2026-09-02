@@ -37,8 +37,10 @@ const POLISH_STYLE = `
 
   /* Shared header hierarchy: identity only in the topbar. */
   .pha-hud-topbar {
-    grid-template-columns:minmax(0,1fr) auto;
-    gap:8px;
+    position:relative;
+    grid-template-columns:minmax(0,1fr);
+    gap:0;
+    padding-right:54px;
   }
   .pha-hud-topbar .brand {
     grid-column:1;
@@ -58,8 +60,10 @@ const POLISH_STYLE = `
     flex:0 0 auto;
   }
   .pha-hud-topbar #pha-close {
-    grid-column:2;
-    justify-self:end;
+    position:absolute;
+    top:50%;
+    right:8px;
+    transform:translateY(-50%);
     margin:0;
   }
 
@@ -119,8 +123,8 @@ const POLISH_STYLE = `
 
   :host([data-ui-mode="mobile"]) .pha-hud-topbar {
     min-height:46px;
-    padding:5px 8px;
-    gap:6px;
+    padding:5px 52px 5px 8px;
+    gap:0;
   }
   :host([data-ui-mode="mobile"]) .pha-hud-topbar .brand strong {
     font-size:12px;
