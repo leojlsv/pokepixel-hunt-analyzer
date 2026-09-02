@@ -8,7 +8,9 @@ import { MOBILE_CLOSED_HUD_STYLES } from "./closed-hud-mobile-styles.js";
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STYLE_ID = "pha-closed-hud-polish-style";
 const HUD_SETTINGS_BUTTON_ID = "pha-hud-settings-button";
+const HUD_SETTINGS_ID = "pha-hud-settings";
 const MISC_TAB_ID = "alerts-tab";
+const MISC_VIEW_ID = "view-alerts";
 const INTERFACE_SECTION_ID = "pha-interface-settings";
 const INTERFACE_STAGING_ID = "pha-interface-staging";
 const DESKTOP_COMPACT_WIDTH_PX = 415;
@@ -71,6 +73,17 @@ const POLISH_STYLE = `
   :host([data-ui-mode="desktop"]) .panel {
     min-width:${DESKTOP_COMPACT_WIDTH_PX}px !important;
     scrollbar-gutter:auto;
+  }
+
+  /* HUD configuration behaves as a navigation view instead of an inline collapse. */
+  .pha-hud-settings.pha-hud-exclusive-view {
+    border-bottom:0;
+  }
+  :host([data-ui-mode="mobile"]) .pha-hud-settings.pha-hud-exclusive-view {
+    min-height:0;
+    flex:1 1 auto;
+    overflow-y:auto;
+    overscroll-behavior:contain;
   }
 
   /* Operational controls live in the navigation row. */
@@ -316,7 +329,7 @@ export function createClosedHud(options = {}) {
 
   function ensureMiscInterfaceSettings() {
     if (!shadow) return;
-    const alertsView = shadow.getElementById("view-alerts");
+    const alertsView = shadow.getElementById(MISC_VIEW_ID);
     const alphaButton = shadow.getElementById("pha-alpha");
     const modeSelect = shadow.querySelector(".pha-ui-mode-select");
     if (!alertsView || !alphaButton || !modeSelect) return;
@@ -361,6 +374,63 @@ export function createClosedHud(options = {}) {
     }
   }
 
+  function hideHudView() {
+    if (!shadow) return;
+    const settings = shadow.getElementById(HUD_SETTINGS_ID);
+    const settingsButton = shadow.getElementById(HUD_SETTINGS_BUTTON_ID);
+    if (settings) {
+      settings.hidden = true;
+      settings.classList.remove("pha-hud-exclusive-view");
+    }
+    settingsButton?.classList.remove("active");
+  }
+
+  function showHudView() {
+    if (!shadow) return;
+    const settings = shadow.getElementById(HUD_SETTINGS_ID);
+    const settingsButton = shadow.getElementById(HUD_SETTINGS_BUTTON_ID);
+    if (!settings || !settingsButton) return;
+
+    const currentView = shadow.getElementById("view-current");
+    const historyView = shadow.getElementById("view-history");
+    const miscView = shadow.getElementById(MISC_VIEW_ID);
+    if (currentView) currentView.hidden = true;
+    if (historyView) historyView.hidden = true;
+    if (miscView) miscView.hidden = true;
+
+    for (const tab of shadow.querySelectorAll("[data-view]")) tab.classList.remove("active");
+    shadow.getElementById(MISC_TAB_ID)?.classList.remove("active");
+
+    settings.hidden = false;
+    settings.classList.add("pha-hud-exclusive-view");
+    settingsButton.classList.add("active");
+  }
+
+  function bindHudExclusiveNavigation() {
+    if (!shadow) return;
+    const settingsButton = shadow.getElementById(HUD_SETTINGS_BUTTON_ID);
+    if (settingsButton && settingsButton.dataset.hudExclusiveBound !== "true") {
+      settingsButton.dataset.hudExclusiveBound = "true";
+      settingsButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        showHudView();
+      }, true);
+    }
+
+    for (const tab of shadow.querySelectorAll("[data-view]")) {
+      if (tab.dataset.hudExclusiveBound === "true") continue;
+      tab.dataset.hudExclusiveBound = "true";
+      tab.addEventListener("click", hideHudView);
+    }
+
+    const miscTab = shadow.getElementById(MISC_TAB_ID);
+    if (miscTab && miscTab.dataset.hudExclusiveBound !== "true") {
+      miscTab.dataset.hudExclusiveBound = "true";
+      miscTab.addEventListener("click", hideHudView);
+    }
+  }
+
   function placeHudSettingsNextToMisc() {
     if (!shadow) return;
     const settingsButton = shadow.getElementById(HUD_SETTINGS_BUTTON_ID);
@@ -387,6 +457,7 @@ export function createClosedHud(options = {}) {
     ensureMiscInterfaceSettings();
     placeOperationalStatus();
     placeHudSettingsNextToMisc();
+    bindHudExclusiveNavigation();
   }
 
   function observeLayout() {
