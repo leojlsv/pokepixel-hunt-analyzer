@@ -118,7 +118,7 @@ test("UI mode and opacity are staged out of the header and mounted inside Misc",
   assert.match(RUNTIME, /<h3>Interface<\/h3>/);
   assert.match(RUNTIME, /<span>UI Mode<\/span>/);
   assert.match(RUNTIME, /<span>Opacity<\/span>/);
-  assert.match(RUNTIME, /modeSlot\.appendChild\(modeSelect\)/);
+  assert.match(RUNTIME, /modeSlot\.appendChild\(modeControl\)/);
   assert.match(RUNTIME, /alphaSlot\.appendChild\(alphaButton\)/);
 });
 
@@ -127,6 +127,16 @@ test("bounded select proxies expose native selects on Desktop and custom summari
   assert.match(RUNTIME, /if \(mode === "mobile"\) proxy\.prepend\(select\)/);
   assert.match(RUNTIME, /else proxy\.before\(select\)/);
   assert.match(RUNTIME, /syncSelectProxyMode\(proxy, select, shadow\)/);
+});
+
+test("UI mode removes its proxy and exposes the native select directly on Desktop", () => {
+  assert.match(RUNTIME, /function installUiModeProxy\(\)/);
+  assert.match(RUNTIME, /function syncUiModeProxy\(\)/);
+  assert.match(RUNTIME, /const modeControl = SELECT_PROXY_BY_ELEMENT\.get\(modeSelect\) \|\| modeSelect/);
+  assert.match(RUNTIME, /modeSlot\.appendChild\(modeControl\)/);
+  assert.match(RUNTIME, /proxy\.className = "pha-ui-mode-proxy"/);
+  assert.match(RUNTIME, /if \(!isMobile\) \{[\s\S]*proxy\.before\(select\);[\s\S]*SELECT_PROXY_BY_ELEMENT\.delete\(select\);[\s\S]*proxy\.remove\(\);/);
+  assert.match(RUNTIME, /if \(shadow\.host\?\.dataset\.uiMode !== "mobile"\) return/);
 });
 
 test("Mobile header and nav use compact shared hierarchy without a second layout", () => {

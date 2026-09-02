@@ -51,6 +51,25 @@ test("Mobile Interface controls match the label-over-control filter layout", () 
   );
 });
 
+test("Mobile UI mode uses the same bounded dropdown surface as other filters", () => {
+  assert.match(
+    MOBILE_CLOSED_HUD_STYLES,
+    /\.pha-interface-settings \{[\s\S]*position: relative;[\s\S]*z-index: 20;[\s\S]*overflow: visible;/
+  );
+  assert.match(
+    MOBILE_CLOSED_HUD_STYLES,
+    /\.pha-ui-mode-proxy > select \{[\s\S]*clip-path: inset\(50%\);/
+  );
+  assert.match(
+    MOBILE_CLOSED_HUD_STYLES,
+    /\.pha-ui-mode-menu \{[\s\S]*left: 0;[\s\S]*width: 100%;/
+  );
+  assert.match(
+    MOBILE_CLOSED_HUD_STYLES,
+    /\.pha-ui-mode-option \{[\s\S]*background: var\(--bg-elevated\);[\s\S]*color: var\(--text\);/
+  );
+});
+
 test("Mobile HUD column selector stays inside its settings panel", () => {
   assert.match(
     MOBILE_CLOSED_HUD_STYLES,

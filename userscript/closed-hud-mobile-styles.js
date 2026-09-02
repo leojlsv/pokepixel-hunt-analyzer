@@ -218,6 +218,97 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
   display: block;
 }
 
+:host([data-ui-mode="mobile"]) .pha-interface-settings {
+  position: relative;
+  z-index: 20;
+  overflow: visible;
+}
+
+.pha-ui-mode-proxy { display: contents; }
+.pha-ui-mode-summary,
+.pha-ui-mode-menu { display: none; }
+
+:host([data-ui-mode="mobile"]) .pha-ui-mode-proxy {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  display: block;
+}
+
+:host([data-ui-mode="mobile"]) .pha-ui-mode-proxy > select {
+  position: absolute;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+:host([data-ui-mode="mobile"]) .pha-ui-mode-summary {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 28px 0 8px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  list-style: none;
+}
+
+:host([data-ui-mode="mobile"]) .pha-ui-mode-summary::-webkit-details-marker {
+  display: none;
+}
+
+:host([data-ui-mode="mobile"]) .pha-ui-mode-summary::after {
+  content: "⌄";
+  position: absolute;
+  right: 8px;
+}
+
+:host([data-ui-mode="mobile"]) .pha-ui-mode-menu {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 2px);
+  left: 0;
+  width: 100%;
+  padding: 3px;
+  display: grid;
+  gap: 2px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .38);
+}
+
+:host([data-ui-mode="mobile"]) .pha-ui-mode-proxy:not([open]) .pha-ui-mode-menu {
+  display: none;
+}
+
+:host([data-ui-mode="mobile"]) .pha-ui-mode-option {
+  width: 100%;
+  min-height: 40px;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 11px;
+  text-align: left;
+}
+
+:host([data-ui-mode="mobile"]) .pha-ui-mode-option[aria-selected="true"] {
+  border-color: var(--gold-soft);
+  color: var(--gold);
+}
+
 :host([data-ui-mode="mobile"]) .pha-hud-topbar #pha-close {
   width: 44px;
   height: 44px;

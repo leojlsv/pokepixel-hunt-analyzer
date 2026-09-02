@@ -413,9 +413,76 @@ export function createClosedHud(options = {}) {
 
     const modeSlot = section.querySelector("[data-interface-mode]");
     const alphaSlot = section.querySelector("[data-interface-alpha]");
-    if (modeSlot && modeSelect.parentElement !== modeSlot) modeSlot.appendChild(modeSelect);
+    const modeControl = SELECT_PROXY_BY_ELEMENT.get(modeSelect) || modeSelect;
+    if (modeSlot && modeControl.parentElement !== modeSlot) modeSlot.appendChild(modeControl);
     if (alphaSlot && alphaButton.parentElement !== alphaSlot) alphaSlot.appendChild(alphaButton);
     shadow.getElementById(INTERFACE_STAGING_ID)?.remove();
+  }
+
+  function syncUiModeProxy() {
+    const select = shadow?.querySelector(".pha-ui-mode-select");
+    const proxy = SELECT_PROXY_BY_ELEMENT.get(select);
+    const summary = proxy?.querySelector(".pha-ui-mode-summary");
+    if (!select || !summary) return;
+    const isMobile = shadow.host?.dataset.uiMode === "mobile";
+    if (!isMobile) {
+      proxy.before(select);
+      SELECT_PROXY_BY_ELEMENT.delete(select);
+      proxy.remove();
+      return;
+    }
+    if (proxy.dataset.uiMode !== "mobile") {
+      proxy.dataset.uiMode = "mobile";
+      proxy.open = false;
+    }
+    const label = select.selectedOptions?.[0]?.textContent || "Auto";
+    if (summary.textContent !== label) summary.textContent = label;
+  }
+
+  function installUiModeProxy() {
+    const select = shadow?.querySelector(".pha-ui-mode-select");
+    if (!select || SELECT_PROXY_BY_ELEMENT.has(select)) {
+      syncUiModeProxy();
+      return;
+    }
+    if (shadow.host?.dataset.uiMode !== "mobile") return;
+
+    const proxy = document.createElement("details");
+    proxy.className = "pha-ui-mode-proxy";
+    const summary = document.createElement("summary");
+    summary.className = "pha-ui-mode-summary";
+    summary.setAttribute("aria-label", "Analyzer UI mode");
+    const menu = document.createElement("div");
+    menu.className = "pha-ui-mode-menu";
+    menu.setAttribute("role", "listbox");
+
+    select.before(proxy);
+    proxy.append(select, summary, menu);
+    SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+
+    const rebuild = () => {
+      menu.replaceChildren();
+      for (const option of select.options) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "pha-ui-mode-option";
+        button.setAttribute("role", "option");
+        button.setAttribute("aria-selected", String(option.selected));
+        button.textContent = option.textContent;
+        button.addEventListener("click", () => {
+          select.value = option.value;
+          proxy.open = false;
+          select.dispatchEvent(new Event("change", { bubbles: true }));
+        });
+        menu.appendChild(button);
+      }
+    };
+
+    proxy.addEventListener("toggle", () => {
+      if (proxy.open) rebuild();
+    });
+    select.addEventListener("change", () => queueMicrotask(syncUiModeProxy));
+    syncUiModeProxy();
   }
 
   function placeOperationalStatus() {
@@ -1111,6 +1178,7 @@ export function createClosedHud(options = {}) {
     compactLegacyDesktopWidth();
     stageInterfaceControls();
     ensureMiscInterfaceSettings();
+    installUiModeProxy();
     placeOperationalStatus();
     placeHudSettingsNextToMisc();
     bindHudExclusiveNavigation();
