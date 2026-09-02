@@ -50,7 +50,11 @@ test("mobile encounter filters are touch-sized, two-column, and rarity floats be
   );
   assert.match(
     MOBILE_STYLES,
-    /\.encounter-section \.rarity-check-menu \{[\s\S]*position: absolute;[\s\S]*top: calc\(100% \+ 4px\);[\s\S]*z-index: 40;/
+    /\.encounter-section \.rarity-check-menu \{[\s\S]*position: absolute;[\s\S]*top: calc\(100% \+ 4px\);/
+  );
+  assert.match(
+    MOBILE_STYLES,
+    /\.encounter-section \.rarity-check-menu \{[\s\S]*z-index: 40;/
   );
   assert.doesNotMatch(
     MOBILE_STYLES,
