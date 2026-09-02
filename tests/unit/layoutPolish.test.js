@@ -20,11 +20,29 @@ test("header metadata shows only the compact v-prefixed version label", () => {
   assert.match(RUNTIME, /version\.textContent = `v\$\{text\.slice\("Userscript "\.length\)\}`/);
 });
 
-test("shared topbar keeps only identity and minimize after runtime layout polish", () => {
+test("shared topbar keeps identity and minimize aligned to the right edge", () => {
   assert.match(RUNTIME, /\.pha-hud-topbar \{[\s\S]*grid-template-columns:minmax\(0,1fr\) auto;/);
-  assert.match(RUNTIME, /\.pha-hud-topbar #pha-close \{[\s\S]*grid-column:2;/);
+  assert.match(
+    RUNTIME,
+    /\.pha-hud-topbar #pha-close \{[\s\S]*grid-column:2;[\s\S]*justify-self:end;[\s\S]*margin:0;/
+  );
   assert.match(RUNTIME, /function placeOperationalStatus\(\)/);
   assert.match(RUNTIME, /huntTime\.after\(state\)/);
+});
+
+test("Desktop compact width removes the reserved gutter and only migrates the old 430px minimum", () => {
+  assert.match(RUNTIME, /const DESKTOP_COMPACT_WIDTH_PX = 400/);
+  assert.match(RUNTIME, /const LEGACY_DESKTOP_MIN_WIDTH_PX = 430/);
+  assert.match(
+    RUNTIME,
+    /:host\(\[data-ui-mode="desktop"\]\) \.panel \{[\s\S]*min-width:\$\{DESKTOP_COMPACT_WIDTH_PX\}px !important;[\s\S]*scrollbar-gutter:auto;/
+  );
+  assert.match(RUNTIME, /function compactLegacyDesktopWidth\(\)/);
+  assert.match(RUNTIME, /Number\.parseFloat\(panel\.style\.width\)/);
+  assert.match(RUNTIME, /restoredWidth >= LEGACY_DESKTOP_MIN_WIDTH_PX/);
+  assert.match(RUNTIME, /restoredWidth <= LEGACY_DESKTOP_MIN_WIDTH_PX \+ 1/);
+  assert.match(RUNTIME, /panel\.style\.width = `\$\{DESKTOP_COMPACT_WIDTH_PX\}px`/);
+  assert.match(RUNTIME, /normalizeHeaderVersion\(\);\s*compactLegacyDesktopWidth\(\);/);
 });
 
 test("UI mode and opacity are staged out of the header and mounted inside Misc", () => {
