@@ -39,6 +39,15 @@ input { font: inherit; }
 
 button { user-select: none; }
 
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+[tabindex="0"]:focus-visible,
+th.sortable:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
 [hidden] { display: none !important; }
 
 .launcher {

@@ -54,11 +54,30 @@ test("shared topbar pins minimize to the physical right edge", () => {
   assert.match(RUNTIME, /huntTime\.after\(state\)/);
 });
 
+test("primary views expose tab semantics and predictable keyboard navigation", () => {
+  assert.match(RUNTIME, /const NAV_ITEMS = Object\.freeze/);
+  assert.match(RUNTIME, /tabs\.setAttribute\("role", "tablist"\)/);
+  assert.match(RUNTIME, /tabs\.setAttribute\("aria-label", "Analyzer views"\)/);
+  assert.match(RUNTIME, /item\.button\.setAttribute\("role", "tab"\)/);
+  assert.match(RUNTIME, /item\.button\.setAttribute\("aria-controls", item\.panelId\)/);
+  assert.match(RUNTIME, /item\.button\.setAttribute\("aria-selected", String\(selected\)\)/);
+  assert.match(RUNTIME, /item\.button\.tabIndex = selected \? 0 : -1/);
+  assert.match(RUNTIME, /item\.panel\.setAttribute\("role", "tabpanel"\)/);
+  assert.match(RUNTIME, /item\.panel\.setAttribute\("aria-labelledby", item\.button\.id\)/);
+  assert.match(RUNTIME, /event\.key === "ArrowRight"/);
+  assert.match(RUNTIME, /event\.key === "ArrowLeft"/);
+  assert.match(RUNTIME, /event\.key === "Home"/);
+  assert.match(RUNTIME, /event\.key === "End"/);
+  assert.match(RUNTIME, /items\[nextIndex\]\.button\.focus\(\)/);
+  assert.match(RUNTIME, /items\[nextIndex\]\.button\.click\(\)/);
+});
+
 test("Mobile merges the existing operational nodes into the Hunt header and restores Desktop", () => {
   assert.match(RUNTIME, /shadow\.host\?\.dataset\.uiMode === "mobile"/);
-  assert.match(RUNTIME, /statusRow\.appendChild\(huntTime\)/);
-  assert.match(RUNTIME, /statusRow\.appendChild\(state\)/);
-  assert.match(RUNTIME, /statusRow\.appendChild\(collapseButton\)/);
+  assert.match(RUNTIME, /statusLabel\.after\(state, huntTime, huntStatus, collapseButton\)/);
+  assert.match(RUNTIME, /statusLabel\.nextElementSibling !== state/);
+  assert.match(RUNTIME, /state\.nextElementSibling !== huntTime/);
+  assert.match(RUNTIME, /huntTime\.nextElementSibling !== huntStatus/);
   assert.match(RUNTIME, /actions\.appendChild\(collapseButton\)/);
   assert.match(RUNTIME, /tabs\.appendChild\(huntTime\)/);
 });

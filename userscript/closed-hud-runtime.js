@@ -17,6 +17,12 @@ const INTERFACE_STAGING_ID = "pha-interface-staging";
 const DESKTOP_COMPACT_WIDTH_PX = 415;
 const LEGACY_DESKTOP_MIN_WIDTH_PX = 430;
 const HUD_SYMBOLS = new Set(["✓", "✕", "$", "↓"]);
+const NAV_ITEMS = Object.freeze([
+  { button: '[data-view="current"]', buttonId: "pha-tab-current", panelId: "view-current" },
+  { button: '[data-view="history"]', buttonId: "pha-tab-history", panelId: "view-history" },
+  { button: `#${MISC_TAB_ID}`, buttonId: MISC_TAB_ID, panelId: MISC_VIEW_ID },
+  { button: `#${HUD_SETTINGS_BUTTON_ID}`, buttonId: HUD_SETTINGS_BUTTON_ID, panelId: HUD_SETTINGS_ID }
+]);
 
 const POLISH_STYLE = `
   .pha-hud-inventory-primary.has-symbol,
@@ -408,14 +414,20 @@ export function createClosedHud(options = {}) {
     const huntTime = shadow.getElementById("hunt-time");
     const statusRow = shadow.querySelector(".live-card .status-row");
     const actions = shadow.querySelector(".live-card .actions");
+    const statusLabel = statusRow?.querySelector(":scope > span:first-child");
+    const huntStatus = statusRow?.querySelector(".hunt-status");
     const collapseButton = actions?.querySelector('[data-collapse="hunt"]')
       || statusRow?.querySelector('[data-collapse="hunt"]');
-    if (!state || !tabs || !huntTime || !statusRow || !actions || !collapseButton) return;
+    if (!state || !tabs || !huntTime || !statusRow || !actions
+      || !statusLabel || !huntStatus || !collapseButton) return;
 
     if (shadow.host?.dataset.uiMode === "mobile") {
-      if (huntTime.parentElement !== statusRow) statusRow.appendChild(huntTime);
-      if (state.parentElement !== statusRow) statusRow.appendChild(state);
-      if (collapseButton.parentElement !== statusRow) statusRow.appendChild(collapseButton);
+      if (statusLabel.nextElementSibling !== state
+        || state.nextElementSibling !== huntTime
+        || huntTime.nextElementSibling !== huntStatus
+        || huntStatus.nextElementSibling !== collapseButton) {
+        statusLabel.after(state, huntTime, huntStatus, collapseButton);
+      }
       return;
     }
 
@@ -433,6 +445,7 @@ export function createClosedHud(options = {}) {
       settings.classList.remove("pha-hud-exclusive-view");
     }
     settingsButton?.classList.remove("active");
+    syncNavigationSemantics();
   }
 
   function showHudView() {
@@ -454,6 +467,60 @@ export function createClosedHud(options = {}) {
     settings.hidden = false;
     settings.classList.add("pha-hud-exclusive-view");
     settingsButton.classList.add("active");
+    syncNavigationSemantics();
+  }
+
+  function getNavigationItems() {
+    if (!shadow) return [];
+    return NAV_ITEMS.flatMap((item) => {
+      const button = shadow.querySelector(item.button);
+      const panel = shadow.getElementById(item.panelId);
+      return button && panel ? [{ ...item, button, panel }] : [];
+    });
+  }
+
+  function syncNavigationSemantics() {
+    if (!shadow) return;
+    const tabs = shadow.querySelector(".tabs");
+    const items = getNavigationItems();
+    if (!tabs || items.length === 0) return;
+
+    tabs.setAttribute("role", "tablist");
+    tabs.setAttribute("aria-label", "Analyzer views");
+
+    for (const item of items) {
+      if (!item.button.id) item.button.id = item.buttonId;
+      const selected = item.button.classList.contains("active") && !item.panel.hidden;
+      item.button.setAttribute("role", "tab");
+      item.button.setAttribute("aria-controls", item.panelId);
+      item.button.setAttribute("aria-selected", String(selected));
+      item.button.tabIndex = selected ? 0 : -1;
+      item.panel.setAttribute("role", "tabpanel");
+      item.panel.setAttribute("aria-labelledby", item.button.id);
+    }
+  }
+
+  function bindNavigationKeyboard() {
+    for (const item of getNavigationItems()) {
+      if (item.button.dataset.navigationKeysBound === "true") continue;
+      item.button.dataset.navigationKeysBound = "true";
+      item.button.addEventListener("keydown", (event) => {
+        const items = getNavigationItems();
+        const index = items.findIndex(({ button }) => button === event.currentTarget);
+        if (index < 0) return;
+
+        let nextIndex = index;
+        if (event.key === "ArrowRight") nextIndex = (index + 1) % items.length;
+        else if (event.key === "ArrowLeft") nextIndex = (index - 1 + items.length) % items.length;
+        else if (event.key === "Home") nextIndex = 0;
+        else if (event.key === "End") nextIndex = items.length - 1;
+        else return;
+
+        event.preventDefault();
+        items[nextIndex].button.focus();
+        items[nextIndex].button.click();
+      });
+    }
   }
 
   function bindHudExclusiveNavigation() {
@@ -575,6 +642,8 @@ export function createClosedHud(options = {}) {
     placeOperationalStatus();
     placeHudSettingsNextToMisc();
     bindHudExclusiveNavigation();
+    bindNavigationKeyboard();
+    syncNavigationSemantics();
   }
 
   function observeLayout() {

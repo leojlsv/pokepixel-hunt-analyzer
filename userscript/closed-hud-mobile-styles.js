@@ -154,54 +154,34 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
   font-size: 9px;
 }
 
-/* Bottom-navigation checkpoint 4: reuse all four native view buttons. */
-:host([data-ui-mode="mobile"]) .panel::after {
-  content: "";
+/* The native tablist becomes the Mobile bottom navigation in normal layout flow. */
+:host([data-ui-mode="mobile"]) .tabs {
+  position: relative;
+  top: auto;
   width: 100%;
   min-height: 54px;
   flex: 0 0 54px;
   order: 999;
+  padding: 5px 7px;
   box-sizing: border-box;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  align-items: stretch;
+  border-bottom: 0;
   border-top: 1px solid var(--border);
   background: var(--bg-elevated);
   box-shadow: 0 -4px 12px rgba(0, 0, 0, .24);
-  pointer-events: none;
 }
 
 :host([data-ui-mode="mobile"]) .tabs > [data-view="current"],
 :host([data-ui-mode="mobile"]) .tabs > [data-view="history"],
 :host([data-ui-mode="mobile"]) .tabs > #alerts-tab,
 :host([data-ui-mode="mobile"]) .tabs > .pha-hud-settings-button {
-  position: fixed;
-  bottom: calc(var(--pha-safe-bottom) + 5px);
-  z-index: 11;
-  width: calc((100vw - var(--pha-safe-left) - var(--pha-safe-right) - 26px) / 4);
+  position: static;
+  width: auto;
+  min-width: 0;
   min-height: 44px;
-}
-
-:host([data-ui-mode="mobile"]) .tabs > [data-view="current"] {
-  left: calc(var(--pha-safe-left) + 7px);
-}
-
-:host([data-ui-mode="mobile"]) .tabs > [data-view="history"] {
-  left: calc(var(--pha-safe-left) + 11px + ((100vw - var(--pha-safe-left) - var(--pha-safe-right) - 26px) / 4));
-}
-
-:host([data-ui-mode="mobile"]) .tabs > #alerts-tab {
-  right: calc(var(--pha-safe-right) + 11px + ((100vw - var(--pha-safe-left) - var(--pha-safe-right) - 26px) / 4));
-}
-
-:host([data-ui-mode="mobile"]) .tabs > .pha-hud-settings-button {
-  right: calc(var(--pha-safe-right) + 7px);
-}
-
-/* The remaining operational row merges into the Hunt header on Mobile. */
-:host([data-ui-mode="mobile"]) .tabs {
-  min-height: 0;
-  height: 0;
-  padding: 0;
-  gap: 0;
-  border: 0;
 }
 
 :host([data-ui-mode="mobile"]) .live-card .status-row {
@@ -210,18 +190,12 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
 
 :host([data-ui-mode="mobile"]) .live-card .status-row > span:first-child {
   flex: 1 1 auto;
-  order: 0;
 }
 
 :host([data-ui-mode="mobile"]) .live-card .status-row .hunt-time {
   margin-left: auto;
   padding: 0;
   font-size: 12px;
-  order: 2;
-}
-
-:host([data-ui-mode="mobile"]) .live-card .status-row .hunt-status {
-  order: 3;
 }
 
 :host([data-ui-mode="mobile"]) .live-card .status-row #pha-tab-state {
@@ -235,13 +209,11 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
   border-radius: 50%;
   background: currentColor;
   font-size: 0;
-  order: 1;
 }
 
 :host([data-ui-mode="mobile"]) .live-card .status-row [data-collapse="hunt"] {
   width: 44px;
   min-width: 44px;
   min-height: 44px;
-  order: 4;
 }
 `;
