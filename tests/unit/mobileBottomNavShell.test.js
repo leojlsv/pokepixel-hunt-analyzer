@@ -20,5 +20,5 @@ test("Mobile bottom navigation checkpoint renders only an inert visual shell", (
 test("checkpoint does not move or restyle the existing navigation tabs", () => {
   assert.doesNotMatch(SOURCE, /panel\.appendChild\(tabs\)/);
   assert.doesNotMatch(SOURCE, /position: sticky;/);
-  assert.doesNotMatch(SOURCE, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
+  assert.doesNotMatch(SOURCE, /\.tabs\s*\{/);
 });
