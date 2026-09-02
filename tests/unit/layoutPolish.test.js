@@ -6,6 +6,19 @@ const RUNTIME = await readFile(
   new URL("../../userscript/closed-hud-runtime.js", import.meta.url),
   "utf8"
 );
+const AUDIO_ALERTS = await readFile(
+  new URL("../../userscript/audio-alerts.js", import.meta.url),
+  "utf8"
+);
+
+test("Sound Alerts visually separates Captured from Fled", () => {
+  assert.match(AUDIO_ALERTS, /class="alert-fled-heading">Fled<\/b>/);
+  assert.match(AUDIO_ALERTS, /alert-choice-pair alert-choice-pair-\$\{result\}/);
+  assert.match(
+    AUDIO_ALERTS,
+    /\.alert-fled-heading,[\s\S]*\.alert-choice-pair-fled \{[\s\S]*padding-left: 10px;[\s\S]*border-left: 1px solid var\(--border-soft\);/
+  );
+});
 
 test("HUD configuration moves out of the topbar and sits beside Misc in every UI mode", () => {
   assert.match(RUNTIME, /const MISC_TAB_ID = "alerts-tab"/);

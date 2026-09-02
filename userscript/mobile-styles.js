@@ -478,6 +478,11 @@ export const MOBILE_STYLES = String.raw`
   gap: 2px;
 }
 
+:host([data-ui-mode="mobile"]) .alert-fled-heading,
+:host([data-ui-mode="mobile"]) .alert-choice-pair-fled {
+  padding-left: 6px;
+}
+
 :host([data-ui-mode="mobile"]) .alert-choice {
   min-width: 44px;
   min-height: 44px;

@@ -125,6 +125,7 @@ test("M6 mobile global secondary controls are touch-sized", () => {
 
 test("M6 Sound Alerts preserves the grid while enlarging touch controls", () => {
   assert.match(MOBILE_STYLES, /\.alert-grid \{[\s\S]*grid-template-columns: minmax\(64px, \.8fr\) repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(MOBILE_STYLES, /\.alert-fled-heading,[\s\S]*\.alert-choice-pair-fled \{[\s\S]*padding-left: 6px;/);
   assert.match(MOBILE_STYLES, /\.alert-choice \{[\s\S]*min-height: 44px;[\s\S]*touch-action: manipulation;/);
   assert.match(MOBILE_STYLES, /\.alert-choice input\[type="checkbox"\] \{[\s\S]*width: 18px;[\s\S]*height: 18px;/);
   assert.match(MOBILE_STYLES, /\.custom-audio-actions button \{[\s\S]*min-height: 44px;/);

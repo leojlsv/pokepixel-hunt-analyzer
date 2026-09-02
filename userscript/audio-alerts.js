@@ -87,6 +87,12 @@ const ALERT_STYLES = `
     gap: 5px;
   }
 
+  .alert-fled-heading,
+  .alert-choice-pair-fled {
+    padding-left: 10px;
+    border-left: 1px solid var(--border-soft);
+  }
+
   .alert-choice {
     display: inline-flex;
     align-items: center;
@@ -231,7 +237,7 @@ function settingsFromChoices(choices) {
 function alertChoiceMarkup(label, key, result) {
   const alertKey = `${key}_${result}`;
   return `
-    <div class="alert-choice-pair" data-custom-pair="${alertKey}" title="${label} ${result}">
+    <div class="alert-choice-pair alert-choice-pair-${result}" data-custom-pair="${alertKey}" title="${label} ${result}">
       <label class="alert-choice" title="Sound 1">
         <input type="checkbox" data-audio-key="${alertKey}" data-audio-choice="1" aria-label="${label} ${result} sound 1">
         <span>1</span>
@@ -723,7 +729,7 @@ export function createAudioAlerts() {
             </div>
           </div>
           <div class="alert-grid">
-            <span></span><b>Captured</b><b>Fled</b>
+            <span></span><b>Captured</b><b class="alert-fled-heading">Fled</b>
             ${alertRowsMarkup()}
           </div>
           <input id="custom-audio-file-input" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/ogg,audio/opus" hidden>
