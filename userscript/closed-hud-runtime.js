@@ -9,6 +9,7 @@ const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STYLE_ID = "pha-closed-hud-polish-style";
 const HUD_SETTINGS_BUTTON_ID = "pha-hud-settings-button";
 const HUD_SETTINGS_ID = "pha-hud-settings";
+const HUD_COLUMNS_STORAGE_KEY = "pokepixel_hunt_analyzer_closed_hud_columns_v1";
 const MISC_TAB_ID = "alerts-tab";
 const MISC_VIEW_ID = "view-alerts";
 const INTERFACE_SECTION_ID = "pha-interface-settings";
@@ -212,6 +213,20 @@ const POLISH_STYLE = `
     font-size:15px;
   }
   ${MOBILE_CLOSED_HUD_STYLES}
+
+  /* Isolated checkpoint: 0 columns = PX mark only. */
+  #pha-toggle.pha-custom-hud[data-hud-columns="0"] {
+    width:52px !important;
+    min-width:52px !important;
+    grid-template-columns:32px !important;
+    column-gap:0 !important;
+  }
+  #pha-toggle.pha-custom-hud[data-hud-columns="0"] .pha-hud-grid {
+    display:none !important;
+  }
+  .pha-hud-zero-control {
+    margin-bottom:7px;
+  }
 `;
 
 export { createPotionUsageTracker, POTION_USAGE_STORAGE_KEY };
@@ -224,6 +239,26 @@ export function splitHudSymbolValue(value) {
     symbol,
     value: text.slice(1).trimStart()
   };
+}
+
+export function normalizeHudColumns(value) {
+  return value === 0 || value === "0" ? 0 : 2;
+}
+
+function readHudColumns() {
+  try {
+    return normalizeHudColumns(localStorage.getItem(HUD_COLUMNS_STORAGE_KEY));
+  } catch {
+    return 2;
+  }
+}
+
+function writeHudColumns(columns) {
+  try {
+    localStorage.setItem(HUD_COLUMNS_STORAGE_KEY, String(normalizeHudColumns(columns)));
+  } catch {
+    // Current-page choice still applies if storage is unavailable.
+  }
 }
 
 function installPrePaintLauncherGuard() {
@@ -263,14 +298,17 @@ const launcherGuard = installPrePaintLauncherGuard();
 export function createClosedHud(options = {}) {
   const hud = createBaseClosedHud(options);
   let shadow = null;
+  let launcher = null;
   let grid = null;
   let style = null;
   let observer = null;
   let layoutObserver = null;
   let decorating = false;
+  let hudColumns = readHudColumns();
 
   function resolveElements() {
     shadow = document.getElementById(ROOT_ID)?.shadowRoot || null;
+    launcher = shadow?.getElementById("pha-toggle") || null;
     grid = shadow?.querySelector(".pha-hud-grid") || null;
   }
 
@@ -450,6 +488,72 @@ export function createClosedHud(options = {}) {
     if (huntTime && settingsButton.parentElement !== tabs) huntTime.before(settingsButton);
   }
 
+  function applyHudZeroMode() {
+    if (!shadow || !launcher) return;
+    launcher.dataset.hudColumns = String(hudColumns);
+
+    const settings = shadow.getElementById(HUD_SETTINGS_ID);
+    if (!settings) return;
+    const pxOnly = hudColumns === 0;
+    const select = settings.querySelector("[data-hud-zero-mode]");
+    if (select && select.value !== String(hudColumns)) select.value = String(hudColumns);
+
+    const slotConfigs = settings.querySelector(".pha-hud-slot-configs");
+    if (slotConfigs) {
+      slotConfigs.hidden = pxOnly;
+      for (const control of slotConfigs.querySelectorAll("select,input,button")) {
+        control.disabled = pxOnly;
+      }
+    }
+
+    const preset = settings.querySelector("[data-hud-preset]");
+    const reset = settings.querySelector("[data-hud-reset]");
+    if (preset) preset.disabled = pxOnly;
+    if (reset) reset.disabled = pxOnly;
+
+    const inventoryStatus = settings.querySelector("[data-hud-inventory-status]");
+    if (inventoryStatus) inventoryStatus.hidden = pxOnly;
+
+    const summary = settings.querySelector(".pha-hud-settings-head small");
+    if (summary) {
+      summary.textContent = pxOnly
+        ? "PX icon only · widget config preserved"
+        : "4 layout units · changes apply instantly";
+    }
+  }
+
+  function installHudZeroModeControl() {
+    if (!shadow) return;
+    const settings = shadow.getElementById(HUD_SETTINGS_ID);
+    if (!settings || settings.querySelector("[data-hud-zero-mode]")) {
+      applyHudZeroMode();
+      return;
+    }
+
+    const control = document.createElement("label");
+    control.className = "pha-hud-zero-control";
+    control.innerHTML = `
+      Columns
+      <select data-hud-zero-mode aria-label="Closed HUD columns">
+        <option value="2">2 · Current HUD</option>
+        <option value="0">0 · PX only</option>
+      </select>`;
+
+    const head = settings.querySelector(".pha-hud-settings-head");
+    if (head) head.after(control);
+    else settings.prepend(control);
+
+    const select = control.querySelector("[data-hud-zero-mode]");
+    select.value = String(hudColumns);
+    select.addEventListener("change", () => {
+      hudColumns = normalizeHudColumns(select.value);
+      writeHudColumns(hudColumns);
+      applyHudZeroMode();
+      window.dispatchEvent(new Event("resize"));
+    });
+    applyHudZeroMode();
+  }
+
   function applyLayoutPolish() {
     normalizeHeaderVersion();
     compactLegacyDesktopWidth();
@@ -522,6 +626,7 @@ export function createClosedHud(options = {}) {
     resolveElements();
     ensureStyle();
     applyLayoutPolish();
+    installHudZeroModeControl();
     observeLayout();
     observeGrid();
     decorateSupplySymbols();
@@ -543,8 +648,10 @@ export function createClosedHud(options = {}) {
     layoutObserver?.disconnect();
     layoutObserver = null;
     style?.remove();
+    if (launcher) launcher.removeAttribute("data-hud-columns");
     hud.dispose();
     shadow = null;
+    launcher = null;
     grid = null;
     style = null;
   }
