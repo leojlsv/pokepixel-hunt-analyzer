@@ -31,7 +31,7 @@ test("shared topbar keeps identity and minimize aligned to the right edge", () =
 });
 
 test("Desktop compact width removes the reserved gutter and only migrates the old 430px minimum", () => {
-  assert.match(RUNTIME, /const DESKTOP_COMPACT_WIDTH_PX = 400/);
+  assert.match(RUNTIME, /const DESKTOP_COMPACT_WIDTH_PX = 415/);
   assert.match(RUNTIME, /const LEGACY_DESKTOP_MIN_WIDTH_PX = 430/);
   assert.match(
     RUNTIME,
