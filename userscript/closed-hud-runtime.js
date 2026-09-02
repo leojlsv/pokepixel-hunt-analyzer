@@ -4,10 +4,11 @@ import {
   POTION_USAGE_STORAGE_KEY
 } from "./closed-hud.js";
 import { MOBILE_CLOSED_HUD_STYLES } from "./closed-hud-mobile-styles.js";
-import { MOBILE_TOPBAR_STYLES } from "./mobile-topbar-styles.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STYLE_ID = "pha-closed-hud-polish-style";
+const HUD_SETTINGS_BUTTON_ID = "pha-hud-settings-button";
+const MISC_TAB_ID = "alerts-tab";
 const HUD_SYMBOLS = new Set(["✓", "✕", "$", "↓"]);
 
 const POLISH_STYLE = `
@@ -29,8 +30,30 @@ const POLISH_STYLE = `
     font-size:6px;
     opacity:.78;
   }
+  .tabs .pha-hud-settings-button {
+    min-width:38px;
+    white-space:nowrap;
+  }
+  :host([data-ui-mode="mobile"]) .capture-strip {
+    grid-template-columns:repeat(4,minmax(0,1fr));
+    gap:4px;
+  }
+  :host([data-ui-mode="mobile"]) .capture-strip article {
+    min-width:0;
+    min-height:56px;
+    padding:7px 4px;
+  }
+  :host([data-ui-mode="mobile"]) .capture-strip article > span {
+    min-width:0;
+    overflow:hidden;
+    font-size:8px;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
+  :host([data-ui-mode="mobile"]) .capture-strip article > strong {
+    font-size:15px;
+  }
   ${MOBILE_CLOSED_HUD_STYLES}
-  ${MOBILE_TOPBAR_STYLES}
 `;
 
 export { createPotionUsageTracker, POTION_USAGE_STORAGE_KEY };
@@ -85,6 +108,7 @@ export function createClosedHud(options = {}) {
   let grid = null;
   let style = null;
   let observer = null;
+  let layoutObserver = null;
   let decorating = false;
 
   function resolveElements() {
@@ -100,6 +124,53 @@ export function createClosedHud(options = {}) {
     style.id = STYLE_ID;
     style.textContent = POLISH_STYLE;
     shadow.appendChild(style);
+  }
+
+  function normalizeHeaderVersion() {
+    const version = shadow?.querySelector(".brand-meta > span:first-child");
+    if (!version) return;
+    const text = String(version.textContent || "").trim();
+    if (text.startsWith("Userscript ")) {
+      version.textContent = `v${text.slice("Userscript ".length)}`;
+    }
+  }
+
+  function placeHudSettingsNextToMisc() {
+    if (!shadow) return;
+    const settingsButton = shadow.getElementById(HUD_SETTINGS_BUTTON_ID);
+    const miscTab = shadow.getElementById(MISC_TAB_ID);
+    const tabs = shadow.querySelector(".tabs");
+    const huntTime = shadow.getElementById("hunt-time");
+    if (!settingsButton || !tabs) return;
+
+    settingsButton.classList.remove("alpha-button");
+    settingsButton.classList.add("tab");
+
+    if (miscTab) {
+      if (miscTab.nextElementSibling !== settingsButton) miscTab.after(settingsButton);
+      return;
+    }
+
+    if (huntTime && settingsButton.parentElement !== tabs) huntTime.before(settingsButton);
+  }
+
+  function applyLayoutPolish() {
+    normalizeHeaderVersion();
+    placeHudSettingsNextToMisc();
+  }
+
+  function observeLayout() {
+    layoutObserver?.disconnect();
+    layoutObserver = null;
+    if (!shadow || typeof MutationObserver === "undefined") return;
+
+    layoutObserver = new MutationObserver(() => {
+      applyLayoutPolish();
+    });
+    layoutObserver.observe(shadow, {
+      childList: true,
+      subtree: true
+    });
   }
 
   function decorateElement(element) {
@@ -149,6 +220,8 @@ export function createClosedHud(options = {}) {
     hud.mount();
     resolveElements();
     ensureStyle();
+    applyLayoutPolish();
+    observeLayout();
     observeGrid();
     decorateSupplySymbols();
   }
@@ -157,6 +230,8 @@ export function createClosedHud(options = {}) {
     hud.render(state);
     resolveElements();
     ensureStyle();
+    applyLayoutPolish();
+    if (!layoutObserver) observeLayout();
     if (!observer) observeGrid();
     decorateSupplySymbols();
   }
@@ -164,6 +239,8 @@ export function createClosedHud(options = {}) {
   function dispose() {
     observer?.disconnect();
     observer = null;
+    layoutObserver?.disconnect();
+    layoutObserver = null;
     style?.remove();
     hud.dispose();
     shadow = null;
