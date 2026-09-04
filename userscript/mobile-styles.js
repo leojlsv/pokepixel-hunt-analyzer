@@ -482,6 +482,40 @@ export const MOBILE_STYLES = String.raw`
   padding: 8px 6px;
 }
 
+:host([data-ui-mode="mobile"]) .sound-alerts-section .section-head {
+  position: relative;
+  min-height: 44px;
+}
+
+:host([data-ui-mode="mobile"]) .sound-alerts-section .section-meta {
+  padding-right: 34px;
+  pointer-events: none;
+}
+
+:host([data-ui-mode="mobile"]) .sound-alerts-section .alert-collapse {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  min-width: 100%;
+  height: 100%;
+  padding: 0 10px 0 0;
+  justify-content: flex-end;
+  border: 0;
+  background: transparent;
+  pointer-events: auto;
+}
+
+:host([data-ui-mode="mobile"]) .sound-alerts-section .alert-collapse:active {
+  background: rgba(255,255,255,.035);
+}
+
+:host([data-ui-mode="mobile"]) .sound-alerts-section .alerts-mute-toggle {
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
+}
+
 :host([data-ui-mode="mobile"]) .alert-volume-control {
   min-height: 52px;
   padding: 4px 8px;
@@ -573,10 +607,28 @@ export const MOBILE_STYLES = String.raw`
   -webkit-tap-highlight-color: transparent;
 }
 
+:host([data-ui-mode="mobile"]) .catch-gallery-section .section-head {
+  position: relative;
+  min-height: 44px;
+}
+
+:host([data-ui-mode="mobile"]) .catch-gallery-head-meta {
+  padding-right: 34px;
+  pointer-events: none;
+}
+
 :host([data-ui-mode="mobile"]) .catch-gallery-collapse {
-  width: 44px;
-  min-width: 44px;
-  height: 44px;
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  min-width: 100%;
+  height: 100%;
+  padding: 0 10px 0 0;
+  justify-content: flex-end;
+  border: 0;
+  background: transparent;
+  pointer-events: auto;
   touch-action: manipulation;
 }
 

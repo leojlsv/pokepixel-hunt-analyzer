@@ -10,6 +10,10 @@ const AUDIO_ALERTS = await readFile(
   new URL("../../userscript/audio-alerts.js", import.meta.url),
   "utf8"
 );
+const AUDIO_ALERTS_RUNTIME = await readFile(
+  new URL("../../userscript/audio-alerts-runtime.js", import.meta.url),
+  "utf8"
+);
 
 test("Sound Alerts visually separates Captured from Fled", () => {
   assert.match(AUDIO_ALERTS, /class="alert-fled-heading">Fled<\/b>/);
@@ -25,6 +29,18 @@ test("Sound Alerts exposes one persistent global volume control", () => {
   assert.match(AUDIO_ALERTS, /id="alerts-volume" type="range" min="0" max="100" step="5"/);
   assert.match(AUDIO_ALERTS, /masterGain = context\.createGain\(\)/);
   assert.match(AUDIO_ALERTS, /source\.connect\(destination\)/);
+});
+
+test("Sound Alerts exposes an accessible section collapse control", () => {
+  assert.match(AUDIO_ALERTS, /class="section sound-alerts-section"/);
+  assert.match(AUDIO_ALERTS, /class="collapse-button alert-collapse"[^>]*aria-expanded="true"[^>]*aria-controls="sound-alerts-content"/);
+  assert.match(AUDIO_ALERTS, /const collapsed = section\?\.classList\.toggle\("collapsed"\) === true/);
+  assert.match(AUDIO_ALERTS, /collapseButton\.setAttribute\("aria-expanded", String\(!collapsed\)\)/);
+});
+
+test("Sound Alerts places mute before the collapse control", () => {
+  assert.match(AUDIO_ALERTS_RUNTIME, /const collapseButton = meta\.querySelector\("\.alert-collapse"\)/);
+  assert.match(AUDIO_ALERTS_RUNTIME, /if \(collapseButton\) collapseButton\.before\(button\)/);
 });
 
 test("HUD configuration moves out of the topbar and sits beside Misc in every UI mode", () => {

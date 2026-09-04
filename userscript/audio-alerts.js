@@ -658,6 +658,19 @@ export function createAudioAlerts() {
   function bindControls(shadow) {
     boundShadow = shadow;
 
+    const collapseButton = shadow.querySelector(".alert-collapse");
+    if (collapseButton && collapseButton.dataset.audioBound !== "true") {
+      collapseButton.dataset.audioBound = "true";
+      collapseButton.addEventListener("click", () => {
+        const section = collapseButton.closest(".sound-alerts-section");
+        const collapsed = section?.classList.toggle("collapsed") === true;
+        collapseButton.textContent = collapsed ? "▸" : "▾";
+        collapseButton.title = collapsed ? "Expand Sound Alerts" : "Collapse Sound Alerts";
+        collapseButton.setAttribute("aria-expanded", String(!collapsed));
+        if (collapsed) closeCustomPopovers(shadow);
+      });
+    }
+
     const volumeInput = shadow.getElementById("alerts-volume");
     if (volumeInput && volumeInput.dataset.audioBound !== "true") {
       volumeInput.dataset.audioBound = "true";
@@ -807,27 +820,30 @@ export function createAudioAlerts() {
       alertsView.className = "view alerts-view";
       alertsView.hidden = true;
       alertsView.innerHTML = `
-        <section class="section">
+        <section class="section sound-alerts-section">
           <div class="section-head">
             <h3>Sound Alerts</h3>
             <div class="section-meta">
               <span id="alerts-enabled-count" class="section-badge">0/8</span>
+              <button class="collapse-button alert-collapse" type="button" title="Collapse Sound Alerts" aria-expanded="true" aria-controls="sound-alerts-content">▾</button>
             </div>
           </div>
-          <label class="alert-volume-control" for="alerts-volume">
-            <span>Volume</span>
-            <input id="alerts-volume" type="range" min="0" max="100" step="5" value="${volumePercent}" aria-label="Sound Alerts volume">
-            <output id="alerts-volume-value" class="alert-volume-value" for="alerts-volume">${volumePercent}%</output>
-          </label>
-          <div class="alert-grid">
-            <span></span><b>Captured</b><b class="alert-fled-heading">Fled</b>
-            ${alertRowsMarkup()}
-          </div>
-          <input id="custom-audio-file-input" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/ogg,audio/opus" hidden>
-          <div class="alert-help">
-            Choose 1, 2 or C independently for each alert. C imports one local custom sound for that exact Rarity + Status slot.<br>
-            Importing again replaces the previous custom file in that slot. Custom audio stays only in this browser (max 2 MB / 10 s). Shiny keeps priority when both rules apply.
-            <div id="custom-audio-status" class="custom-audio-status"></div>
+          <div id="sound-alerts-content">
+            <label class="alert-volume-control" for="alerts-volume">
+              <span>Volume</span>
+              <input id="alerts-volume" type="range" min="0" max="100" step="5" value="${volumePercent}" aria-label="Sound Alerts volume">
+              <output id="alerts-volume-value" class="alert-volume-value" for="alerts-volume">${volumePercent}%</output>
+            </label>
+            <div class="alert-grid">
+              <span></span><b>Captured</b><b class="alert-fled-heading">Fled</b>
+              ${alertRowsMarkup()}
+            </div>
+            <input id="custom-audio-file-input" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/ogg,audio/opus" hidden>
+            <div class="alert-help">
+              Choose 1, 2 or C independently for each alert. C imports one local custom sound for that exact Rarity + Status slot.<br>
+              Importing again replaces the previous custom file in that slot. Custom audio stays only in this browser (max 2 MB / 10 s). Shiny keeps priority when both rules apply.
+              <div id="custom-audio-status" class="custom-audio-status"></div>
+            </div>
           </div>
         </section>`;
       panel.appendChild(alertsView);

@@ -155,6 +155,31 @@ test("landscape may promote only core metrics to four columns", () => {
   );
 });
 
+test("mobile Catch Gallery uses its full header as the collapse target", () => {
+  assert.match(
+    MOBILE_STYLES,
+    /\.catch-gallery-section \.section-head \{[\s\S]*position: relative;[\s\S]*min-height: 44px;/
+  );
+  assert.match(
+    MOBILE_STYLES,
+    /\.catch-gallery-collapse \{[\s\S]*position: absolute;[\s\S]*inset: 0;[\s\S]*min-width: 100%;[\s\S]*height: 100%;/
+  );
+});
+
+test("mobile Sound Alerts uses its full header as the collapse target", () => {
+  assert.match(
+    MOBILE_STYLES,
+    /\.sound-alerts-section \.alert-collapse \{[\s\S]*position: absolute;[\s\S]*inset: 0;[\s\S]*min-width: 100%;[\s\S]*height: 100%;/
+  );
+});
+
+test("mobile Sound Alerts keeps mute interactive above the collapse target", () => {
+  assert.match(
+    MOBILE_STYLES,
+    /\.sound-alerts-section \.alerts-mute-toggle \{[\s\S]*position: relative;[\s\S]*z-index: 3;[\s\S]*pointer-events: auto;/
+  );
+});
+
 test("mobile Current keeps one vertical scroll surface when encounter sections expand", () => {
   assert.match(
     MOBILE_STYLES,
