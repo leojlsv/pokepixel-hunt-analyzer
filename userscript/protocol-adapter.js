@@ -2,6 +2,8 @@ const FULL_FRAME_HEADER_BYTES = 35;
 const ENTITY_RECORD_BYTES = 16;
 const WILD_ENTITY_TYPE = 2;
 const TERMINAL_MATCH_WINDOW_MS = 30_000;
+const DEFAULT_RUNTIME_RETENTION_MS = 60_000;
+const DEFAULT_RUNTIME_ENTRY_LIMIT = 2_048;
 const textDecoder = new TextDecoder();
 
 const PASSTHROUGH_TYPES = new Set([
@@ -129,7 +131,18 @@ function cloneSessionContext(session, fallback = {}) {
   };
 }
 
-export function createProtocolAdapter() {
+export function createProtocolAdapter({
+  now = Date.now,
+  runtimeRetentionMs = DEFAULT_RUNTIME_RETENTION_MS,
+  runtimeEntryLimit = DEFAULT_RUNTIME_ENTRY_LIMIT
+} = {}) {
+  if (!(Number.isFinite(runtimeRetentionMs) && runtimeRetentionMs >= TERMINAL_MATCH_WINDOW_MS)) {
+    throw new RangeError("runtimeRetentionMs must cover the terminal match window");
+  }
+  if (!Number.isSafeInteger(runtimeEntryLimit) || runtimeEntryLimit < 1) {
+    throw new RangeError("runtimeEntryLimit must be a positive safe integer");
+  }
+
   let sessionContext = {
     id: null,
     zoneId: null,
@@ -141,6 +154,33 @@ export function createProtocolAdapter() {
   const firstHitAtBySlot = new Map();
   const captureQueueByKillSeq = new Map();
   const killsBySeq = new Map();
+
+  function trimMap(map) {
+    while (map.size > runtimeEntryLimit) {
+      map.delete(map.keys().next().value);
+    }
+  }
+
+  function pruneRuntimeState(timestamp = now()) {
+    for (const [killSeq, queued] of captureQueueByKillSeq) {
+      if (timestamp - queued.retainedAtMs > runtimeRetentionMs) {
+        captureQueueByKillSeq.delete(killSeq);
+      }
+    }
+    for (const [killSeq, context] of killsBySeq) {
+      if (timestamp - context.retainedAtMs > runtimeRetentionMs) {
+        killsBySeq.delete(killSeq);
+      }
+    }
+    trimMap(captureQueueByKillSeq);
+    trimMap(killsBySeq);
+  }
+
+  function retain(map, key, value) {
+    map.delete(key);
+    map.set(key, value);
+    trimMap(map);
+  }
 
   function clearHuntRuntime() {
     entitiesBySlot.clear();
@@ -196,7 +236,11 @@ export function createProtocolAdapter() {
     if (normalizedKillSeq === null) return null;
 
     const existing = killsBySeq.get(normalizedKillSeq);
-    if (existing) return existing;
+    if (existing) {
+      existing.retainedAtMs = now();
+      retain(killsBySeq, normalizedKillSeq, existing);
+      return existing;
+    }
 
     const queued = captureQueueByKillSeq.get(normalizedKillSeq) || null;
     const entity = slot !== null ? entitiesBySlot.get(slot) || null : null;
@@ -222,10 +266,11 @@ export function createProtocolAdapter() {
       startedEmitted: false,
       terminalSeen: false,
       lootSeen: false,
-      closedSeen: false
+      closedSeen: false,
+      retainedAtMs: now()
     };
 
-    killsBySeq.set(normalizedKillSeq, context);
+    retain(killsBySeq, normalizedKillSeq, context);
     if (slot !== null) firstHitAtBySlot.delete(slot);
     return context;
   }
@@ -276,12 +321,13 @@ export function createProtocolAdapter() {
       for (const item of data.add) {
         const killSeq = finite(item?.id);
         if (killSeq === null) continue;
-        captureQueueByKillSeq.set(killSeq, {
+        retain(captureQueueByKillSeq, killSeq, {
           speciesId: stringOrNull(item.sp),
           level: finite(item.lv),
           x: finite(item.x),
           y: finite(item.y),
-          addedAtMs: finite(payload.ts)
+          addedAtMs: finite(payload.ts),
+          retainedAtMs: now()
         });
       }
     }
@@ -295,6 +341,7 @@ export function createProtocolAdapter() {
         const context = killsBySeq.get(killSeq);
         if (!context) continue;
         context.closedSeen = true;
+        context.retainedAtMs = now();
 
         if (!context.terminalSeen && context.lootSeen) {
           output.push({
@@ -375,6 +422,7 @@ export function createProtocolAdapter() {
       });
 
       context.lootSeen = true;
+      context.retainedAtMs = now();
 
       if (context.closedSeen && !context.terminalSeen) {
         output.push({
@@ -398,6 +446,7 @@ export function createProtocolAdapter() {
     if (!context) return [payload];
 
     context.terminalSeen = true;
+    context.retainedAtMs = now();
 
     const canonical = {
       ...payload,
@@ -414,7 +463,7 @@ export function createProtocolAdapter() {
     return [canonical];
   }
 
-  function adapt(payload) {
+  function adaptPayload(payload) {
     if (!payload || typeof payload !== "object") return [];
 
     switch (payload.type) {
@@ -471,12 +520,20 @@ export function createProtocolAdapter() {
     }
   }
 
+  function adapt(payload) {
+    pruneRuntimeState();
+    const output = adaptPayload(payload);
+    pruneRuntimeState();
+    return output;
+  }
+
   return {
     adapt,
     snapshot() {
       return {
         sessionContext: { ...sessionContext },
         entitiesBySlot: new Map(entitiesBySlot),
+        captureQueueByKillSeq: new Map(captureQueueByKillSeq),
         killsBySeq: new Map(killsBySeq)
       };
     }

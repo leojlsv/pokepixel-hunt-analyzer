@@ -4,6 +4,7 @@ import {
   POTION_USAGE_STORAGE_KEY
 } from "./closed-hud.js";
 import { MOBILE_CLOSED_HUD_STYLES } from "./closed-hud-mobile-styles.js";
+import { createSelectProxy } from "./select-proxy.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STYLE_ID = "pha-closed-hud-polish-style";
@@ -18,6 +19,24 @@ const DESKTOP_COMPACT_WIDTH_PX = 415;
 const LEGACY_DESKTOP_MIN_WIDTH_PX = 430;
 const HUD_SYMBOLS = new Set(["✓", "✕", "$", "↓"]);
 const SELECT_PROXY_BY_ELEMENT = new WeakMap();
+const SELECT_PROXY_CLEANUP_BY_ELEMENT = new WeakMap();
+const LAYOUT_RECONCILE_SELECTOR = [
+  ".pha-ui-mode-select",
+  "#pha-alpha",
+  "#pha-tab-state",
+  "#alerts-tab",
+  "#view-alerts",
+  "#pha-hud-settings-button",
+  "#pha-hud-settings",
+  "[data-hud-zero-mode]",
+  "[data-hud-widget]",
+  "[data-hud-preset]",
+  "[data-hud-rarity-width]",
+  "[data-hud-item]",
+  "#view-current .encounter-section select",
+  "#view-history .history-filter-grid select",
+  ".catch-gallery-rarity-filter"
+].join(",");
 const NAV_ITEMS = Object.freeze([
   { button: '[data-view="current"]', buttonId: "pha-tab-current", panelId: "view-current" },
   { button: '[data-view="history"]', buttonId: "pha-tab-history", panelId: "view-history" },
@@ -33,6 +52,24 @@ function syncSelectProxyMode(proxy, select, shadow) {
   proxy.open = false;
   if (mode === "mobile") proxy.prepend(select);
   else proxy.before(select);
+}
+
+export function mutationNeedsLayoutReconcile(
+  mutations,
+  { ElementClass = globalThis.Element } = {}
+) {
+  if (typeof ElementClass !== "function") return false;
+
+  const containsRelevantControl = (node) =>
+    node instanceof ElementClass && (
+      node.matches?.(LAYOUT_RECONCILE_SELECTOR) ||
+      Boolean(node.querySelector?.(LAYOUT_RECONCILE_SELECTOR))
+    );
+
+  return mutations.some((mutation) =>
+    containsRelevantControl(mutation.target) ||
+    [...mutation.addedNodes, ...mutation.removedNodes].some(containsRelevantControl)
+  );
 }
 
 const POLISH_STYLE = `
@@ -320,8 +357,25 @@ export function createClosedHud(options = {}) {
   let style = null;
   let observer = null;
   let layoutObserver = null;
+  let layoutReconcileQueued = false;
   let decorating = false;
   let hudColumns = readHudColumns();
+  const selectProxyCleanups = new Set();
+
+  function trackSelectProxy(select, destroy) {
+    const cleanup = () => {
+      destroy();
+      SELECT_PROXY_BY_ELEMENT.delete(select);
+      SELECT_PROXY_CLEANUP_BY_ELEMENT.delete(select);
+      selectProxyCleanups.delete(cleanup);
+    };
+    SELECT_PROXY_CLEANUP_BY_ELEMENT.set(select, cleanup);
+    selectProxyCleanups.add(cleanup);
+  }
+
+  function releaseSelectProxy(select) {
+    SELECT_PROXY_CLEANUP_BY_ELEMENT.get(select)?.();
+  }
 
   function resolveElements() {
     shadow = document.getElementById(ROOT_ID)?.shadowRoot || null;
@@ -427,7 +481,7 @@ export function createClosedHud(options = {}) {
     const isMobile = shadow.host?.dataset.uiMode === "mobile";
     if (!isMobile) {
       proxy.before(select);
-      SELECT_PROXY_BY_ELEMENT.delete(select);
+      releaseSelectProxy(select);
       proxy.remove();
       return;
     }
@@ -447,41 +501,20 @@ export function createClosedHud(options = {}) {
     }
     if (shadow.host?.dataset.uiMode !== "mobile") return;
 
-    const proxy = document.createElement("details");
-    proxy.className = "pha-ui-mode-proxy";
-    const summary = document.createElement("summary");
-    summary.className = "pha-ui-mode-summary";
-    summary.setAttribute("aria-label", "Analyzer UI mode");
-    const menu = document.createElement("div");
-    menu.className = "pha-ui-mode-menu";
-    menu.setAttribute("role", "listbox");
-
-    select.before(proxy);
-    proxy.append(select, summary, menu);
-    SELECT_PROXY_BY_ELEMENT.set(select, proxy);
-
-    const rebuild = () => {
-      menu.replaceChildren();
-      for (const option of select.options) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "pha-ui-mode-option";
-        button.setAttribute("role", "option");
-        button.setAttribute("aria-selected", String(option.selected));
-        button.textContent = option.textContent;
-        button.addEventListener("click", () => {
-          select.value = option.value;
-          proxy.open = false;
-          select.dispatchEvent(new Event("change", { bubbles: true }));
-        });
-        menu.appendChild(button);
-      }
-    };
-
-    proxy.addEventListener("toggle", () => {
-      if (proxy.open) rebuild();
+    const parent = select.parentElement;
+    const anchor = select.previousSibling;
+    const { proxy, destroy } = createSelectProxy({
+      select,
+      classPrefix: "pha-ui-mode",
+      ariaLabel: "Analyzer UI mode",
+      fallbackLabel: "Auto",
+      focusAfterSelect: false,
+      onChange: syncUiModeProxy
     });
-    select.addEventListener("change", () => queueMicrotask(syncUiModeProxy));
+    if (anchor) anchor.after(proxy);
+    else parent?.prepend(proxy);
+    SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+    trackSelectProxy(select, destroy);
     syncUiModeProxy();
   }
 
@@ -729,44 +762,19 @@ export function createClosedHud(options = {}) {
       return;
     }
 
-    const proxy = document.createElement("details");
-    proxy.className = "pha-hud-columns-proxy";
-    const summary = document.createElement("summary");
-    summary.className = "pha-hud-columns-summary";
-    summary.setAttribute("aria-label", "Closed HUD columns");
-    const menu = document.createElement("div");
-    menu.className = "pha-hud-columns-menu";
-    menu.setAttribute("role", "listbox");
-
-    select.before(proxy);
-    proxy.append(select, summary, menu);
-    SELECT_PROXY_BY_ELEMENT.set(select, proxy);
-
-    const rebuild = () => {
-      menu.replaceChildren();
-      for (const option of select.options) {
-        if (option.disabled) continue;
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "pha-hud-columns-option";
-        button.setAttribute("role", "option");
-        button.setAttribute("aria-selected", String(option.selected));
-        button.textContent = option.textContent;
-        button.addEventListener("click", () => {
-          select.value = option.value;
-          select.dispatchEvent(new Event("change", { bubbles: true }));
-          proxy.open = false;
-          syncHudColumnsProxy();
-          summary.focus();
-        });
-        menu.appendChild(button);
-      }
-    };
-
-    proxy.addEventListener("toggle", () => {
-      if (proxy.open) rebuild();
+    const parent = select.parentElement;
+    const anchor = select.previousSibling;
+    const { proxy, destroy } = createSelectProxy({
+      select,
+      classPrefix: "pha-hud-columns",
+      ariaLabel: "Closed HUD columns",
+      fallbackLabel: "Columns",
+      onChange: syncHudColumnsProxy
     });
-    select.addEventListener("change", () => queueMicrotask(syncHudColumnsProxy));
+    if (anchor) anchor.after(proxy);
+    else parent?.prepend(proxy);
+    SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+    trackSelectProxy(select, destroy);
     syncHudColumnsProxy();
   }
 
@@ -785,58 +793,25 @@ export function createClosedHud(options = {}) {
   function installHudWidgetProxies() {
     for (const select of shadow?.querySelectorAll("[data-hud-widget]") || []) {
       if (SELECT_PROXY_BY_ELEMENT.has(select)) continue;
-      const proxy = document.createElement("details");
-      proxy.className = "pha-hud-widget-proxy";
-      const summary = document.createElement("summary");
-      summary.className = "pha-hud-widget-summary";
-      summary.setAttribute("aria-label", `HUD widget ${Number(select.dataset.hudWidget) + 1}`);
-      const menu = document.createElement("div");
-      menu.className = "pha-hud-widget-menu";
-      menu.setAttribute("role", "listbox");
-      select.before(proxy);
-      proxy.append(select, summary, menu);
-      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
-
-      const rebuild = () => {
-        menu.replaceChildren();
-        const appendOption = (option) => {
-          if (option.disabled) return;
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "pha-hud-widget-option";
-          button.setAttribute("role", "option");
-          button.setAttribute("aria-selected", String(option.selected));
-          button.textContent = option.textContent;
-          button.addEventListener("click", () => {
-            select.value = option.value;
-            select.dispatchEvent(new Event("change", { bubbles: true }));
-            proxy.open = false;
-            queueMicrotask(syncHudWidgetProxies);
-            summary.focus();
-          });
-          menu.appendChild(button);
-        };
-        for (const child of select.children) {
-          if (child.tagName === "OPTGROUP") {
-            const heading = document.createElement("span");
-            heading.className = "pha-hud-widget-group";
-            heading.textContent = child.label;
-            menu.appendChild(heading);
-            for (const option of child.querySelectorAll("option")) appendOption(option);
-          } else if (child.tagName === "OPTION") {
-            appendOption(child);
+      const parent = select.parentElement;
+      const anchor = select.previousSibling;
+      const { proxy, destroy } = createSelectProxy({
+        select,
+        classPrefix: "pha-hud-widget",
+        ariaLabel: `HUD widget ${Number(select.dataset.hudWidget) + 1}`,
+        fallbackLabel: "Widget",
+        getSelectedLabel: () => select.selectedOptions?.[0]?.textContent,
+        onChange: syncHudWidgetProxies,
+        onOpen: (currentProxy) => {
+          for (const other of shadow.querySelectorAll(".pha-hud-widget-proxy[open]")) {
+            if (other !== currentProxy) other.open = false;
           }
         }
-      };
-
-      proxy.addEventListener("toggle", () => {
-        if (!proxy.open) return;
-        for (const other of shadow.querySelectorAll(".pha-hud-widget-proxy[open]")) {
-          if (other !== proxy) other.open = false;
-        }
-        rebuild();
       });
-      select.addEventListener("change", () => queueMicrotask(syncHudWidgetProxies));
+      if (anchor) anchor.after(proxy);
+      else parent?.prepend(proxy);
+      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+      trackSelectProxy(select, destroy);
     }
     syncHudWidgetProxies();
   }
@@ -858,42 +833,19 @@ export function createClosedHud(options = {}) {
       syncHudPresetProxy();
       return;
     }
-    const proxy = document.createElement("details");
-    proxy.className = "pha-hud-preset-proxy";
-    const summary = document.createElement("summary");
-    summary.className = "pha-hud-preset-summary";
-    summary.setAttribute("aria-label", "HUD preset");
-    const menu = document.createElement("div");
-    menu.className = "pha-hud-preset-menu";
-    menu.setAttribute("role", "listbox");
-    select.before(proxy);
-    proxy.append(select, summary, menu);
-    SELECT_PROXY_BY_ELEMENT.set(select, proxy);
-
-    const rebuild = () => {
-      menu.replaceChildren();
-      for (const option of select.options) {
-        if (option.disabled) continue;
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "pha-hud-preset-option";
-        button.setAttribute("role", "option");
-        button.setAttribute("aria-selected", String(option.selected));
-        button.textContent = option.textContent;
-        button.addEventListener("click", () => {
-          select.value = option.value;
-          select.dispatchEvent(new Event("change", { bubbles: true }));
-          proxy.open = false;
-          queueMicrotask(syncHudPresetProxy);
-          summary.focus();
-        });
-        menu.appendChild(button);
-      }
-    };
-    proxy.addEventListener("toggle", () => {
-      if (proxy.open) rebuild();
+    const parent = select.parentElement;
+    const anchor = select.previousSibling;
+    const { proxy, destroy } = createSelectProxy({
+      select,
+      classPrefix: "pha-hud-preset",
+      ariaLabel: "HUD preset",
+      fallbackLabel: "Preset",
+      onChange: syncHudPresetProxy
     });
-    select.addEventListener("change", () => queueMicrotask(syncHudPresetProxy));
+    if (anchor) anchor.after(proxy);
+    else parent?.prepend(proxy);
+    SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+    trackSelectProxy(select, destroy);
     syncHudPresetProxy();
   }
 
@@ -912,42 +864,20 @@ export function createClosedHud(options = {}) {
   function installHudRarityWidthProxies() {
     for (const select of shadow?.querySelectorAll("[data-hud-rarity-width]") || []) {
       if (SELECT_PROXY_BY_ELEMENT.has(select)) continue;
-      const proxy = document.createElement("details");
-      proxy.className = "pha-hud-width-proxy";
-      const summary = document.createElement("summary");
-      summary.className = "pha-hud-width-summary";
-      summary.setAttribute("aria-label", `Rarity widget width ${Number(select.dataset.hudRarityWidth) + 1}`);
-      const menu = document.createElement("div");
-      menu.className = "pha-hud-width-menu";
-      menu.setAttribute("role", "listbox");
-      select.before(proxy);
-      proxy.append(select, summary, menu);
-      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
-
-      const rebuild = () => {
-        menu.replaceChildren();
-        for (const option of select.options) {
-          if (option.disabled) continue;
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "pha-hud-width-option";
-          button.setAttribute("role", "option");
-          button.setAttribute("aria-selected", String(option.selected));
-          button.textContent = option.textContent;
-          button.addEventListener("click", () => {
-            select.value = option.value;
-            select.dispatchEvent(new Event("change", { bubbles: true }));
-            proxy.open = false;
-            queueMicrotask(syncHudRarityWidthProxies);
-            summary.focus();
-          });
-          menu.appendChild(button);
-        }
-      };
-      proxy.addEventListener("toggle", () => {
-        if (proxy.open) rebuild();
+      const parent = select.parentElement;
+      const anchor = select.previousSibling;
+      const { proxy, destroy } = createSelectProxy({
+        select,
+        classPrefix: "pha-hud-width",
+        ariaLabel: `Rarity widget width ${Number(select.dataset.hudRarityWidth) + 1}`,
+        fallbackLabel: "Width",
+        getSelectedLabel: () => select.selectedOptions?.[0]?.textContent,
+        onChange: syncHudRarityWidthProxies
       });
-      select.addEventListener("change", () => queueMicrotask(syncHudRarityWidthProxies));
+      if (anchor) anchor.after(proxy);
+      else parent?.prepend(proxy);
+      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+      trackSelectProxy(select, destroy);
     }
     syncHudRarityWidthProxies();
   }
@@ -967,42 +897,20 @@ export function createClosedHud(options = {}) {
   function installHudItemProxies() {
     for (const select of shadow?.querySelectorAll("[data-hud-item]") || []) {
       if (SELECT_PROXY_BY_ELEMENT.has(select)) continue;
-      const proxy = document.createElement("details");
-      proxy.className = "pha-hud-item-proxy";
-      const summary = document.createElement("summary");
-      summary.className = "pha-hud-item-summary";
-      summary.setAttribute("aria-label", `HUD item ${Number(select.dataset.hudItem) + 1}`);
-      const menu = document.createElement("div");
-      menu.className = "pha-hud-item-menu";
-      menu.setAttribute("role", "listbox");
-      select.before(proxy);
-      proxy.append(select, summary, menu);
-      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
-
-      const rebuild = () => {
-        menu.replaceChildren();
-        for (const option of select.options) {
-          if (option.disabled) continue;
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "pha-hud-item-option";
-          button.setAttribute("role", "option");
-          button.setAttribute("aria-selected", String(option.selected));
-          button.textContent = option.textContent;
-          button.addEventListener("click", () => {
-            select.value = option.value;
-            select.dispatchEvent(new Event("change", { bubbles: true }));
-            proxy.open = false;
-            queueMicrotask(syncHudItemProxies);
-            summary.focus();
-          });
-          menu.appendChild(button);
-        }
-      };
-      proxy.addEventListener("toggle", () => {
-        if (proxy.open) rebuild();
+      const parent = select.parentElement;
+      const anchor = select.previousSibling;
+      const { proxy, destroy } = createSelectProxy({
+        select,
+        classPrefix: "pha-hud-item",
+        ariaLabel: `HUD item ${Number(select.dataset.hudItem) + 1}`,
+        fallbackLabel: "Select item",
+        getSelectedLabel: () => select.selectedOptions?.[0]?.textContent,
+        onChange: syncHudItemProxies
       });
-      select.addEventListener("change", () => queueMicrotask(syncHudItemProxies));
+      if (anchor) anchor.after(proxy);
+      else parent?.prepend(proxy);
+      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+      trackSelectProxy(select, destroy);
     }
     syncHudItemProxies();
   }
@@ -1021,41 +929,20 @@ export function createClosedHud(options = {}) {
   function installCurrentShinyProxies() {
     for (const select of shadow?.querySelectorAll("#view-current .encounter-section select") || []) {
       if (SELECT_PROXY_BY_ELEMENT.has(select)) continue;
-      const proxy = document.createElement("details");
-      proxy.className = "pha-current-select-proxy";
-      const summary = document.createElement("summary");
-      summary.className = "pha-current-select-summary";
-      summary.setAttribute("aria-label", select.getAttribute("aria-label") || "Current Shiny filter");
-      const menu = document.createElement("div");
-      menu.className = "pha-current-select-menu";
-      menu.setAttribute("role", "listbox");
-      select.before(proxy);
-      proxy.append(select, summary, menu);
-      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
-
-      const rebuild = () => {
-        menu.replaceChildren();
-        for (const option of select.options) {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "pha-current-select-option";
-          button.setAttribute("role", "option");
-          button.setAttribute("aria-selected", String(option.selected));
-          button.textContent = option.textContent;
-          button.addEventListener("click", () => {
-            select.value = option.value;
-            select.dispatchEvent(new Event("change", { bubbles: true }));
-            proxy.open = false;
-            syncCurrentShinyProxies();
-            summary.focus();
-          });
-          menu.appendChild(button);
-        }
-      };
-      proxy.addEventListener("toggle", () => {
-        if (proxy.open) rebuild();
+      const parent = select.parentElement;
+      const anchor = select.previousSibling;
+      const { proxy, destroy } = createSelectProxy({
+        select,
+        classPrefix: "pha-current-select",
+        ariaLabel: select.getAttribute("aria-label") || "Current Shiny filter",
+        fallbackLabel: "All (*)",
+        getSelectedLabel: () => select.selectedOptions?.[0]?.textContent,
+        onChange: syncCurrentShinyProxies
       });
-      select.addEventListener("change", syncCurrentShinyProxies);
+      if (anchor) anchor.after(proxy);
+      else parent?.prepend(proxy);
+      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+      trackSelectProxy(select, destroy);
     }
     syncCurrentShinyProxies();
   }
@@ -1075,46 +962,25 @@ export function createClosedHud(options = {}) {
   function installHistoryFilterProxies() {
     for (const select of shadow?.querySelectorAll("#view-history .history-filter-grid select") || []) {
       if (SELECT_PROXY_BY_ELEMENT.has(select)) continue;
-      const proxy = document.createElement("details");
-      proxy.className = "pha-history-select-proxy";
-      const summary = document.createElement("summary");
-      summary.className = "pha-history-select-summary";
-      summary.setAttribute("aria-label", select.getAttribute("aria-label") || select.id || "History filter");
-      const menu = document.createElement("div");
-      menu.className = "pha-history-select-menu";
-      menu.setAttribute("role", "listbox");
-      select.before(proxy);
-      proxy.append(select, summary, menu);
-      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
-
-      const rebuild = () => {
-        menu.replaceChildren();
-        for (const option of select.options) {
-          if (option.disabled) continue;
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "pha-history-select-option";
-          button.setAttribute("role", "option");
-          button.setAttribute("aria-selected", String(option.selected));
-          button.textContent = option.textContent;
-          button.addEventListener("click", () => {
-            select.value = option.value;
-            select.dispatchEvent(new Event("change", { bubbles: true }));
-            proxy.open = false;
-            queueMicrotask(syncHistoryFilterProxies);
-            summary.focus();
-          });
-          menu.appendChild(button);
+      const parent = select.parentElement;
+      const anchor = select.previousSibling;
+      const { proxy, destroy } = createSelectProxy({
+        select,
+        classPrefix: "pha-history-select",
+        ariaLabel: select.getAttribute("aria-label") || select.id || "History filter",
+        fallbackLabel: "All (*)",
+        getSelectedLabel: () => select.selectedOptions?.[0]?.textContent,
+        onChange: syncHistoryFilterProxies,
+        onOpen: (currentProxy) => {
+          for (const other of shadow.querySelectorAll(".pha-history-select-proxy[open]")) {
+            if (other !== currentProxy) other.open = false;
+          }
         }
-      };
-      proxy.addEventListener("toggle", () => {
-        if (!proxy.open) return;
-        for (const other of shadow.querySelectorAll(".pha-history-select-proxy[open]")) {
-          if (other !== proxy) other.open = false;
-        }
-        rebuild();
       });
-      select.addEventListener("change", () => queueMicrotask(syncHistoryFilterProxies));
+      if (anchor) anchor.after(proxy);
+      else parent?.prepend(proxy);
+      SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+      trackSelectProxy(select, destroy);
     }
     syncHistoryFilterProxies();
   }
@@ -1135,41 +1001,19 @@ export function createClosedHud(options = {}) {
       syncCatchGalleryProxy();
       return;
     }
-    const proxy = document.createElement("details");
-    proxy.className = "pha-gallery-select-proxy";
-    const summary = document.createElement("summary");
-    summary.className = "pha-gallery-select-summary";
-    summary.setAttribute("aria-label", "Filter Catch Gallery by rarity");
-    const menu = document.createElement("div");
-    menu.className = "pha-gallery-select-menu";
-    menu.setAttribute("role", "listbox");
-    select.before(proxy);
-    proxy.append(select, summary, menu);
-    SELECT_PROXY_BY_ELEMENT.set(select, proxy);
-
-    const rebuild = () => {
-      menu.replaceChildren();
-      for (const option of select.options) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "pha-gallery-select-option";
-        button.setAttribute("role", "option");
-        button.setAttribute("aria-selected", String(option.selected));
-        button.textContent = option.textContent;
-        button.addEventListener("click", () => {
-          select.value = option.value;
-          select.dispatchEvent(new Event("change", { bubbles: true }));
-          proxy.open = false;
-          syncCatchGalleryProxy();
-          summary.focus();
-        });
-        menu.appendChild(button);
-      }
-    };
-    proxy.addEventListener("toggle", () => {
-      if (proxy.open) rebuild();
+    const parent = select.parentElement;
+    const anchor = select.previousSibling;
+    const { proxy, destroy } = createSelectProxy({
+      select,
+      classPrefix: "pha-gallery-select",
+      ariaLabel: "Filter Catch Gallery by rarity",
+      fallbackLabel: "All rarities",
+      onChange: syncCatchGalleryProxy
     });
-    select.addEventListener("change", syncCatchGalleryProxy);
+    if (anchor) anchor.after(proxy);
+    else parent?.prepend(proxy);
+    SELECT_PROXY_BY_ELEMENT.set(select, proxy);
+    trackSelectProxy(select, destroy);
     syncCatchGalleryProxy();
   }
 
@@ -1199,8 +1043,17 @@ export function createClosedHud(options = {}) {
     layoutObserver = null;
     if (!shadow || typeof MutationObserver === "undefined") return;
 
-    layoutObserver = new MutationObserver(() => {
-      applyLayoutPolish();
+    layoutObserver = new MutationObserver((mutations) => {
+      if (
+        layoutReconcileQueued ||
+        !mutationNeedsLayoutReconcile(mutations)
+      ) return;
+
+      layoutReconcileQueued = true;
+      queueMicrotask(() => {
+        layoutReconcileQueued = false;
+        if (shadow) applyLayoutPolish();
+      });
     });
     layoutObserver.observe(shadow, {
       childList: true,
@@ -1284,6 +1137,8 @@ export function createClosedHud(options = {}) {
     observer = null;
     layoutObserver?.disconnect();
     layoutObserver = null;
+    layoutReconcileQueued = false;
+    for (const cleanup of [...selectProxyCleanups]) cleanup();
     style?.remove();
     if (launcher) launcher.removeAttribute("data-hud-columns");
     hud.dispose();

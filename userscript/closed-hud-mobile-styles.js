@@ -807,8 +807,9 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
 
 :host([data-ui-mode="mobile"]) .pha-current-select-summary {
   width: 100%;
+  height: 44px;
   min-height: 44px;
-  padding: 0 28px 0 8px;
+  padding: 8px 22px 8px 5px;
   display: flex;
   align-items: center;
   box-sizing: border-box;
@@ -829,9 +830,9 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
 }
 
 :host([data-ui-mode="mobile"]) .pha-current-select-summary::after {
-  content: "⌄";
+  content: "▾";
   position: absolute;
-  right: 8px;
+  right: 7px;
 }
 
 :host([data-ui-mode="mobile"]) .pha-current-select-menu {

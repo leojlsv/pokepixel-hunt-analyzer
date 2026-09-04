@@ -158,6 +158,14 @@ test("Mobile bounds Current Captured and Failed Shiny menus", () => {
     MOBILE_CLOSED_HUD_STYLES,
     /\.pha-current-select-option \{[\s\S]*background: var\(--bg-elevated\);[\s\S]*color: var\(--text\);/
   );
+  assert.match(
+    MOBILE_CLOSED_HUD_STYLES,
+    /\.pha-current-select-summary \{[^}]*height: 44px;[^}]*padding: 8px 22px 8px 5px;/
+  );
+  assert.match(
+    MOBILE_CLOSED_HUD_STYLES,
+    /\.pha-current-select-summary::after \{[^}]*content: "▾";[^}]*right: 7px;/
+  );
 });
 
 test("Mobile bounds all History filter menus", () => {

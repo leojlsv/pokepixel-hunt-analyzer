@@ -100,6 +100,10 @@ export const MOBILE_STYLES = String.raw`
   padding: 8px;
 }
 
+:host([data-ui-mode="mobile"]) .current-view > * {
+  flex-shrink: 0;
+}
+
 :host([data-ui-mode="mobile"]) .live-card {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
@@ -357,6 +361,10 @@ export const MOBILE_STYLES = String.raw`
 
 :host([data-ui-mode="mobile"]) .encounter-section .table-wrap {
   display: block;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
+  touch-action: pan-y;
 }
 
 :host([data-ui-mode="mobile"]) .encounter-section th[data-encounter-sort] {

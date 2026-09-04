@@ -8,7 +8,8 @@ import {
 } from "../services/huntDeletion.js";
 import {
   computeSessionMetrics,
-  refreshSessionMetrics
+  refreshSessionMetrics,
+  updateSessionMetricsForEncounter
 } from "../domain/sessionMetrics.js";
 import { EVENT_TYPES } from "../domain/events.js";
 import { createTabLeadership } from "./tab-leadership.js";
@@ -58,6 +59,7 @@ let updateQueue = Promise.resolve();
 let eventRefreshTimer = null;
 let cachedSessionId = null;
 let cachedEncounters = [];
+let cachedEncounterIndexes = new Map();
 let cachedAggregateMetrics = null;
 let encounterDataRevision = 0;
 let cachedEncounterRevision = -1;
@@ -92,11 +94,50 @@ function markEncounterListDirty() {
 function invalidateEncounterCache() {
   cachedSessionId = null;
   cachedEncounters = [];
+  cachedEncounterIndexes = new Map();
   cachedAggregateMetrics = null;
   cachedEncounterRevision = -1;
   cachedEncounterListRevision = -1;
   lastEncounterSyncAt = 0;
   markEncounterListDirty();
+}
+
+function recordEncounterChanges(rows, { listChanged = false } = {}) {
+  encounterDataRevision += 1;
+  if (listChanged) encounterListRevision += 1;
+
+  if (
+    !cachedSessionId ||
+    cachedEncounterRevision < 0 ||
+    !cachedAggregateMetrics ||
+    rows.some((row) => row.sessionId !== cachedSessionId)
+  ) {
+    return;
+  }
+
+  for (const row of rows) {
+    const index = cachedEncounterIndexes.get(row.encounterId);
+    const previous = index === undefined ? null : cachedEncounters[index];
+
+    cachedAggregateMetrics = updateSessionMetricsForEncounter(
+      cachedAggregateMetrics,
+      previous,
+      row
+    );
+
+    if (index === undefined) {
+      cachedEncounterIndexes.set(row.encounterId, cachedEncounters.length);
+      cachedEncounters.push(row);
+    } else {
+      cachedEncounters[index] = row;
+    }
+  }
+
+  cachedEncounterRevision = encounterDataRevision;
+  if (listChanged) {
+    cachedEncounterListRevision = encounterListRevision;
+    encounterListSnapshotVersion += 1;
+  }
 }
 
 function markCatchGalleryBeta() {
@@ -201,7 +242,11 @@ function enqueueProtocolEvent(payload, socketId) {
         catchGallery?.markDirty();
       }
 
-      if (TERMINAL_LIST_EVENTS.has(payload.type)) {
+      if (eventResult?.changedEncounters?.length > 0) {
+        recordEncounterChanges(eventResult.changedEncounters, {
+          listChanged: TERMINAL_LIST_EVENTS.has(payload.type)
+        });
+      } else if (TERMINAL_LIST_EVENTS.has(payload.type)) {
         markEncounterListDirty();
       } else if (METRIC_DATA_EVENTS.has(payload.type)) {
         markMetricDataDirty();
@@ -238,6 +283,9 @@ async function performCurrentLoad() {
     cachedEncounters = session
       ? await encountersRepository.getBySessionId(sessionId)
       : [];
+    cachedEncounterIndexes = new Map(
+      cachedEncounters.map((encounter, index) => [encounter.encounterId, index])
+    );
 
     const listSnapshotChanged =
       sessionChanged ||

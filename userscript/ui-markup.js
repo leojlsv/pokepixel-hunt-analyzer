@@ -1,7 +1,7 @@
 import { HISTORY_STYLES } from "./history-styles.js";
 import { RARITIES } from "./ui-utils.js";
 
-const APP_VERSION = __APP_VERSION__;
+const APP_VERSION = typeof __APP_VERSION__ === "undefined" ? "test" : __APP_VERSION__;
 export const REF_CODE = "Q4BSZJD";
 
 function createRarityRowsMarkup() {
@@ -66,11 +66,11 @@ function createEncounterSectionMarkup(prefix, title) {
   const filters = isFailed
     ? `
         ${rarityFilter}
-        <label style="${filterStyle}">Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+        <label class="shiny-filter-field" style="${filterStyle}">Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
         <label style="${filterStyle}">IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>`
     : `
         ${rarityFilter}
-        <label style="${filterStyle}">Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+        <label class="shiny-filter-field" style="${filterStyle}">Shiny<select id="${prefix}-shiny"><option value="*">All (*)</option><option value="yes">Yes</option><option value="no">No</option></select></label>
         <label style="${filterStyle}">Quality &gt;<input id="${prefix}-quality" type="number" step="0.01"></label>
         <label style="${filterStyle}">IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>`;
   const headers = isFailed
@@ -145,6 +145,7 @@ function createHistoryMarkup() {
 
       <div class="history-toolbar">
         <span id="history-count" class="section-badge">0 Hunts</span>
+        <button id="history-load-more" class="history-more-button history-load-more" type="button" hidden>Load More</button>
       </div>
 
       <section data-history-panel="hunts">

@@ -146,3 +146,101 @@ export function computeSessionMetrics({ session, encounters = [], now = Date.now
 
   return refreshSessionMetrics(aggregate, session, now);
 }
+
+function encounterContribution(encounter) {
+  if (!encounter) {
+    return {
+      trainerExp: 0,
+      pokemonExp: 0,
+      gold: 0,
+      capsulesCost: 0,
+      ...computeRarityBreakdown([])
+    };
+  }
+
+  return {
+    trainerExp: Number(encounter.trainerExp) || 0,
+    pokemonExp: Number(encounter.pokemonExp) || 0,
+    gold:
+      (Number(encounter.gold) || 0) +
+      (Number(encounter.lootSellValue) || 0) +
+      (encounter.autoSold ? Number(encounter.autoSellValue) || 0 : 0),
+    capsulesCost: Number(encounter.supplyCost) || 0,
+    ...computeRarityBreakdown([encounter])
+  };
+}
+
+/**
+ * Replaces one encounter's contribution without rescanning the Hunt. The
+ * caller still refreshes session clock/status fields with refreshSessionMetrics.
+ */
+export function updateSessionMetricsForEncounter(
+  metrics,
+  previousEncounter,
+  nextEncounter
+) {
+  if (!metrics) return null;
+
+  const previous = encounterContribution(previousEncounter);
+  const next = encounterContribution(nextEncounter);
+  const difference = (field) => next[field] - previous[field];
+  const rarities = {};
+
+  for (const quality of ["unknown", ...QUALITIES]) {
+    rarities[quality] = {};
+    for (const field of [
+      "seen",
+      "captured",
+      "failed",
+      "shinySeen",
+      "shinyCaptured",
+      "shinyFailed"
+    ]) {
+      rarities[quality][field] =
+        metrics.rarities[quality][field] +
+        next.rarities[quality][field] -
+        previous.rarities[quality][field];
+    }
+  }
+
+  const shiny = {};
+  for (const field of ["seen", "captured", "failed"]) {
+    shiny[field] = metrics.shiny[field] + next.shiny[field] - previous.shiny[field];
+  }
+
+  const captured = metrics.captured + difference("captured");
+  const failed = metrics.failed + difference("failed");
+  const seen = captured + failed;
+  const trainerExp = metrics.trainerExp + difference("trainerExp");
+  const pokemonExp = metrics.pokemonExp + difference("pokemonExp");
+  const gold = metrics.gold + difference("gold");
+  const capsulesCost = metrics.capsulesCost + difference("capsulesCost");
+  const expenses = capsulesCost + (metrics.potionsCost || 0);
+
+  return {
+    ...metrics,
+    trainerExp,
+    trainerExpPerHour: perHour(trainerExp, metrics.activeMs),
+    pokemonExp,
+    pokemonExpPerHour: perHour(pokemonExp, metrics.activeMs),
+    gold,
+    goldPerHour: perHour(gold, metrics.activeMs),
+    seen,
+    seenPerHour: perHour(seen, metrics.activeMs),
+    captured,
+    failed,
+    seenToCaptureRate: rate(captured, seen),
+    attemptRate: rate(captured, captured + failed),
+    rarePlusFailed:
+      rarities.rare.failed +
+      rarities.epic.failed +
+      rarities.legendary.failed +
+      rarities.mythical.failed,
+    rarities,
+    shiny,
+    hasUnknownQuality: rarities.unknown.seen > 0,
+    capsulesCost,
+    expenses,
+    expensesPerHour: perHour(expenses, metrics.activeMs)
+  };
+}

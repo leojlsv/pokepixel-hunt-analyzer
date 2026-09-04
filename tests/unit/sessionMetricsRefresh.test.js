@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   computeSessionMetrics,
-  refreshSessionMetrics
+  refreshSessionMetrics,
+  updateSessionMetricsForEncounter
 } from "../../domain/sessionMetrics.js";
 
 function session(overrides = {}) {
@@ -63,4 +64,54 @@ test("refreshSessionMetrics applies session-only potion and status changes", () 
   assert.equal(refreshed.potionsUsed, 4);
   assert.equal(refreshed.potionsCost, 80);
   assert.equal(refreshed.expenses, 80);
+});
+
+test("incremental encounter replacement matches a complete metrics rebuild", () => {
+  const sourceSession = session();
+  const first = {
+    encounterId: "e1",
+    captureResult: null,
+    quality: "rare",
+    trainerExp: 100,
+    pokemonExp: 50,
+    gold: 25,
+    lootSellValue: 5,
+    supplyCost: 0,
+    autoSold: false,
+    isShiny: true
+  };
+  const finalized = {
+    ...first,
+    captureResult: "failed",
+    supplyCost: 20
+  };
+  const second = {
+    encounterId: "e2",
+    captureResult: "success",
+    quality: "common",
+    trainerExp: 40,
+    pokemonExp: 20,
+    gold: 10,
+    lootSellValue: 2,
+    autoSold: true,
+    autoSellValue: 30,
+    supplyCost: 8,
+    isShiny: false
+  };
+
+  let incremental = computeSessionMetrics({
+    session: sourceSession,
+    encounters: [first],
+    now: 2_000
+  });
+  incremental = updateSessionMetricsForEncounter(incremental, first, finalized);
+  incremental = updateSessionMetricsForEncounter(incremental, null, second);
+
+  const rebuilt = computeSessionMetrics({
+    session: sourceSession,
+    encounters: [finalized, second],
+    now: 2_000
+  });
+
+  assert.deepEqual(incremental, rebuilt);
 });

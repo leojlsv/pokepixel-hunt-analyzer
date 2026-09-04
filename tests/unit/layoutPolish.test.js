@@ -141,8 +141,8 @@ test("UI mode removes its proxy and exposes the native select directly on Deskto
   assert.match(RUNTIME, /function syncUiModeProxy\(\)/);
   assert.match(RUNTIME, /const modeControl = SELECT_PROXY_BY_ELEMENT\.get\(modeSelect\) \|\| modeSelect/);
   assert.match(RUNTIME, /modeSlot\.appendChild\(modeControl\)/);
-  assert.match(RUNTIME, /proxy\.className = "pha-ui-mode-proxy"/);
-  assert.match(RUNTIME, /if \(!isMobile\) \{[\s\S]*proxy\.before\(select\);[\s\S]*SELECT_PROXY_BY_ELEMENT\.delete\(select\);[\s\S]*proxy\.remove\(\);/);
+  assert.match(RUNTIME, /createSelectProxy\(\{[\s\S]*classPrefix: "pha-ui-mode"/);
+  assert.match(RUNTIME, /if \(!isMobile\) \{[\s\S]*proxy\.before\(select\);[\s\S]*releaseSelectProxy\(select\);[\s\S]*proxy\.remove\(\);/);
   assert.match(RUNTIME, /if \(shadow\.host\?\.dataset\.uiMode !== "mobile"\) return/);
 });
 

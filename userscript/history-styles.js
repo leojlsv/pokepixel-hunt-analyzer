@@ -78,8 +78,13 @@ export const HISTORY_STYLES = String.raw`
 .history-toolbar {
   min-height: 20px;
   display: flex;
+  gap: 6px;
   justify-content: flex-end;
   align-items: center;
+}
+
+.history-load-more {
+  margin: 0;
 }
 
 .history-table-wrap {

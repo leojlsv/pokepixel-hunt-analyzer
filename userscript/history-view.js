@@ -15,7 +15,8 @@ import {
   speciesLabel
 } from "./ui-utils.js";
 
-const HISTORY_SESSION_LIMIT = 20;
+const HISTORY_PAGE_SIZE = 20;
+const HISTORY_LOAD_CONCURRENCY = 4;
 const ATTEMPT_BATCH_SIZE = 100;
 
 const RARITY_SHORT = new Map([
@@ -117,11 +118,70 @@ function distinctElements(encounters) {
   ))].sort();
 }
 
+export async function mapWithConcurrency(items, mapper, concurrency = 4) {
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1) {
+    throw new RangeError("concurrency must be a positive safe integer");
+  }
+
+  const results = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(items[index], index);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, worker)
+  );
+  return results;
+}
+
+export async function loadHistoryPage({
+  loadSessions,
+  loadSessionEncounters,
+  range = {},
+  before = range.before ?? Infinity,
+  pageSize = HISTORY_PAGE_SIZE,
+  concurrency = HISTORY_LOAD_CONCURRENCY,
+  now = Date.now
+}) {
+  const rows = await loadSessions({
+    ...range,
+    before,
+    limit: pageSize + 1
+  });
+  const sessions = rows.slice(0, pageSize);
+  const bundles = await mapWithConcurrency(
+    sessions,
+    async (session) => {
+      const encounters = await loadSessionEncounters(session.sessionId);
+      return {
+        session,
+        encounters,
+        metrics: computeSessionMetrics({ session, encounters, now: now() })
+      };
+    },
+    concurrency
+  );
+
+  return {
+    bundles,
+    nextBefore: rows.length > pageSize && sessions.length > 0
+      ? sessions[sessions.length - 1].startedAtMs
+      : null
+  };
+}
+
 export function createHistoryView(shadow, { loadSessions, loadSessionEncounters }) {
   let bundles = [];
   let activeSubview = "hunts";
   let attemptRenderCount = ATTEMPT_BATCH_SIZE;
   let loading = false;
+  let nextBefore = null;
   const expandedHunts = new Set();
   const expandedAttempts = new Set();
   const expandedPokemon = new Set();
@@ -135,6 +195,7 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     element: "*",
     shiny: "*"
   };
+  let activeRange = periodRange(filters.period);
 
   bindControls();
 
@@ -178,6 +239,10 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
       event.currentTarget.setAttribute("aria-expanded", String(!advanced.hidden));
     });
 
+    shadow.getElementById("history-load-more").addEventListener("click", () => {
+      void loadMore();
+    });
+
     const attemptsWrap = shadow.getElementById("history-attempts-wrap");
     attemptsWrap.addEventListener("scroll", () => {
       if (activeSubview !== "attempts") return;
@@ -193,23 +258,18 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
   async function refresh() {
     if (loading) return;
     loading = true;
+    nextBefore = null;
+    activeRange = periodRange(filters.period);
     setStatus("Loading…");
 
     try {
-      const range = periodRange(filters.period);
-      const sessions = await loadSessions({ limit: HISTORY_SESSION_LIMIT, ...range });
-      const loaded = [];
-
-      for (const session of sessions) {
-        const encounters = await loadSessionEncounters(session.sessionId);
-        loaded.push({
-          session,
-          encounters,
-          metrics: computeSessionMetrics({ session, encounters, now: Date.now() })
-        });
-      }
-
-      bundles = loaded;
+      const page = await loadHistoryPage({
+        loadSessions,
+        loadSessionEncounters,
+        range: activeRange
+      });
+      bundles = page.bundles;
+      nextBefore = page.nextBefore;
       expandedHunts.clear();
       expandedAttempts.clear();
       expandedPokemon.clear();
@@ -219,6 +279,29 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
       render();
     } finally {
       loading = false;
+      syncLoadMore();
+    }
+  }
+
+  async function loadMore() {
+    if (loading || nextBefore === null) return;
+    loading = true;
+    syncLoadMore();
+
+    try {
+      const page = await loadHistoryPage({
+        loadSessions,
+        loadSessionEncounters,
+        range: activeRange,
+        before: nextBefore
+      });
+      bundles.push(...page.bundles);
+      nextBefore = page.nextBefore;
+      populateFilters();
+      render();
+    } finally {
+      loading = false;
+      syncLoadMore();
     }
   }
 
@@ -302,11 +385,20 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
 
   function setStatus(text) {
     shadow.getElementById("history-count").textContent = text;
+    syncLoadMore();
+  }
+
+  function syncLoadMore() {
+    const button = shadow.getElementById("history-load-more");
+    if (!button) return;
+    button.hidden = nextBefore === null;
+    button.disabled = loading;
+    button.textContent = loading ? "Loading…" : "Load More";
   }
 
   function renderHunts() {
     const rows = visibleBundles();
-    setStatus(`${rows.length} ${rows.length === 1 ? "Hunt" : "Hunts"}`);
+    setStatus(`${rows.length} ${rows.length === 1 ? "Hunt" : "Hunts"}${nextBefore !== null ? " · more available" : ""}`);
     const body = shadow.getElementById("history-hunts-body");
     const fragment = document.createDocumentFragment();
 

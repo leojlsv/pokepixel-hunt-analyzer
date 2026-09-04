@@ -155,6 +155,17 @@ test("landscape may promote only core metrics to four columns", () => {
   );
 });
 
+test("mobile Current keeps one vertical scroll surface when encounter sections expand", () => {
+  assert.match(
+    MOBILE_STYLES,
+    /\.current-view > \* \{[^}]*flex-shrink: 0;/
+  );
+  assert.match(
+    MOBILE_STYLES,
+    /\.encounter-section \.table-wrap \{[^}]*max-height: none;[^}]*overflow-y: visible;[^}]*touch-action: pan-y;/
+  );
+});
+
 test("mobile History lets filter menus overlay the filter block", () => {
   assert.match(
     MOBILE_STYLES,

@@ -304,8 +304,8 @@ th.sortable:focus-visible {
 }
 
 .tabs {
-  position: sticky;
-  top: 46px;
+  position: relative;
+  top: auto;
   z-index: 9;
   padding: 9px 10px;
   display: flex;
@@ -552,6 +552,40 @@ th.sortable:focus-visible {
   color: var(--text);
   box-shadow: none;
   font-size: 10px;
+}
+
+.filters select {
+  width: 100%;
+  display: block;
+  line-height: 15px;
+}
+
+:host(:not([data-ui-mode="mobile"])) .filters .shiny-filter-field {
+  position: relative;
+}
+
+:host(:not([data-ui-mode="mobile"])) .filters .shiny-filter-field select {
+  appearance: none;
+  padding-right: 22px;
+}
+
+:host(:not([data-ui-mode="mobile"])) .filters .shiny-filter-field::after {
+  content: "▾";
+  position: absolute;
+  right: 7px;
+  bottom: 8px;
+  color: var(--muted);
+  line-height: 1;
+  pointer-events: none;
+}
+
+:host(:not([data-ui-mode="mobile"])) .encounter-section .filters > label,
+:host(:not([data-ui-mode="mobile"])) .encounter-section .filters > .filter-field {
+  height: 41px;
+  display: grid;
+  grid-template-rows: 11px 27px;
+  gap: 3px;
+  align-items: stretch;
 }
 
 .table-wrap { max-height: 245px; overflow: auto; }
