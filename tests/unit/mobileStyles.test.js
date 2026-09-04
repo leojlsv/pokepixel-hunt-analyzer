@@ -155,6 +155,13 @@ test("landscape may promote only core metrics to four columns", () => {
   );
 });
 
+test("mobile Captured fits without horizontal scrolling", () => {
+  assert.match(
+    MOBILE_STYLES,
+    /#captured-section \.table-wrap \{\s*\n\s*overflow-x: hidden;/
+  );
+});
+
 test("mobile Catch Gallery uses its full header as the collapse target", () => {
   assert.match(
     MOBILE_STYLES,
@@ -209,11 +216,6 @@ test("mobile Catch Gallery lets its rarity menu overlay the table", () => {
   );
 });
 
-test("mobile Attempts reserves visible width for every column including IV", () => {
-  assert.match(MOBILE_STYLES, /\.history-attempts-table th:nth-child\(1\),[\s\S]*width: 16%;/);
-  assert.match(MOBILE_STYLES, /\.history-attempts-table th:nth-child\(2\),[\s\S]*width: 26%;/);
-  assert.match(MOBILE_STYLES, /\.history-attempts-table th:nth-child\(3\),[\s\S]*width: 11%;/);
-  assert.match(MOBILE_STYLES, /\.history-attempts-table th:nth-child\(4\),[\s\S]*width: 12%;/);
-  assert.match(MOBILE_STYLES, /\.history-attempts-table th:nth-child\(5\),[\s\S]*width: 25%;/);
-  assert.match(MOBILE_STYLES, /\.history-attempts-table th:nth-child\(6\),[\s\S]*width: 10%;/);
+test("mobile Attempts inherits the shared semantic column layout", () => {
+  assert.doesNotMatch(MOBILE_STYLES, /\.history-attempts-table (?:th|td):nth-child/);
 });

@@ -75,7 +75,7 @@ function createEncounterSectionMarkup(prefix, title) {
         <label style="${filterStyle}">IV &gt;<input id="${prefix}-iv" type="number" step="1"></label>`;
   const headers = isFailed
     ? `<th>Pokémon</th>${sortableHeader(prefix, "iv", "IV", "Order by IV Total")}<th>Pokéball</th><th>Chance</th>${sortableHeader(prefix, "capturedAt", "Fled at", "Order by fail timestamp")}`
-    : `${sortableHeader(prefix, "capturedAt", "Pokémon", "Order by capture timestamp")}<th title="Gender">G</th><th>Nat</th>${sortableHeader(prefix, "quality", "Qlt", "Order by Quality")}${sortableHeader(prefix, "iv", "HP · Atk · sAtk · Def · sDef · SpD", "Order by IV Total")}`;
+    : `${sortableHeader(prefix, "capturedAt", "Pokémon", "Order by capture timestamp")}<th title="Gender">G</th><th>Nat</th>${sortableHeader(prefix, "quality", "Qlt", "Order by Quality")}${sortableHeader(prefix, "iv", 'HP · <span class="iv-atk">Atk</span> · <span class="iv-spatk">sAtk</span> · Def · sDef · SpD', "Order by IV Total")}`;
   const columns = isFailed ? 3 : 4;
 
   return `
@@ -91,7 +91,12 @@ function createEncounterSectionMarkup(prefix, title) {
         ${filters}
       </div>
       <div class="table-wrap">
-        <table>
+        <table class="${prefix}-table">
+          <colgroup>
+            ${isFailed
+              ? '<col class="failed-pokemon-col"><col class="failed-iv-col"><col class="failed-ball-col"><col class="failed-chance-col"><col class="failed-time-col">'
+              : '<col class="captured-pokemon-col"><col class="captured-gender-col"><col class="captured-nature-col"><col class="captured-quality-col"><col class="captured-iv-col">'}
+          </colgroup>
           <thead><tr>${headers}</tr></thead>
           <tbody id="${prefix}-body"></tbody>
         </table>
@@ -151,6 +156,9 @@ function createHistoryMarkup() {
       <section data-history-panel="hunts">
         <div class="table-wrap history-table-wrap">
           <table class="history-hunts-table">
+            <colgroup>
+              <col class="history-hunt-date-col"><col class="history-hunt-duration-col"><col class="history-hunt-metric-col"><col class="history-hunt-metric-col"><col class="history-hunt-priority-col"><col class="history-hunt-priority-col"><col class="history-hunt-priority-col">
+            </colgroup>
             <thead><tr>
               <th>Date</th><th>Dur.</th><th>Seen</th><th>Cap.</th><th>Sh</th><th>Leg</th><th>Myt</th>
             </tr></thead>
@@ -162,6 +170,9 @@ function createHistoryMarkup() {
       <section data-history-panel="pokemon" hidden>
         <div class="table-wrap history-table-wrap">
           <table class="history-pokemon-table">
+            <colgroup>
+              <col class="history-pokemon-name-col"><col class="history-pokemon-level-col"><col class="history-pokemon-count-col"><col class="history-pokemon-count-col"><col class="history-pokemon-rate-col"><col class="history-pokemon-output-col"><col class="history-pokemon-output-col">
+            </colgroup>
             <thead><tr>
               <th>Pokémon</th><th>Lvl</th><th>Seen</th><th>Cap.</th><th>Rate</th><th>XP/Cyc</th><th>$/Cyc</th>
             </tr></thead>
@@ -173,6 +184,9 @@ function createHistoryMarkup() {
       <section data-history-panel="attempts" hidden>
         <div id="history-attempts-wrap" class="table-wrap history-table-wrap">
           <table class="history-attempts-table">
+            <colgroup>
+              <col class="history-attempt-time-col"><col class="history-attempt-pokemon-col"><col class="history-attempt-rarity-col"><col class="history-attempt-result-col"><col class="history-attempt-ball-col"><col class="history-attempt-iv-col">
+            </colgroup>
             <thead><tr>
               <th>At</th><th>Pokémon</th><th>Rar.</th><th>Result</th><th>Ball</th><th>IV</th>
             </tr></thead>
@@ -290,12 +304,8 @@ export function createUiMarkup() {
       }
 
       #failed-section .table-wrap { overflow-x:hidden; }
-      #failed-section table { table-layout:fixed; }
-      #failed-section th:nth-child(1), #failed-section td:nth-child(1) { width:24%; }
-      #failed-section th:nth-child(2), #failed-section td:nth-child(2) { width:10%; text-align:right; }
-      #failed-section th:nth-child(3), #failed-section td:nth-child(3) { width:24%; }
-      #failed-section th:nth-child(4), #failed-section td:nth-child(4) { width:14%; text-align:right; }
-      #failed-section th:nth-child(5), #failed-section td:nth-child(5) { width:28%; }
+      #failed-section th:nth-child(2), #failed-section td:nth-child(2),
+      #failed-section th:nth-child(4), #failed-section td:nth-child(4) { text-align:right; }
       #failed-section td:nth-child(1),
       #failed-section td:nth-child(3) { overflow:hidden; text-overflow:ellipsis; }
       #failed-section .failed-static-row { cursor:default; }
@@ -367,7 +377,10 @@ export function createUiMarkup() {
             </div>
           </div>
           <div class="table-wrap">
-            <table>
+            <table class="rarity-table">
+              <colgroup>
+                <col class="rarity-name-col"><col class="rarity-metric-col"><col class="rarity-metric-col"><col class="rarity-metric-col"><col class="rarity-rate-col">
+              </colgroup>
               <thead><tr><th>Rarity</th><th>Seen</th><th>Cap.</th><th>Fail</th><th>Rate</th></tr></thead>
               <tbody id="rarity-body">${createRarityRowsMarkup()}</tbody>
             </table>

@@ -367,6 +367,10 @@ export const MOBILE_STYLES = String.raw`
   touch-action: pan-y;
 }
 
+:host([data-ui-mode="mobile"]) #captured-section .table-wrap {
+  overflow-x: hidden;
+}
+
 :host([data-ui-mode="mobile"]) .encounter-section th[data-encounter-sort] {
   min-height: 40px;
   padding-top: 10px;
@@ -422,19 +426,6 @@ export const MOBILE_STYLES = String.raw`
 :host([data-ui-mode="mobile"]) .history-attempt-row:active > td {
   background: #30312c;
 }
-
-:host([data-ui-mode="mobile"]) .history-attempts-table th:nth-child(1),
-:host([data-ui-mode="mobile"]) .history-attempts-table td:nth-child(1) { width: 16%; }
-:host([data-ui-mode="mobile"]) .history-attempts-table th:nth-child(2),
-:host([data-ui-mode="mobile"]) .history-attempts-table td:nth-child(2) { width: 26%; }
-:host([data-ui-mode="mobile"]) .history-attempts-table th:nth-child(3),
-:host([data-ui-mode="mobile"]) .history-attempts-table td:nth-child(3) { width: 11%; }
-:host([data-ui-mode="mobile"]) .history-attempts-table th:nth-child(4),
-:host([data-ui-mode="mobile"]) .history-attempts-table td:nth-child(4) { width: 12%; }
-:host([data-ui-mode="mobile"]) .history-attempts-table th:nth-child(5),
-:host([data-ui-mode="mobile"]) .history-attempts-table td:nth-child(5) { width: 25%; }
-:host([data-ui-mode="mobile"]) .history-attempts-table th:nth-child(6),
-:host([data-ui-mode="mobile"]) .history-attempts-table td:nth-child(6) { width: 10%; }
 
 /* M6: secondary controls keep their existing layouts while gaining Mobile touch targets. */
 :host([data-ui-mode="mobile"]) .alpha-button {

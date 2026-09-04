@@ -590,6 +590,27 @@ th.sortable:focus-visible {
 
 .table-wrap { max-height: 245px; overflow: auto; }
 .table-wrap table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+.rarity-table,
+.captured-table,
+.failed-table { table-layout: fixed; }
+.rarity-name-col { width: 28%; }
+.rarity-metric-col,
+.rarity-rate-col { width: 18%; }
+.captured-pokemon-col { width: 20%; }
+.captured-gender-col { width: 7%; }
+.captured-nature-col { width: 16%; }
+.captured-quality-col { width: 12%; }
+.captured-iv-col { width: 45%; }
+.captured-table { max-width: 100%; }
+.captured-table th:last-child { padding-right: 4px; padding-left: 4px; font-size: 9px; }
+.captured-table td:not(:last-child) { overflow: hidden; text-overflow: ellipsis; }
+.iv-atk { color: #e598b7; font-weight: 700; }
+.iv-spatk { color: #7fb3e8; font-weight: 700; }
+.failed-pokemon-col { width: 24%; }
+.failed-iv-col { width: 10%; }
+.failed-ball-col { width: 24%; }
+.failed-chance-col { width: 14%; }
+.failed-time-col { width: 28%; }
 th, td { padding: 5px 9px; text-align: left; border-bottom: 1px solid #383934; }
 th {
   position: sticky;
@@ -608,6 +629,7 @@ tbody tr:last-child td { border-bottom: 0; }
 .shiny-count { color: var(--gold); font-weight: 800; }
 
 .encounter-section .table-wrap { max-height: 168px; }
+#captured-section .table-wrap { overflow-x: hidden; }
 .encounter-section th,
 .encounter-section td { height: 28px; }
 .encounter-row-shiny td { background: #383323; }

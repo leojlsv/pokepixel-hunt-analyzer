@@ -29,6 +29,16 @@ const RARITY_SHORT = new Map([
   ["mythical", "Myt"]
 ]);
 
+function addColumnGroup(table, classNames) {
+  const group = document.createElement("colgroup");
+  for (const className of classNames) {
+    const column = document.createElement("col");
+    column.className = className;
+    group.appendChild(column);
+  }
+  table.appendChild(group);
+}
+
 function startOfLocalDay(timestamp) {
   const date = new Date(timestamp);
   date.setHours(0, 0, 0, 0);
@@ -549,6 +559,13 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     const wrap = document.createElement("div");
     wrap.className = "history-notable-list";
     const table = document.createElement("table");
+    addColumnGroup(table, [
+      "history-notable-time-col",
+      "history-notable-pokemon-col",
+      "history-notable-result-col",
+      "history-notable-ball-col",
+      "history-notable-iv-col"
+    ]);
     const head = document.createElement("thead");
     const headRow = document.createElement("tr");
     ["At", "Pokémon", "Result", "Ball", "IV"].forEach((label) => {
@@ -671,6 +688,13 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     cell.colSpan = 7;
     const table = document.createElement("table");
     table.className = "history-pokemon-rarity-table";
+    addColumnGroup(table, [
+      "history-pokemon-rarity-name-col",
+      "history-pokemon-rarity-metric-col",
+      "history-pokemon-rarity-metric-col",
+      "history-pokemon-rarity-metric-col",
+      "history-pokemon-rarity-metric-col"
+    ]);
 
     const head = document.createElement("thead");
     const headRow = document.createElement("tr");

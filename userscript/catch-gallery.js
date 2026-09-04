@@ -39,11 +39,14 @@ const STYLES = `
   .catch-gallery-table { table-layout:fixed; }
   .catch-gallery-table th,
   .catch-gallery-table td { height:29px; padding:5px 7px; vertical-align:middle; }
-  .catch-gallery-table th:nth-child(1) { width:25%; }
-  .catch-gallery-table th:nth-child(2) { width:21%; }
-  .catch-gallery-table th:nth-child(3) { width:12%; text-align:right; }
-  .catch-gallery-table th:nth-child(4) { width:9%; text-align:right; }
-  .catch-gallery-table th:nth-child(5) { width:33%; text-align:right; }
+  .catch-gallery-pokemon-col { width:25%; }
+  .catch-gallery-captured-col { width:21%; }
+  .catch-gallery-quality-col { width:12%; }
+  .catch-gallery-iv-col { width:12%; }
+  .catch-gallery-actions-col { width:30%; }
+  .catch-gallery-table th:nth-child(3),
+  .catch-gallery-table th:nth-child(4),
+  .catch-gallery-table th:nth-child(5) { text-align:right; }
   .catch-gallery-table td:nth-child(3),
   .catch-gallery-table td:nth-child(4),
   .catch-gallery-table td:nth-child(5) { text-align:right; }
@@ -370,6 +373,9 @@ export function createCatchGallery({ loadEncounters }) {
       </div>
       <div class="table-wrap">
         <table class="catch-gallery-table">
+          <colgroup>
+            <col class="catch-gallery-pokemon-col"><col class="catch-gallery-captured-col"><col class="catch-gallery-quality-col"><col class="catch-gallery-iv-col"><col class="catch-gallery-actions-col">
+          </colgroup>
           <thead>
             <tr>
               <th>Pokémon</th>
