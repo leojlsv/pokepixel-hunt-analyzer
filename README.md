@@ -4,11 +4,12 @@ Analytics de Hunt em tempo real para **PokePixel**, direto dentro do jogo.
 
 O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** que observa passivamente eventos do jogo, organiza Hunts e calcula métricas de eficiência sem automatizar gameplay.
 
-**Versão:** `v1.12.1`  
-**Core Analyzer:** estável  
-**Capture Ticket:** BETA  
-**Dados e analytics:** locais  
-**Automação de gameplay:** nenhuma
+- **Versão:** `v1.13.0`
+- **Core Analyzer:** estável
+- **Desktop e Mobile:** suportados
+- **Capture Ticket:** BETA
+- **Dados e analytics:** locais
+- **Automação de gameplay:** nenhuma
 
 > Projeto não oficial da comunidade. Não possui vínculo com PokePixel, Nintendo, Game Freak ou The Pokémon Company.
 
@@ -41,9 +42,23 @@ Desde a v1.12.1, o caminho de tracking/refresh preserva explicitamente a ordem d
 
 O Current usa cache de snapshots e agregados reutilizáveis para evitar reprocessamento excessivo em Hunts longas.
 
+### Mobile
+
+Desde a v1.13.0, o Analyzer oferece uma interface Mobile completa sem substituir ou simplificar os recursos existentes:
+
+- detecção automática de celular, com override manual em `Misc > Interface > UI Mode`;
+- barra inferior fixa de 54px para `Current`, `History`, `Misc` e `HUD`;
+- controles e áreas de toque adaptados;
+- dropdowns limitados à área visível;
+- seções colapsáveis e uma única superfície principal de rolagem;
+- tabelas proporcionais que preservam colunas importantes em telas estreitas;
+- Capture Ticket ajustado ao viewport Mobile.
+
+O layout Desktop continua independente. Posição, tamanho e preferências de cada modo são persistidos separadamente.
+
 ### Closed HUD customizável
 
-A partir da v1.12.0, o HUD minimizado usa um grid fixo **2x2 com 4 unidades**. O botão `HUD` no header permite escolher presets ou montar uma composição Custom que persiste localmente.
+A partir da v1.12.0, o HUD minimizado usa um grid fixo **2x2 com 4 unidades**. O botão `HUD` no header permite escolher presets ou montar uma composição Custom que persiste localmente. Na v1.13.0, o Mobile também ganhou os modos **One Column**, com dois widgets empilhados, e **PX Only**, com apenas o launcher compacto.
 
 Catálogo disponível:
 
@@ -125,7 +140,7 @@ Cada combinação pode usar:
 - Sound 2;
 - Custom Audio.
 
-O botão global de speaker permite **Mute / Unmute** sem apagar as escolhas individuais e preserva o estado após reload.
+O botão global de speaker permite **Mute / Unmute** sem apagar as escolhas individuais. A v1.13.0 também adiciona volume global persistente e permite recolher toda a seção Sound Alerts.
 
 Custom Audio:
 
@@ -172,7 +187,7 @@ O painel pode ser:
 - parcialmente transparente pelo controle `α`;
 - recolhido por seção.
 
-Posição, tamanho, transparência, Closed HUD e estado visual são preservados localmente.
+Posição, tamanho, transparência, modo de interface, Closed HUD e estado visual são preservados localmente.
 
 ---
 
@@ -224,9 +239,20 @@ O namespace histórico do userscript é preservado para manter compatibilidade d
 
 Use a extensão oficial do Tampermonkey para seu navegador.
 
-O Analyzer é desenvolvido principalmente em **Microsoft Edge / Chromium desktop**.
+O Analyzer é desenvolvido para **Microsoft Edge / Chromium Desktop e Microsoft Edge Mobile**.
 
 Chrome/Edge atuais podem exigir **Allow User Scripts / Permitir scripts de usuário** nas configurações da extensão.
+
+### Microsoft Edge Mobile
+
+1. Atualize o Edge pela Play Store ou App Store.
+2. No Edge, abra `Menu > Extensões`.
+3. Instale o [Tampermonkey oficial](https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd).
+4. Ainda no mesmo Edge, abra o link direto do userscript abaixo e confirme **Instalar** no Tampermonkey.
+
+### [📱 Instalar diretamente no Edge Mobile](https://github.com/leojlsv/pokepixel-hunt-analyzer/releases/latest/download/pokepixel-hunt-analyzer.user.js)
+
+Se o arquivo for baixado sem abrir a tela de instalação, confirme que o Tampermonkey está ativado em `Menu > Extensões` e abra novamente o link no mesmo navegador.
 
 ## 2. Instale o userscript
 
@@ -269,7 +295,7 @@ Contrato completo: [`docs/TAMPERMONKEY_UPDATES.md`](docs/TAMPERMONKEY_UPDATES.md
 ### Navegação
 
 ```text
-Current | History | Misc
+Current | History | Misc | HUD
 ```
 
 ### Múltiplas abas
@@ -289,9 +315,10 @@ Isso evita contagem duplicada.
 |---|---|
 | Microsoft Edge desktop | ✅ Validado |
 | Google Chrome / Chromium desktop | ✅ Alvo suportado |
+| Microsoft Edge Mobile (Android) | ✅ Validado |
+| Microsoft Edge Mobile (iOS) | 🟡 Suportado pelo Edge/Tampermonkey; requer mais validação comunitária |
 | Firefox 128+ | 🟡 Build compatível; requer mais validação comunitária |
 | Outros navegadores + Tampermonkey | 🟡 Não testados oficialmente |
-| Mobile | ⚪ Fora do escopo atual |
 
 `Copy` do Capture Ticket também depende de suporte a `navigator.clipboard.write()` / `ClipboardItem`.
 
@@ -348,11 +375,16 @@ userscript/
 ├── tab-leadership.js
 ├── ui.js
 ├── ui-markup.js
+├── ui-mode.js
+├── ui-state.js
 ├── current-view.js
+├── current-refresh-gate.js
 ├── history-view.js
 ├── history-delete.js
 ├── closed-hud.js
 ├── closed-hud-runtime.js
+├── closed-hud-one-column.js
+├── closed-hud-mobile-styles.js
 ├── inventory-state.js
 ├── audio-alerts.js
 ├── audio-alerts-runtime.js
@@ -361,6 +393,8 @@ userscript/
 ├── capture-ticket.js
 ├── remote-image-loader.js
 ├── png-metadata.js
+├── select-proxy.js
+├── mobile-styles.js
 └── styles.js
 
 domain/
@@ -386,7 +420,7 @@ eventPipeline.js
         ↓
 domain + IndexedDB
         ↓
-Current / History / Misc / Closed HUD
+Current / History / Misc / HUD / Closed HUD
 ```
 
 Documentação técnica:
