@@ -427,6 +427,50 @@ test("resending the exact same socketId|type|seq counts as a duplicate, not a ne
   assert.equal(diagnostics.orphanEvents, 0);
 });
 
+test("production dedupe registry stays within its configured event limit", async () => {
+  const { pipeline } = await setup(() => 0, { dedupeEventLimit: 3 });
+
+  for (let seq = 1; seq <= 5; seq += 1) {
+    await pipeline.handle(
+      combatStarted({ wildId: `wild_${seq}`, seq, ts: seq * 1000 })
+    );
+  }
+
+  const diagnostics = await pipeline.getDiagnosticsSnapshot();
+  assert.equal(diagnostics.dedupeRegistrySize, 3);
+});
+
+test("production dedupe rejects recent duplicates and eventually evicts the oldest key", async () => {
+  const { pipeline } = await setup(() => 0, { dedupeEventLimit: 2 });
+  const oldest = combatStarted({ wildId: "wild_1", seq: 1, ts: 1000 });
+
+  const firstResult = await pipeline.handle(oldest);
+  assert.equal(firstResult.ok, true);
+  assert.equal(firstResult.terminalAlert, null);
+  assert.equal(firstResult.changedEncounters.length, 1);
+  assert.deepEqual(await pipeline.handle(oldest), { ok: true, duplicate: true });
+
+  await pipeline.handle(combatStarted({ wildId: "wild_2", seq: 2, ts: 2000 }));
+  await pipeline.handle(combatStarted({ wildId: "wild_3", seq: 3, ts: 3000 }));
+
+  const replayAfterEviction = await pipeline.handle(oldest);
+  assert.equal(replayAfterEviction.ok, true);
+  assert.equal(replayAfterEviction.duplicate, undefined);
+
+  const diagnostics = await pipeline.getDiagnosticsSnapshot();
+  assert.equal(diagnostics.dedupeRegistrySize, 2);
+  assert.equal(diagnostics.duplicateEvents, 1);
+});
+
+test("event pipeline rejects invalid dedupe limits", async () => {
+  const db = await openDatabase({ indexedDBFactory: new IDBFactory() });
+
+  assert.throws(
+    () => createEventPipeline(db, { dedupeEventLimit: 0 }),
+    /positive safe integer/
+  );
+});
+
 test("an orphan encounter (loot with no active correlated encounter) counts as an orphan event", async () => {
   const { pipeline } = await setup();
 

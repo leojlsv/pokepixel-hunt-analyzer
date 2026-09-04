@@ -1,16 +1,23 @@
 import { STYLES } from "./styles.js";
+import { MOBILE_STYLES } from "./mobile-styles.js";
 import { createCurrentView } from "./current-view.js";
 import { createHistoryView } from "./history-view.js";
 import { createUiMarkup, REF_CODE } from "./ui-markup.js";
+import {
+  normalizeUiModeOverride,
+  resolveUiMode
+} from "./ui-mode.js";
+import { createUiStateStore } from "./ui-state.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
-const UI_STATE_KEY = "pokepixel_hunt_analyzer_ui_v1";
 const COLLAPSE_KEY = "pokepixel_hunt_analyzer_collapsed_v1";
 const ALPHA_KEY = "pokepixel_hunt_analyzer_alpha_v1";
 const EDGE_GAP = 8;
 const MIN_PANEL_WIDTH_PX = 430;
 const MIN_PANEL_HEIGHT_PX = 280;
 const ALPHA_LEVELS = [1, 0.9, 0.8, 0.7, 0.6, 0.5];
+const MOBILE_LAUNCHER_DRAG_THRESHOLD_PX = 8;
+const DESKTOP_LAUNCHER_DRAG_THRESHOLD_PX = 4;
 
 function readJson(key, fallback) {
   try {
@@ -34,6 +41,16 @@ export function createUi({
   onLoadHistorySessions,
   onLoadHistorySessionEncounters
 }) {
+  const uiStateStore = createUiStateStore(localStorage);
+  const initialUiState = uiStateStore.read();
+  const uiMode = resolveUiMode({
+    override: initialUiState.shared.modeOverride,
+    matchMedia: window.matchMedia?.bind(window),
+    innerWidth: window.innerWidth,
+    innerHeight: window.innerHeight
+  });
+
+  let host;
   let shadow;
   let panel;
   let launcher;
@@ -48,20 +65,23 @@ export function createUi({
   function mount() {
     document.getElementById(ROOT_ID)?.remove();
 
-    const host = document.createElement("div");
+    host = document.createElement("div");
     host.id = ROOT_ID;
+    host.dataset.uiMode = uiMode;
     shadow = host.attachShadow({ mode: "open" });
 
     const style = document.createElement("style");
-    style.textContent = STYLES;
+    style.textContent = `${STYLES}\n${MOBILE_STYLES}`;
     const wrapper = document.createElement("div");
     wrapper.innerHTML = createUiMarkup();
     shadow.append(style, wrapper);
     document.documentElement.appendChild(host);
 
     panel = shadow.getElementById("pha-panel");
-    panel.style.minWidth = `${MIN_PANEL_WIDTH_PX}px`;
-    panel.style.minHeight = `${MIN_PANEL_HEIGHT_PX}px`;
+    if (uiMode === "desktop") {
+      panel.style.minWidth = `${MIN_PANEL_WIDTH_PX}px`;
+      panel.style.minHeight = `${MIN_PANEL_HEIGHT_PX}px`;
+    }
     launcher = shadow.getElementById("pha-toggle");
     currentView = createCurrentView(shadow);
     historyView = createHistoryView(shadow, {
@@ -70,13 +90,16 @@ export function createUi({
     });
 
     bindUiEvents();
+    installUiModeControl();
     restoreUiState();
-    installPanelDrag();
+    if (uiMode === "desktop") {
+      installPanelDrag();
+      installBottomLeftResize();
+      installWheelScrolling();
+      installResizePersistence();
+    }
     installLauncherDrag();
-    installBottomLeftResize();
-    installWheelScrolling();
     installViewportGuard();
-    installResizePersistence();
     applyCollapseState();
     applyAlpha(readAlpha());
   }
@@ -99,6 +122,34 @@ export function createUi({
     for (const button of shadow.querySelectorAll("[data-collapse]")) {
       button.addEventListener("click", () => toggleCollapse(button.dataset.collapse));
     }
+  }
+
+  function installUiModeControl() {
+    const meta = shadow.querySelector(".brand-meta");
+    if (!meta) return;
+
+    const select = document.createElement("select");
+    select.className = "pha-ui-mode-select";
+    select.title = `UI mode: ${initialUiState.shared.modeOverride} · active: ${uiMode}`;
+    select.setAttribute("aria-label", "Analyzer UI mode");
+
+    for (const [value, label] of [
+      ["auto", "Auto"],
+      ["desktop", "Desktop"],
+      ["mobile", "Mobile"]
+    ]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      select.appendChild(option);
+    }
+
+    select.value = normalizeUiModeOverride(initialUiState.shared.modeOverride);
+    select.addEventListener("change", () => {
+      uiStateStore.patchShared({ modeOverride: normalizeUiModeOverride(select.value) });
+      window.location.reload();
+    });
+    meta.appendChild(select);
   }
 
   function switchView(view) {
@@ -125,28 +176,30 @@ export function createUi({
     const badge = shadow.getElementById("pha-tab-state");
     badge.textContent = isActive ? "ACTIVE" : "STANDBY";
     badge.className = isActive ? "state active" : "state standby";
+    badge.title = `Analyzer ${badge.textContent}`;
+    badge.setAttribute("aria-label", badge.title);
   }
 
   function setPanelOpen(open) {
     panel.hidden = !open;
+    if (uiMode === "mobile") launcher.hidden = open;
     if (resizeHandle) resizeHandle.hidden = !open;
     saveUiState({ open });
-    if (open) {
+    if (open && uiMode === "desktop") {
       fitToViewport(panel);
       syncResizeHandle();
     }
   }
 
   function saveUiState(patch) {
-    const state = readJson(UI_STATE_KEY, {});
-    writeJson(UI_STATE_KEY, { ...state, ...patch });
+    uiStateStore.patchShared(patch);
   }
 
   function savePanelGeometry() {
-    if (panel.hidden) return;
+    if (uiMode !== "desktop" || panel.hidden) return;
     const rect = panel.getBoundingClientRect();
     if (rect.width < 100 || rect.height < 100) return;
-    saveUiState({
+    uiStateStore.patchDesktop({
       panel: {
         left: Math.round(rect.left),
         top: Math.round(rect.top),
@@ -157,47 +210,90 @@ export function createUi({
   }
 
   function saveLauncherGeometry() {
+    if (launcher.hidden) return;
     const rect = launcher.getBoundingClientRect();
-    saveUiState({
-      launcher: {
-        left: Math.round(rect.left),
-        top: Math.round(rect.top)
-      }
-    });
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const launcherGeometry = {
+      left: Math.round(rect.left),
+      top: Math.round(rect.top)
+    };
+    if (uiMode === "mobile") uiStateStore.patchMobile({ launcher: launcherGeometry });
+    else uiStateStore.patchDesktop({ launcher: launcherGeometry });
   }
 
-  function restoreUiState() {
-    const state = readJson(UI_STATE_KEY, {});
-    const panelState = state.panel;
-    if (panelState) {
-      if (Number.isFinite(panelState.width)) panel.style.width = `${panelState.width}px`;
-      if (Number.isFinite(panelState.height)) panel.style.height = `${panelState.height}px`;
-      if (Number.isFinite(panelState.left) && Number.isFinite(panelState.top)) {
-        panel.style.left = `${panelState.left}px`;
-        panel.style.top = `${panelState.top}px`;
-        panel.style.right = "auto";
-        panel.style.bottom = "auto";
-      }
+  function applyPanelGeometry(panelState) {
+    if (!panelState) return;
+    if (Number.isFinite(panelState.width)) panel.style.width = `${panelState.width}px`;
+    if (Number.isFinite(panelState.height)) panel.style.height = `${panelState.height}px`;
+    if (Number.isFinite(panelState.left) && Number.isFinite(panelState.top)) {
+      panel.style.left = `${panelState.left}px`;
+      panel.style.top = `${panelState.top}px`;
+      panel.style.right = "auto";
+      panel.style.bottom = "auto";
     }
+  }
 
-    const launcherState = state.launcher;
-    if (launcherState && Number.isFinite(launcherState.left) && Number.isFinite(launcherState.top)) {
+  function applyLauncherGeometry(launcherState) {
+    if (!launcherState) return;
+    if (Number.isFinite(launcherState.left) && Number.isFinite(launcherState.top)) {
       launcher.style.left = `${launcherState.left}px`;
       launcher.style.top = `${launcherState.top}px`;
       launcher.style.right = "auto";
       launcher.style.bottom = "auto";
     }
+  }
+
+  function restoreUiState() {
+    const state = uiStateStore.read();
+    if (uiMode === "desktop") {
+      applyPanelGeometry(state.desktop.panel);
+      applyLauncherGeometry(state.desktop.launcher);
+    } else {
+      applyLauncherGeometry(state.mobile.launcher);
+    }
 
     fitToViewport(launcher);
-    switchView(state.view === "history" ? "history" : "current");
-    setPanelOpen(state.open === true);
+    switchView(state.shared.view);
+    setPanelOpen(state.shared.open === true);
+  }
+
+  function safeAreaInset(name) {
+    if (uiMode !== "mobile" || !host) return 0;
+    const raw = getComputedStyle(host).getPropertyValue(`--pha-safe-${name}`);
+    const value = Number.parseFloat(raw);
+    return Number.isFinite(value) ? Math.max(0, value) : 0;
+  }
+
+  function viewportBounds() {
+    if (uiMode !== "mobile") {
+      return {
+        left: EDGE_GAP,
+        top: EDGE_GAP,
+        right: window.innerWidth - EDGE_GAP,
+        bottom: window.innerHeight - EDGE_GAP
+      };
+    }
+
+    const visual = window.visualViewport;
+    const viewportLeft = Number.isFinite(visual?.offsetLeft) ? visual.offsetLeft : 0;
+    const viewportTop = Number.isFinite(visual?.offsetTop) ? visual.offsetTop : 0;
+    const viewportWidth = Number.isFinite(visual?.width) ? visual.width : window.innerWidth;
+    const viewportHeight = Number.isFinite(visual?.height) ? visual.height : window.innerHeight;
+
+    return {
+      left: viewportLeft + safeAreaInset("left") + EDGE_GAP,
+      top: viewportTop + safeAreaInset("top") + EDGE_GAP,
+      right: viewportLeft + viewportWidth - safeAreaInset("right") - EDGE_GAP,
+      bottom: viewportTop + viewportHeight - safeAreaInset("bottom") - EDGE_GAP
+    };
   }
 
   function fitToViewport(element) {
     const rect = element.getBoundingClientRect();
     if (rect.width <= 0 || rect.height <= 0) return;
-    const left = clamp(rect.left, EDGE_GAP, window.innerWidth - rect.width - EDGE_GAP);
-    const top = clamp(rect.top, EDGE_GAP, window.innerHeight - rect.height - EDGE_GAP);
+    const bounds = viewportBounds();
+    const left = clamp(rect.left, bounds.left, bounds.right - rect.width);
+    const top = clamp(rect.top, bounds.top, bounds.bottom - rect.height);
     if (left !== rect.left || top !== rect.top) {
       element.style.left = `${left}px`;
       element.style.top = `${top}px`;
@@ -212,7 +308,7 @@ export function createUi({
 
     handle.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
-      if (event.target.closest("button, .state")) return;
+      if (event.target.closest("button, .state, select")) return;
       const rect = panel.getBoundingClientRect();
       panel.style.left = `${rect.left}px`;
       panel.style.top = `${rect.top}px`;
@@ -229,15 +325,16 @@ export function createUi({
 
     handle.addEventListener("pointermove", (event) => {
       if (!drag || drag.pointerId !== event.pointerId) return;
+      const bounds = viewportBounds();
       const left = clamp(
         event.clientX - drag.offsetX,
-        EDGE_GAP,
-        window.innerWidth - panel.offsetWidth - EDGE_GAP
+        bounds.left,
+        bounds.right - panel.offsetWidth
       );
       const top = clamp(
         event.clientY - drag.offsetY,
-        EDGE_GAP,
-        window.innerHeight - panel.offsetHeight - EDGE_GAP
+        bounds.top,
+        bounds.bottom - panel.offsetHeight
       );
       panel.style.left = `${left}px`;
       panel.style.top = `${top}px`;
@@ -256,6 +353,9 @@ export function createUi({
 
   function installLauncherDrag() {
     let drag = null;
+    const threshold = uiMode === "mobile"
+      ? MOBILE_LAUNCHER_DRAG_THRESHOLD_PX
+      : DESKTOP_LAUNCHER_DRAG_THRESHOLD_PX;
 
     launcher.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
@@ -277,19 +377,20 @@ export function createUi({
 
     launcher.addEventListener("pointermove", (event) => {
       if (!drag || drag.pointerId !== event.pointerId) return;
-      if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 4) {
+      if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > threshold) {
         drag.moved = true;
       }
       if (!drag.moved) return;
+      const bounds = viewportBounds();
       const left = clamp(
         event.clientX - drag.offsetX,
-        EDGE_GAP,
-        window.innerWidth - launcher.offsetWidth - EDGE_GAP
+        bounds.left,
+        bounds.right - launcher.offsetWidth
       );
       const top = clamp(
         event.clientY - drag.offsetY,
-        EDGE_GAP,
-        window.innerHeight - launcher.offsetHeight - EDGE_GAP
+        bounds.top,
+        bounds.bottom - launcher.offsetHeight
       );
       launcher.style.left = `${left}px`;
       launcher.style.top = `${top}px`;
@@ -450,18 +551,33 @@ export function createUi({
 
   function installViewportGuard() {
     let timer = null;
-    window.addEventListener("resize", () => {
+
+    const schedule = () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        if (!panel.hidden) {
-          fitToViewport(panel);
-          savePanelGeometry();
+        if (uiMode === "desktop") {
+          if (!panel.hidden) {
+            fitToViewport(panel);
+            savePanelGeometry();
+          }
+          if (!launcher.hidden) {
+            fitToViewport(launcher);
+            saveLauncherGeometry();
+          }
+          syncResizeHandle();
+          return;
         }
-        fitToViewport(launcher);
-        saveLauncherGeometry();
-        syncResizeHandle();
+
+        if (!launcher.hidden) fitToViewport(launcher);
       }, 100);
-    });
+    };
+
+    window.addEventListener("resize", schedule);
+    if (uiMode === "mobile") {
+      window.addEventListener("orientationchange", schedule);
+      window.visualViewport?.addEventListener("resize", schedule);
+      window.visualViewport?.addEventListener("scroll", schedule);
+    }
   }
 
   function readCollapseState() {
@@ -557,6 +673,7 @@ export function createUi({
   return {
     renderCurrent,
     setActive,
-    getActiveView: () => activeView
+    getActiveView: () => activeView,
+    getUiMode: () => uiMode
   };
 }

@@ -26,6 +26,7 @@ import { SCHEMA_VERSION } from "../data/migrations.js";
 const KNOWN_EVENT_TYPES = new Set(EVENT_TYPES);
 const DIAGNOSTICS_FLUSH_MS = 1_000;
 const RECENT_EVENT_LIMIT = 50;
+const DEFAULT_DEDUPE_EVENT_LIMIT = 10_000;
 
 function protocolDedupeKey(message) {
   return `${message.socketId}|${message.type}|${message.seq}`;
@@ -37,18 +38,36 @@ function addPatch(target, patch) {
   }
 }
 
-export function createEventPipeline(db, { now = Date.now, appVersion = null } = {}) {
+export function createEventPipeline(
+  db,
+  {
+    now = Date.now,
+    appVersion = null,
+    dedupeEventLimit = DEFAULT_DEDUPE_EVENT_LIMIT
+  } = {}
+) {
+  if (!Number.isSafeInteger(dedupeEventLimit) || dedupeEventLimit < 1) {
+    throw new RangeError("dedupeEventLimit must be a positive safe integer");
+  }
+
   const sessionsRepo = createSessionsRepository(db, { now });
   const encountersRepo = createEncountersRepository(db);
   const configsRepo = createConfigsRepository(db, { now });
   const diagnosticsRepo = createDiagnosticsRepository(db);
 
-  // Keep the complete runtime dedupe history here as one append-only Set.
-  // The domain reducer remains independently dedupe-safe for unit callers,
-  // but the production pipeline clears its per-state copy after each event.
-  // This preserves exact socketId|type|seq semantics without cloning an
-  // ever-growing Set once or twice for every protocol event.
+  // Bound production dedupe memory while preserving exact
+  // socketId|type|seq semantics for the most recent protocol window.
   const seenEventKeys = new Set();
+  const seenEventQueue = [];
+
+  function rememberEventKey(key) {
+    seenEventKeys.add(key);
+    seenEventQueue.push(key);
+
+    if (seenEventQueue.length > dedupeEventLimit) {
+      seenEventKeys.delete(seenEventQueue.shift());
+    }
+  }
 
   // Diagnostics must never sit in front of encounter persistence. Counters are
   // accumulated in memory and flushed as a best-effort background batch.
@@ -214,6 +233,7 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
 
   async function applyEffects(effects) {
     let sessionId;
+    const changedEncounters = new Map();
 
     async function currentSessionId() {
       if (sessionId === undefined) {
@@ -253,22 +273,29 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
         case "encounter.create": {
           const resolvedSessionId = await currentSessionId();
           const row = await finishRowForPersistence(effect.row, resolvedSessionId);
-          await encountersRepo.create(row);
+          const created = await encountersRepo.create(row);
+          changedEncounters.set(created.encounterId, created);
           break;
         }
 
-        case "encounter.update":
-          await encountersRepo.update(effect.encounterId, effect.patch);
+        case "encounter.update": {
+          const updated = await encountersRepo.update(effect.encounterId, effect.patch);
+          changedEncounters.set(updated.encounterId, updated);
           break;
+        }
 
-        case "encounter.finalize":
-          await persistFinalizedEncounter(effect);
+        case "encounter.finalize": {
+          const finalized = await persistFinalizedEncounter(effect);
+          changedEncounters.set(finalized.encounterId, finalized);
           break;
+        }
 
         default:
           break;
       }
     }
+
+    return changedEncounters;
   }
 
   /**
@@ -299,7 +326,7 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
       recordRuntimeEvent(message, "duplicate");
       return { ok: true, duplicate: true };
     }
-    seenEventKeys.add(dedupeKey);
+    rememberEventKey(dedupeKey);
 
     const envelope = {
       type: message.type,
@@ -309,19 +336,22 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
       data: normalized
     };
 
-    // Production dedupe is handled by the append-only registry above. Keep
+    // Production dedupe is handled by the bounded registry above. Keep
     // the reducer's own Set empty between events so its immutable state
     // cloning remains O(active encounters), not O(total events in the Hunt).
     trackerState = { ...trackerState, seenKeys: new Set() };
 
     const swept = sweepStale(trackerState, now());
     trackerState = swept.state;
-    await applyEffects(swept.effects);
+    const changedEncounters = await applyEffects(swept.effects);
 
     const terminalAlert = buildTerminalAlert(envelope, trackerState);
     const result = applyEvent(trackerState, envelope);
     trackerState = { ...result.state, seenKeys: new Set() };
-    await applyEffects(result.effects);
+    const resultChanges = await applyEffects(result.effects);
+    for (const [encounterId, row] of resultChanges) {
+      changedEncounters.set(encounterId, row);
+    }
 
     const orphansCreated = result.effects.filter(
       (effect) => effect.type === "encounter.create" && effect.row.state === "orphan"
@@ -332,7 +362,11 @@ export function createEventPipeline(db, { now = Date.now, appVersion = null } = 
     }
 
     recordRuntimeEvent(message, "accepted");
-    return { ok: true, terminalAlert };
+    return {
+      ok: true,
+      terminalAlert,
+      changedEncounters: [...changedEncounters.values()]
+    };
   }
 
   async function getDiagnosticsSnapshot() {

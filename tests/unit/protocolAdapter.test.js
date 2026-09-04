@@ -244,3 +244,88 @@ test("legacy protocol events pass through unchanged", () => {
 
   assert.deepEqual(adapter.adapt(payload), [payload]);
 });
+
+test("temporary capture and kill registries stay within their configured limit", () => {
+  const adapter = createProtocolAdapter({
+    now: () => 1_000,
+    runtimeEntryLimit: 3
+  });
+
+  adapter.adapt({
+    type: "hunt.capture_queue",
+    seq: 1,
+    ts: 1_000,
+    data: {
+      add: Array.from({ length: 5 }, (_, index) => ({
+        id: index + 1,
+        lv: 4,
+        sp: "pidgey"
+      }))
+    }
+  });
+
+  adapter.adapt({
+    type: "loot.received",
+    seq: 2,
+    ts: 1_100,
+    data: {
+      per_kill: Array.from({ length: 5 }, (_, index) => ({
+        seq: index + 1,
+        exp: 1,
+        trainer_exp: 1,
+        pokemon_exp: 1,
+        gold: 1
+      }))
+    }
+  });
+
+  const snapshot = adapter.snapshot();
+  assert.equal(snapshot.captureQueueByKillSeq.size, 3);
+  assert.deepEqual([...snapshot.captureQueueByKillSeq.keys()], [3, 4, 5]);
+  assert.equal(snapshot.killsBySeq.size, 3);
+  assert.deepEqual([...snapshot.killsBySeq.keys()], [3, 4, 5]);
+});
+
+test("temporary protocol state expires after the correlation retention window", () => {
+  let clock = 1_000;
+  const adapter = createProtocolAdapter({
+    now: () => clock,
+    runtimeRetentionMs: 30_000,
+    runtimeEntryLimit: 10
+  });
+
+  adapter.adapt({
+    type: "hunt.capture_queue",
+    seq: 1,
+    ts: 1_000,
+    data: { add: [{ id: 10, lv: 4, sp: "pidgey" }] }
+  });
+  adapter.adapt({
+    type: "loot.received",
+    seq: 2,
+    ts: 1_100,
+    data: {
+      per_kill: [{ seq: 10, exp: 1, trainer_exp: 1, pokemon_exp: 1, gold: 1 }]
+    }
+  });
+
+  assert.equal(adapter.snapshot().captureQueueByKillSeq.size, 1);
+  assert.equal(adapter.snapshot().killsBySeq.size, 1);
+
+  clock = 31_001;
+  adapter.adapt({ type: "hunt.frame", seq: 3, ts: 31_001, data: null });
+
+  assert.equal(adapter.snapshot().captureQueueByKillSeq.size, 0);
+  assert.equal(adapter.snapshot().killsBySeq.size, 0);
+});
+
+test("protocol adapter rejects unsafe runtime retention settings", () => {
+  assert.throws(
+    () => createProtocolAdapter({ runtimeRetentionMs: 29_999 }),
+    /terminal match window/
+  );
+  assert.throws(
+    () => createProtocolAdapter({ runtimeEntryLimit: 0 }),
+    /positive safe integer/
+  );
+});

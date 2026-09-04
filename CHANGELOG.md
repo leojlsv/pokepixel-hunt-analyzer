@@ -5,6 +5,28 @@ The project follows Semantic Versioning.
 
 > Detailed historical notes that previously lived in this file through v1.11.1 are preserved verbatim in [`docs/CHANGELOG_ARCHIVE_PRE_1.12.md`](docs/CHANGELOG_ARCHIVE_PRE_1.12.md). This file keeps the release-level history concise from v1.12.0 forward.
 
+## [1.13.0] - 2026-09-04
+
+### Mobile interface
+- Added an automatic Mobile UI mode with a fixed 54px bottom navigation while preserving the existing Desktop layout and a manual UI mode override in Misc.
+- Adapted Current, History, Misc, HUD, Sound Alerts, Catch Gallery and Capture Ticket interactions for touch targets, bounded dropdowns and single-surface vertical scrolling.
+- Added isolated one-column and PX-only Closed HUD modes alongside the existing configurable HUD.
+
+### Interface and quality of life
+- Added a persistent global volume control and collapsible Sound Alerts section without changing individual Sound 1, Sound 2 or Custom selections.
+- Standardized responsive table columns across Current, History and Catch Gallery so important trailing values remain readable; Captured IV details now distinguish Atk and sAtk by color.
+- Improved navigation semantics, keyboard focus, filter geometry and section collapse behavior across Desktop and Mobile.
+
+### Runtime and scalability
+- Added single-tab leadership, bounded protocol correlation state, deduplicated/coalesced Current refreshes and incremental session-metric updates.
+- Reduced unnecessary DOM mutation work, bounded History loading with pagination and centralized reusable select-proxy lifecycle cleanup.
+- Preserved passive tracking behavior, the existing IndexedDB schema, production userscript identity and native Tampermonkey update channel.
+
+### Validation
+- Complete Desktop and Mobile manual validation approved across Current, History, Misc, HUD, Sound Alerts, Catch Gallery and Capture Ticket.
+- 405 automated tests pass, including the 4,000+ protocol fixture replay with 4,128 persisted encounters.
+- Production build and update invariants verified; dependency audit reports no known vulnerabilities.
+
 ## [1.12.1] - 2026-08-31
 
 ### Tracker integrity hotfix

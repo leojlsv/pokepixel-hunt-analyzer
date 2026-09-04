@@ -100,7 +100,9 @@ export function createAudioAlerts() {
         writeMuted(muted);
         syncMuteButton(shadow);
       });
-      meta.appendChild(button);
+      const collapseButton = meta.querySelector(".alert-collapse");
+      if (collapseButton) collapseButton.before(button);
+      else meta.appendChild(button);
     }
 
     syncMuteButton(shadow);

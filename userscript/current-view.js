@@ -40,18 +40,26 @@ function ivValues(ivs) {
   return values.some(Number.isFinite) ? values : null;
 }
 
-function ivDisplay(encounter) {
+function renderIvDisplay(cell, encounter) {
   const values = ivValues(encounter.ivs);
-  if (!values) return "—";
+  if (!values) {
+    cell.textContent = "—";
+    return;
+  }
 
-  const breakdown = values
-    .map((value) => (Number.isFinite(value) ? value : "—"))
-    .join("-");
   const total = Number.isFinite(encounter.ivTotal)
     ? encounter.ivTotal
     : values.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
-
-  return `${total} (${breakdown})`;
+  const labels = ["hp", "atk", "spatk", "def", "spdef", "speed"];
+  cell.append(document.createTextNode(`${total} (`));
+  values.forEach((value, index) => {
+    if (index > 0) cell.append(document.createTextNode("-"));
+    const part = document.createElement("span");
+    part.className = `iv-part iv-${labels[index]}`;
+    part.textContent = Number.isFinite(value) ? String(value) : "—";
+    cell.appendChild(part);
+  });
+  cell.append(document.createTextNode(")"));
 }
 
 function failedIvDisplay(encounter) {
@@ -560,7 +568,7 @@ export function createCurrentView(shadow) {
 
     const ivCell = document.createElement("td");
     ivCell.className = "iv-cell";
-    ivCell.textContent = ivDisplay(encounter);
+    renderIvDisplay(ivCell, encounter);
 
     row.append(pokemonCell, genderCell, natureCell, qualityCell, ivCell);
     row.addEventListener("click", () => toggleEncounterDetail(prefix, encounter.encounterId));
