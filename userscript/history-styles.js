@@ -368,6 +368,10 @@ export const HISTORY_STYLES = String.raw`
 .history-attempts-table th:nth-child(6),
 .history-attempts-table td:nth-child(6) { text-align: right; }
 
+/* Current > Failed: give Chance a little more room without changing total width. */
+.failed-chance-col { width: 16%; }
+.failed-time-col { width: 26%; }
+
 @container analyzer (max-width: 500px) {
   .history-filter-grid {
     gap: 5px;
