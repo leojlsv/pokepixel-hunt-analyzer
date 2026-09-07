@@ -4,7 +4,7 @@ Analytics de Hunt em tempo real para **PokePixel**, direto dentro do jogo.
 
 O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** que observa passivamente eventos do jogo, organiza Hunts e calcula métricas de eficiência sem automatizar gameplay.
 
-- **Versão:** `v1.13.0`
+- **Versão:** `v1.14.0`
 - **Core Analyzer:** estável
 - **Desktop e Mobile:** suportados
 - **Capture Ticket:** BETA
@@ -34,6 +34,8 @@ Acompanha a Hunt atual em tempo real:
 - Captured com filtros por Rarity, Shiny, Quality e IV;
 - Captured/Failed permitem combinar múltiplas Rarities no mesmo filtro, com `All (*)` selecionando todas;
 - Failed com filtros por Rarity, Shiny e IV e colunas diretas `Pokémon | IV | Pokéball | Chance | Fled at`;
+- Chance usa três casas decimais; valores positivos abaixo de `0.001%` aparecem como `<0.001%` nas tabelas compactas;
+- os resumos de `By Rarity`, `Captured` e `Failed` destacam ocorrências de Shiny;
 - `Fled at` mostra `HH:mm:ss` no dia inicial da Hunt e acrescenta `+Nd` quando a Hunt atravessa um ou mais dias locais; o hover preserva o timestamp completo;
 - Captured mostra o breakdown de IVs em `HP · Atk · sAtk · Def · sDef · SpD`;
 - detalhes de Captured incluem Capsule, timestamp e Chance quando disponível.
@@ -111,7 +113,7 @@ Substitui o antigo Compare e organiza o histórico em três visões:
 
 Filtros disponíveis incluem período, Pokémon, raridade, resultado, Capsule, Element e Shiny.
 
-Hunts podem ser expandidas para detalhes de XP/h, $/h, Profit, Expenses, Failed e notables.
+Hunts podem ser expandidas para detalhes de XP/h, $/h, Profit, Expenses, Failed e notables. Na v1.14.0, os Notables também exibem Pokémon e Chance, enquanto Attempts mostra Chance diretamente e usa a cor do nome do Pokémon para representar sua raridade, sem uma coluna `Rar.` separada.
 
 #### DELETE Hunt
 
@@ -186,6 +188,8 @@ O painel pode ser:
 - minimizado;
 - parcialmente transparente pelo controle `α`;
 - recolhido por seção.
+
+No Desktop, o header e a navegação principal permanecem visíveis durante a rolagem vertical do painel.
 
 Posição, tamanho, transparência, modo de interface, Closed HUD e estado visual são preservados localmente.
 
