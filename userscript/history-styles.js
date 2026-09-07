@@ -292,15 +292,18 @@ export const HISTORY_STYLES = String.raw`
   color: #c5b98f;
 }
 
-.history-notable-time-col { width: 16%; }
-.history-notable-pokemon-col { width: 29%; }
-.history-notable-result-col { width: 13%; }
-.history-notable-ball-col { width: 30%; }
+.history-notable-time-col { width: 14%; }
+.history-notable-pokemon-col { width: 25%; }
+.history-notable-result-col { width: 11%; }
+.history-notable-ball-col { width: 24%; }
+.history-notable-chance-col { width: 14%; }
 .history-notable-iv-col { width: 12%; }
 .history-notable-list th:nth-child(4),
 .history-notable-list td:nth-child(4) { text-align: left; }
 .history-notable-list th:nth-child(5),
-.history-notable-list td:nth-child(5) { text-align: right; }
+.history-notable-list td:nth-child(5),
+.history-notable-list th:nth-child(6),
+.history-notable-list td:nth-child(6) { text-align: right; }
 
 .history-result-captured { color: #70dfaa; }
 .history-result-fled { color: #ef8b82; }
@@ -336,13 +339,15 @@ export const HISTORY_STYLES = String.raw`
 .history-pokemon-rarity-table tbody tr.rarity-mythical td:first-child { color: #ff6384; }
 
 .history-attempt-time-col { width: 16%; }
-.history-attempt-pokemon-col { width: 26%; }
-.history-attempt-rarity-col { width: 11%; }
-.history-attempt-result-col { width: 12%; }
-.history-attempt-ball-col { width: 23%; }
-.history-attempt-iv-col { width: 12%; }
+.history-attempt-pokemon-col { width: 27%; }
+.history-attempt-result-col { width: 11%; }
+.history-attempt-ball-col { width: 22%; }
+.history-attempt-chance-col { width: 14%; }
+.history-attempt-iv-col { width: 10%; }
+.history-attempts-table th:nth-child(4),
+.history-attempts-table td:nth-child(4) { text-align: left; }
 .history-attempts-table th:nth-child(5),
-.history-attempts-table td:nth-child(5) { text-align: left; }
+.history-attempts-table td:nth-child(5),
 .history-attempts-table th:nth-child(6),
 .history-attempts-table td:nth-child(6) { text-align: right; }
 
