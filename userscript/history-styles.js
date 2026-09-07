@@ -1,4 +1,21 @@
 export const HISTORY_STYLES = String.raw`
+:host(:not([data-ui-mode="mobile"])) .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+:host(:not([data-ui-mode="mobile"])) .tabs {
+  position: sticky;
+  top: 46px;
+  z-index: 19;
+}
+
+.shiny-section-badge {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
 #rarity-section td {
   font-size: 11px;
 }
