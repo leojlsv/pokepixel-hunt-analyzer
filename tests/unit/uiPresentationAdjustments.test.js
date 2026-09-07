@@ -14,6 +14,8 @@ const [MARKUP, HISTORY_STYLES, HISTORY_VIEW, CURRENT_VIEW] = await Promise.all([
 test("formatRate keeps the existing default and supports precise capture chance", () => {
   assert.equal(formatRate(0.5), "50.00%");
   assert.equal(formatRate(0.00004, 3), "0.004%");
+  assert.equal(formatRate(4.1029411764705885e-7, 3), "0.000041%");
+  assert.equal(formatRate(0, 3), "0.000%");
 });
 
 test("capture chance uses three decimals in Current and History attempt surfaces", () => {
