@@ -309,12 +309,12 @@ export const HISTORY_STYLES = String.raw`
   color: #c5b98f;
 }
 
-.history-notable-time-col { width: 14%; }
-.history-notable-pokemon-col { width: 25%; }
-.history-notable-result-col { width: 11%; }
-.history-notable-ball-col { width: 24%; }
-.history-notable-chance-col { width: 14%; }
-.history-notable-iv-col { width: 12%; }
+.history-notable-time-col { width: 18%; }
+.history-notable-pokemon-col { width: 22%; }
+.history-notable-result-col { width: 10%; }
+.history-notable-ball-col { width: 20%; }
+.history-notable-chance-col { width: 20%; }
+.history-notable-iv-col { width: 10%; }
 .history-notable-list th:nth-child(4),
 .history-notable-list td:nth-child(4) { text-align: left; }
 .history-notable-list th:nth-child(5),
@@ -368,9 +368,9 @@ export const HISTORY_STYLES = String.raw`
 .history-attempts-table th:nth-child(6),
 .history-attempts-table td:nth-child(6) { text-align: right; }
 
-/* Current > Failed: give Chance a little more room without changing total width. */
-.failed-chance-col { width: 16%; }
-.failed-time-col { width: 26%; }
+/* Current > Failed: reserve enough room for a full 100.000% chance. */
+.failed-chance-col { width: 18%; }
+.failed-time-col { width: 24%; }
 
 @container analyzer (max-width: 500px) {
   .history-filter-grid {
