@@ -17,6 +17,8 @@ test("Current tables declare stable semantic columns", () => {
   assert.match(MARKUP, /class="\$\{prefix\}-table"[\s\S]*class="failed-time-col"/);
   assert.match(STYLES, /\.captured-iv-col \{ width: 45%; \}/);
   assert.match(STYLES, /\.failed-iv-col \{ width: 10%; \}/);
+  assert.match(HISTORY_STYLES, /\.failed-chance-col \{ width: 18%; \}/);
+  assert.match(HISTORY_STYLES, /\.failed-time-col \{ width: 24%; \}/);
 });
 
 test("Captured distinguishes physical and special attack IVs without changing their values", () => {
@@ -40,6 +42,11 @@ test("all primary History tables use shared proportional colgroups", () => {
 test("nested History tables declare their own semantic columns", () => {
   assert.match(HISTORY_VIEW, /addColumnGroup\(table, \[[\s\S]*"history-notable-chance-col"[\s\S]*"history-notable-iv-col"/);
   assert.match(HISTORY_VIEW, /addColumnGroup\(table, \[[\s\S]*"history-pokemon-rarity-name-col"/);
+  assert.match(HISTORY_STYLES, /\.history-notable-time-col \{ width: 18%; \}/);
+  assert.match(HISTORY_STYLES, /\.history-notable-pokemon-col \{ width: 22%; \}/);
+  assert.match(HISTORY_STYLES, /\.history-notable-ball-col \{ width: 20%; \}/);
+  assert.match(HISTORY_STYLES, /\.history-notable-chance-col \{ width: 20%; \}/);
+  assert.match(HISTORY_STYLES, /\.history-notable-iv-col \{ width: 10%; \}/);
 });
 
 test("Catch Gallery protects IV with a semantic column", () => {
