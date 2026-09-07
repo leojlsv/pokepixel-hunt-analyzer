@@ -5,6 +5,24 @@ The project follows Semantic Versioning.
 
 > Detailed historical notes that previously lived in this file through v1.11.1 are preserved verbatim in [`docs/CHANGELOG_ARCHIVE_PRE_1.12.md`](docs/CHANGELOG_ARCHIVE_PRE_1.12.md). This file keeps the release-level history concise from v1.12.0 forward.
 
+## [1.14.0] - 2026-09-07
+
+### Capture chance presentation
+- Capture chances now use three decimal places on the relevant Current and History surfaces, while non-zero values below `0.001%` render as `<0.001%` instead of appearing as zero or overflowing compact tables.
+- Current > Failed column widths were rebalanced so values up to `100.000%` remain readable without colliding with `Fled at`.
+- History > Hunts > Details notable rows were resized to preserve the timestamp, capture chance and IV columns in the compact nested table.
+
+### History and Current UI
+- Desktop top navigation now remains visible while vertically scrolling, without changing the Mobile positioning rules.
+- History > Hunts > Details > Notables now includes capture Chance alongside the existing Pokémon identification and encounter result data.
+- History > Attempts now includes Chance, removes the standalone Rarity column and applies rarity color directly to the Pokémon name.
+- Current `By Rarity`, `Captured` and `Failed` section summaries now expose shiny counts through compact shiny badges.
+
+### Validation
+- Final in-game UI and behavior were manually validated before release preparation.
+- Added regression coverage for capture chance formatting, History column structure, rarity-colored Attempts and shiny summary badges.
+- No IndexedDB migration, protocol contract change, dependency change or new userscript permission was introduced.
+
 ## [1.13.0] - 2026-09-04
 
 ### Mobile interface
