@@ -564,11 +564,12 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
       "history-notable-pokemon-col",
       "history-notable-result-col",
       "history-notable-ball-col",
+      "history-notable-chance-col",
       "history-notable-iv-col"
     ]);
     const head = document.createElement("thead");
     const headRow = document.createElement("tr");
-    ["At", "Pokémon", "Result", "Ball", "IV"].forEach((label) => {
+    ["At", "Pokémon", "Result", "Ball", "Chance", "IV"].forEach((label) => {
       const cell = document.createElement("th");
       cell.textContent = label;
       headRow.appendChild(cell);
@@ -584,6 +585,7 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
         `${speciesLabel(encounter)}${encounter.isShiny ? " *" : ""}`,
         encounter.captureResult === "success" ? "Cap." : "Fled",
         encounter.capsuleName || "—",
+        formatRate(encounter.captureChance, 3),
         ivTotal(encounter) ?? "—"
       ];
       values.forEach((value, index) => {
@@ -747,15 +749,18 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
       const values = [
         formatAttemptTime(encounter.captureAtMs),
         `${speciesLabel(encounter)}${encounter.isShiny ? " *" : ""}`,
-        RARITY_SHORT.get(encounter.quality) || "—",
         result,
         encounter.capsuleName || "—",
+        formatRate(encounter.captureChance, 3),
         ivTotal(encounter) ?? "—"
       ];
       values.forEach((value, index) => {
         const cell = document.createElement("td");
         cell.textContent = value;
-        if (index === 2) cell.className = rarityClass(encounter.quality);
+        if (index === 1) cell.classList.add(rarityClass(encounter.quality));
+        if (index === 2) {
+          cell.classList.add(encounter.captureResult === "success" ? "history-result-captured" : "history-result-fled");
+        }
         row.appendChild(cell);
       });
 
@@ -778,11 +783,9 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
         const detailCell = document.createElement("td");
         detailCell.colSpan = 6;
         const parts = [
-          `${encounter.captureResult === "success" ? "Captured at" : "Fled at"}: ${formatClock(encounter.captureAtMs)}`
+          `${encounter.captureResult === "success" ? "Captured at" : "Fled at"}: ${formatClock(encounter.captureAtMs)}`,
+          `Chance: ${formatRate(encounter.captureChance, 3)}`
         ];
-        if (encounter.captureResult === "success") {
-          parts.push(`Chance: ${formatRate(encounter.captureChance)}`);
-        }
         detailCell.textContent = parts.join(" · ");
         detailRow.appendChild(detailCell);
         fragment.appendChild(detailRow);

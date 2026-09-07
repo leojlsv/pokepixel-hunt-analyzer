@@ -239,6 +239,8 @@ export function createCurrentView(shadow) {
 
     syncEncounterData("captured", grouped.captured, sessionChanged);
     syncEncounterData("failed", grouped.failed, sessionChanged);
+    updateShinyBadge("captured", grouped.captured.filter((encounter) => encounter.isShiny).length);
+    updateShinyBadge("failed", grouped.failed.filter((encounter) => encounter.isShiny).length);
   }
 
   function renderHudSummary(metrics) {
@@ -290,6 +292,7 @@ export function createCurrentView(shadow) {
 
   function renderRarities(metrics) {
     let rarePlusFailed = 0;
+    let shinySeen = 0;
 
     for (const [key] of RARITIES) {
       const rarity = metrics.rarities[key];
@@ -310,10 +313,19 @@ export function createCurrentView(shadow) {
       );
 
       shadow.getElementById(`hud-${key}`).textContent = String(rarity.captured || 0);
+      shinySeen += rarity.shinySeen || 0;
       if (RARE_PLUS_KEYS.has(key)) rarePlusFailed += rarity.failed || 0;
     }
 
     shadow.getElementById("rare-failed-count").textContent = `R+ fail ${rarePlusFailed}`;
+    updateShinyBadge("rarity", shinySeen);
+  }
+
+  function updateShinyBadge(prefix, count) {
+    const badge = shadow.getElementById(`${prefix}-shiny-count`);
+    if (!badge) return;
+    badge.hidden = !(count > 0);
+    badge.textContent = `✦ ${formatNumber(count)}`;
   }
 
   function syncEncounterData(prefix, matching, reset) {
@@ -532,7 +544,7 @@ export function createCurrentView(shadow) {
 
       const chanceCell = document.createElement("td");
       chanceCell.className = "chance-cell";
-      chanceCell.textContent = formatRate(encounter.captureChance);
+      chanceCell.textContent = formatRate(encounter.captureChance, 3);
 
       const timestampCell = document.createElement("td");
       timestampCell.className = "timestamp-cell";
@@ -606,7 +618,7 @@ export function createCurrentView(shadow) {
     );
     addDetail("Capsule", encounter.capsuleName || "—");
     if (prefix === "captured") {
-      addDetail("Chance", formatRate(encounter.captureChance));
+      addDetail("Chance", formatRate(encounter.captureChance, 3));
     }
 
     cell.appendChild(content);

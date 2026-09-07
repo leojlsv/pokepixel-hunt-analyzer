@@ -1,4 +1,21 @@
 export const HISTORY_STYLES = String.raw`
+:host(:not([data-ui-mode="mobile"])) .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+:host(:not([data-ui-mode="mobile"])) .tabs {
+  position: sticky;
+  top: 46px;
+  z-index: 19;
+}
+
+.shiny-section-badge {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
 #rarity-section td {
   font-size: 11px;
 }
@@ -292,15 +309,18 @@ export const HISTORY_STYLES = String.raw`
   color: #c5b98f;
 }
 
-.history-notable-time-col { width: 16%; }
-.history-notable-pokemon-col { width: 29%; }
-.history-notable-result-col { width: 13%; }
-.history-notable-ball-col { width: 30%; }
-.history-notable-iv-col { width: 12%; }
+.history-notable-time-col { width: 18%; }
+.history-notable-pokemon-col { width: 22%; }
+.history-notable-result-col { width: 10%; }
+.history-notable-ball-col { width: 20%; }
+.history-notable-chance-col { width: 20%; }
+.history-notable-iv-col { width: 10%; }
 .history-notable-list th:nth-child(4),
 .history-notable-list td:nth-child(4) { text-align: left; }
 .history-notable-list th:nth-child(5),
-.history-notable-list td:nth-child(5) { text-align: right; }
+.history-notable-list td:nth-child(5),
+.history-notable-list th:nth-child(6),
+.history-notable-list td:nth-child(6) { text-align: right; }
 
 .history-result-captured { color: #70dfaa; }
 .history-result-fled { color: #ef8b82; }
@@ -336,15 +356,21 @@ export const HISTORY_STYLES = String.raw`
 .history-pokemon-rarity-table tbody tr.rarity-mythical td:first-child { color: #ff6384; }
 
 .history-attempt-time-col { width: 16%; }
-.history-attempt-pokemon-col { width: 26%; }
-.history-attempt-rarity-col { width: 11%; }
-.history-attempt-result-col { width: 12%; }
-.history-attempt-ball-col { width: 23%; }
-.history-attempt-iv-col { width: 12%; }
+.history-attempt-pokemon-col { width: 27%; }
+.history-attempt-result-col { width: 11%; }
+.history-attempt-ball-col { width: 22%; }
+.history-attempt-chance-col { width: 14%; }
+.history-attempt-iv-col { width: 10%; }
+.history-attempts-table th:nth-child(4),
+.history-attempts-table td:nth-child(4) { text-align: left; }
 .history-attempts-table th:nth-child(5),
-.history-attempts-table td:nth-child(5) { text-align: left; }
+.history-attempts-table td:nth-child(5),
 .history-attempts-table th:nth-child(6),
 .history-attempts-table td:nth-child(6) { text-align: right; }
+
+/* Current > Failed: reserve enough room for a full 100.000% chance. */
+.failed-chance-col { width: 18%; }
+.failed-time-col { width: 24%; }
 
 @container analyzer (max-width: 500px) {
   .history-filter-grid {
