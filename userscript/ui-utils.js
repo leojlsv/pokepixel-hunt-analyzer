@@ -49,11 +49,11 @@ export function formatRate(value, fractionDigits = 2) {
   if (value == null) return "—";
 
   const percentage = value * 100;
-  const digits = fractionDigits === 3 && percentage !== 0 && Math.abs(percentage) < 0.001
-    ? 6
-    : fractionDigits;
+  if (fractionDigits === 3 && percentage !== 0 && Math.abs(percentage) < 0.001) {
+    return percentage > 0 ? "<0.001%" : ">-0.001%";
+  }
 
-  return `${percentage.toFixed(digits)}%`;
+  return `${percentage.toFixed(fractionDigits)}%`;
 }
 
 export function formatDuration(milliseconds) {
