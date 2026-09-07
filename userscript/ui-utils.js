@@ -46,7 +46,14 @@ export function formatCompact(value) {
 }
 
 export function formatRate(value, fractionDigits = 2) {
-  return value == null ? "—" : `${(value * 100).toFixed(fractionDigits)}%`;
+  if (value == null) return "—";
+
+  const percentage = value * 100;
+  const digits = fractionDigits === 3 && percentage !== 0 && Math.abs(percentage) < 0.001
+    ? 6
+    : fractionDigits;
+
+  return `${percentage.toFixed(digits)}%`;
 }
 
 export function formatDuration(milliseconds) {
