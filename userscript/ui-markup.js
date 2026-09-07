@@ -84,6 +84,7 @@ function createEncounterSectionMarkup(prefix, title) {
         <h3>${title}</h3>
         <div class="section-meta">
           <span id="${prefix}-count" class="section-badge">0 Pokémons</span>
+          <span id="${prefix}-shiny-count" class="section-badge shiny-section-badge" title="Shiny" hidden>✦ 0</span>
           <button class="collapse-button" data-collapse="${prefix}" type="button" title="Collapse">▾</button>
         </div>
       </div>
@@ -185,10 +186,10 @@ function createHistoryMarkup() {
         <div id="history-attempts-wrap" class="table-wrap history-table-wrap">
           <table class="history-attempts-table">
             <colgroup>
-              <col class="history-attempt-time-col"><col class="history-attempt-pokemon-col"><col class="history-attempt-rarity-col"><col class="history-attempt-result-col"><col class="history-attempt-ball-col"><col class="history-attempt-iv-col">
+              <col class="history-attempt-time-col"><col class="history-attempt-pokemon-col"><col class="history-attempt-result-col"><col class="history-attempt-ball-col"><col class="history-attempt-chance-col"><col class="history-attempt-iv-col">
             </colgroup>
             <thead><tr>
-              <th>At</th><th>Pokémon</th><th>Rar.</th><th>Result</th><th>Ball</th><th>IV</th>
+              <th>At</th><th>Pokémon</th><th>Result</th><th>Ball</th><th>Chance</th><th>IV</th>
             </tr></thead>
             <tbody id="history-attempts-body"></tbody>
           </table>
@@ -373,6 +374,7 @@ export function createUiMarkup() {
             <h3>By Rarity</h3>
             <div class="section-meta">
               <span id="rare-failed-count" class="section-badge">R+ fail 0</span>
+              <span id="rarity-shiny-count" class="section-badge shiny-section-badge" title="Shiny seen" hidden>✦ 0</span>
               <button class="collapse-button" data-collapse="rarity" type="button" title="Collapse">▾</button>
             </div>
           </div>
