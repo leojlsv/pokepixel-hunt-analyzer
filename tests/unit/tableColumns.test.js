@@ -30,13 +30,15 @@ test("Captured distinguishes physical and special attack IVs without changing th
 test("all primary History tables use shared proportional colgroups", () => {
   assert.match(MARKUP, /class="history-hunts-table"[\s\S]*class="history-hunt-date-col"/);
   assert.match(MARKUP, /class="history-pokemon-table"[\s\S]*class="history-pokemon-name-col"/);
-  assert.match(MARKUP, /class="history-attempts-table"[\s\S]*class="history-attempt-iv-col"/);
-  assert.match(HISTORY_STYLES, /\.history-attempt-iv-col \{ width: 12%; \}/);
+  assert.match(MARKUP, /class="history-attempts-table"[\s\S]*class="history-attempt-chance-col"/);
+  assert.match(HISTORY_STYLES, /\.history-attempt-chance-col \{ width: 14%; \}/);
+  assert.match(HISTORY_STYLES, /\.history-attempt-iv-col \{ width: 10%; \}/);
+  assert.doesNotMatch(MARKUP, /history-attempt-rarity-col/);
   assert.doesNotMatch(HISTORY_STYLES, /\.history-attempts-table (?:th|td):nth-child\([^)]*\) \{ width:/);
 });
 
 test("nested History tables declare their own semantic columns", () => {
-  assert.match(HISTORY_VIEW, /addColumnGroup\(table, \[[\s\S]*"history-notable-iv-col"/);
+  assert.match(HISTORY_VIEW, /addColumnGroup\(table, \[[\s\S]*"history-notable-chance-col"[\s\S]*"history-notable-iv-col"/);
   assert.match(HISTORY_VIEW, /addColumnGroup\(table, \[[\s\S]*"history-pokemon-rarity-name-col"/);
 });
 
