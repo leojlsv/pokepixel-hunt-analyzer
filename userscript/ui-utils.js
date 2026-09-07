@@ -45,8 +45,8 @@ export function formatCompact(value) {
   return formatNumber(number);
 }
 
-export function formatRate(value) {
-  return value == null ? "—" : `${(value * 100).toFixed(2)}%`;
+export function formatRate(value, fractionDigits = 2) {
+  return value == null ? "—" : `${(value * 100).toFixed(fractionDigits)}%`;
 }
 
 export function formatDuration(milliseconds) {
