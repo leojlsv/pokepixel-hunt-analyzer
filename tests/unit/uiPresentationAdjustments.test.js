@@ -11,10 +11,10 @@ const [MARKUP, HISTORY_STYLES, HISTORY_VIEW, CURRENT_VIEW] = await Promise.all([
   readFile(new URL("../../userscript/current-view.js", import.meta.url), "utf8")
 ]);
 
-test("formatRate keeps the existing default and supports precise capture chance", () => {
+test("formatRate keeps three decimals without rendering tiny non-zero chance as zero", () => {
   assert.equal(formatRate(0.5), "50.00%");
   assert.equal(formatRate(0.00004, 3), "0.004%");
-  assert.equal(formatRate(4.1029411764705885e-7, 3), "0.000041%");
+  assert.equal(formatRate(4.1029411764705885e-7, 3), "<0.001%");
   assert.equal(formatRate(0, 3), "0.000%");
 });
 
