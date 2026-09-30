@@ -4,6 +4,9 @@ const WILD_ENTITY_TYPE = 2;
 const TERMINAL_MATCH_WINDOW_MS = 30_000;
 const DEFAULT_RUNTIME_RETENTION_MS = 60_000;
 const DEFAULT_RUNTIME_ENTRY_LIMIT = 2_048;
+const LOOT_ITEM_LIMIT = 32;
+const LOOT_ITEM_ID_LIMIT = 64;
+const LOOT_ITEM_QTY_LIMIT = 1e15;
 const textDecoder = new TextDecoder();
 
 const PASSTHROUGH_TYPES = new Set([
@@ -22,6 +25,24 @@ function finite(value) {
 
 function stringOrNull(value) {
   return typeof value === "string" && value ? value : null;
+}
+
+function normalizeLootItems(items) {
+  if (!Array.isArray(items)) return [];
+  const normalized = [];
+  for (const item of items) {
+    if (normalized.length >= LOOT_ITEM_LIMIT) break;
+    const itemId = stringOrNull(item?.item_id)?.trim().slice(0, LOOT_ITEM_ID_LIMIT) || "";
+    const qty = item?.qty === null || item?.qty === undefined || item?.qty === ""
+      ? null
+      : finite(item.qty);
+    if (!itemId || qty === null || qty < 0) continue;
+    normalized.push({
+      item_id: itemId,
+      qty: Math.min(LOOT_ITEM_QTY_LIMIT, Math.floor(qty))
+    });
+  }
+  return normalized;
 }
 
 function decodeBase64Bytes(value) {
@@ -416,6 +437,7 @@ export function createProtocolAdapter({
           trainer_exp: finite(kill.trainer_exp),
           pokemon_exp: finite(kill.pokemon_exp),
           gold: finite(kill.gold),
+          loot_items: normalizeLootItems(kill.items),
           loot_sell_value:
             finite(kill.loot_sell_value) ?? splitLoot[index]
         }

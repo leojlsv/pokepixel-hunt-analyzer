@@ -326,7 +326,6 @@ export function createEventPipeline(
       recordRuntimeEvent(message, "duplicate");
       return { ok: true, duplicate: true };
     }
-    rememberEventKey(dedupeKey);
 
     const envelope = {
       type: message.type,
@@ -339,19 +338,23 @@ export function createEventPipeline(
     // Production dedupe is handled by the bounded registry above. Keep
     // the reducer's own Set empty between events so its immutable state
     // cloning remains O(active encounters), not O(total events in the Hunt).
-    trackerState = { ...trackerState, seenKeys: new Set() };
+    const currentTrackerState = { ...trackerState, seenKeys: new Set() };
 
-    const swept = sweepStale(trackerState, now());
-    trackerState = swept.state;
+    const swept = sweepStale(currentTrackerState, now());
     const changedEncounters = await applyEffects(swept.effects);
 
-    const terminalAlert = buildTerminalAlert(envelope, trackerState);
-    const result = applyEvent(trackerState, envelope);
-    trackerState = { ...result.state, seenKeys: new Set() };
+    const terminalAlert = buildTerminalAlert(envelope, swept.state);
+    const result = applyEvent(swept.state, envelope);
     const resultChanges = await applyEffects(result.effects);
     for (const [encounterId, row] of resultChanges) {
       changedEncounters.set(encounterId, row);
     }
+
+    // Commit in-memory state and dedupe only after persistence succeeds. A
+    // transient write failure must leave the exact protocol event retryable
+    // against the same tracker state rather than consuming or losing it.
+    trackerState = { ...result.state, seenKeys: new Set() };
+    rememberEventKey(dedupeKey);
 
     const orphansCreated = result.effects.filter(
       (effect) => effect.type === "encounter.create" && effect.row.state === "orphan"

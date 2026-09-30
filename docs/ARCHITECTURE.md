@@ -61,8 +61,54 @@ Browser/runtime boundary.
 - `capture-ticket.js` — Capture Ticket rendering and preview orchestration.
 - `remote-image-loader.js` — bounded PokémonDB image cache, in-flight dedupe and request pacing.
 - `png-metadata.js` — PNG metadata encoding/validation.
+- `public-summary.js` — versioned read-only Current Hunt summary boundary and explicit
+  Coupled Workspace embed marker handling.
 
 Browser-specific APIs stay in this layer.
+
+### Better UI public boundary
+
+The Analyzer exposes one bounded page-global contract for PokePixel Better UI Cards in
+both the standalone userscript and the native WebView2 Coupled Workspace. Embed mode
+itself remains explicit rather than inferred:
+
+- the host injects `__POKEPIXEL_HUNT_ANALYZER_EMBED__ = { protocol: 1 }` before the
+  Analyzer bundle at document start;
+- protocol observation, the event pipeline, domain calculations and IndexedDB stay
+  identical to the standalone Analyzer and remain authoritative;
+- panel/HUD, audio controls, Catch Gallery, History controls and the broad diagnostics
+  page global are not mounted in embed mode;
+- `__POKEPIXEL_HUNT_ANALYZER_PUBLIC__` exposes only `protocol`, `appVersion` and a
+  read-only `getSummary()` function returning a copy of the bounded Current summary;
+- `__POKEPIXEL_HUNT_ANALYZER_CONTROL__` exposes only `pause`, `resume` and `reset`, and
+  those actions still require the Analyzer tab to hold analytics leadership;
+- standalone keeps the normal Analyzer UI and diagnostics. When a public consumer is
+  actively polling the summary, Current hydration also stays fresh while the Analyzer
+  panel is on another view; the extra refresh stops after the reader becomes inactive;
+- every available snapshot carries Analyzer-owned `capturedAtMs`, allowing consumers
+  to reject a frozen source instead of treating transport heartbeats as data freshness;
+- the bounded presentation summary includes the canonical Current-Hunt `Seen` counts
+  for each rarity bucket (including `unknown`) plus the chance from the latest completed
+  capture attempt. These values are projections of Analyzer-owned state, not formulas
+  reproduced by the Coupled Workspace;
+- latest capture chance is explicitly historical attempt context, not a prospective
+  probability for the creature currently on screen. The Analyzer derives it only from
+  terminal success/failed encounters with a finite timestamp and chance in `[0, 1]`;
+- the latest-attempt value is cached inside the Analyzer: a full scan occurs only when
+  the Current encounter list is already being reloaded, while terminal encounter changes
+  update the cache incrementally. The ordinary 1-second Current refresh therefore reads
+  the cached scalar rather than introducing another O(N) scan;
+- attempt/special history includes bounded persisted `speciesId` plus finite non-negative
+  `qualityMultiplier` when authoritative data exists; the generic and special
+  history projections each expose at most the latest 32 entries, independently;
+  loot history may include bounded
+  dropped-item `{ itemId, qty }` pairs from HuntSim rewards, without inferred item metadata;
+- the public summary intentionally excludes `sessionId`, encounter rows, raw frames,
+  repositories, credentials and mutation/action APIs.
+
+Consumers must treat this public summary as presentation data. They must not bypass
+it by reading Analyzer IndexedDB, re-parsing WebSocket frames or duplicating domain
+formulas.
 
 ### `services/`
 
@@ -200,6 +246,9 @@ Important rules:
 - raw frames that are neither canonical nor adapter inputs are ignored early;
 - events are processed through one Promise queue to preserve ordering;
 - `socketId | eventType | seq` is used for reconnect-safe dedupe;
+- tracker state and the bounded dedupe registry are committed only after the
+  event's persistence effects succeed, so a transient IndexedDB failure leaves
+  the exact event retryable instead of consuming it in memory;
 - `wildMonsterId` correlates a temporary encounter but is never the DB primary key; HuntSim uses a synthetic `huntsim:<server-session-or-zone>:<kill-seq>` value;
 - repeated `combat.started` for the same individual must not create duplicate encounters;
 - potion-only `loot.received` events update session expenses and do not create encounters;
@@ -260,6 +309,26 @@ STANDBY  another live tab owns the lease
 A standby tab can take over after the active lease expires or is released on unload.
 
 The lock is coordination state only; persistent Hunt data remains in IndexedDB. Destructive History deletion is also accepted only from the ACTIVE Analyzer tab.
+
+Startup recovery is also a writer operation. Initialization awaits an explicit leadership
+acquisition decision, starts lease refreshes during initialization and revalidates ownership
+immediately before applying browser-restart recovery to the current session. A STANDBY tab
+never runs that recovery against the shared IndexedDB session, so opening or reloading a
+second tab cannot pause or truncate the ACTIVE tab's Hunt clock.
+
+Runtime analytics writes register an optional, database-scoped ownership check
+(data/write-gate.js). The queue checks the ACTIVE lease and its leadership generation
+again after any pending startup work; IndexedDB repositories also check ownership
+before sending writes and after their requests succeed, aborting transactions when
+leadership has been lost. New Hunt, Reset, initial End Hunt and deletion of the
+current-session pointer keep their coupled sessions/meta writes in a single IDB
+transaction. Encounter bulk deletion checks ownership throughout cursor iteration.
+This protects against detected handoffs during asynchronous persistence and permits
+read-only Current hydration in STANDBY. It does not constitute strict fencing between
+localStorage and IndexedDB: a handoff in the tiny window after the last ownership
+check but before an IDB commit is not atomic with the lease. An absolute cross-tab
+guarantee would require moving the writer-ownership decision into a common
+transactional authority (or an equivalent protocol).
 
 ## 10. UI/local state
 

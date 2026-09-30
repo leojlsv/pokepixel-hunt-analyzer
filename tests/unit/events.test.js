@@ -150,6 +150,11 @@ test("loot.received extracts the documented reward fields", () => {
     trainer_exp: 4305,
     pokemon_exp: 4305,
     gold: 37,
+    loot_items: [
+      { item_id: "reference_straw", qty: 3, name: "must-not-cross" },
+      { item_id: "negative", qty: -1 },
+      { item_id: "fractional", qty: 2.9 }
+    ],
     loot_sell_value: 0
   });
 
@@ -157,6 +162,10 @@ test("loot.received extracts the documented reward fields", () => {
   assert.equal(normalized.trainer_exp, 4305);
   assert.equal(normalized.pokemon_exp, 4305);
   assert.equal(normalized.gold, 37);
+  assert.deepEqual(normalized.loot_items, [
+    { item_id: "reference_straw", qty: 3 },
+    { item_id: "fractional", qty: 2 }
+  ]);
   assert.equal(normalized.creature_id, undefined);
   assert.equal(normalized.auto_potion_used, null);
   assert.equal(normalized.supply_cost, null);

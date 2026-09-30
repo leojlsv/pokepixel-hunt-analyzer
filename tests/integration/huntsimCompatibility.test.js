@@ -162,7 +162,7 @@ test("DEV capture success persists one complete canonical encounter and accepts 
   });
   assert.deepEqual(duplicateProjection.canonical, []);
 
-  await ingest({
+  const lateLoot = await ingest({
     type: "loot.received",
     seq: 15,
     ts: 1200,
@@ -187,6 +187,9 @@ test("DEV capture success persists one complete canonical encounter and accepts 
     }
   });
 
+  const canonicalLoot = lateLoot.canonical.find(event => event.type === "loot.received");
+  assert.deepEqual(canonicalLoot?.data.loot_items, [{ item_id: "reference_straw", qty: 3 }]);
+
   const rows = await createEncountersRepository(db).getAll();
   assert.equal(rows.length, 1);
 
@@ -210,6 +213,7 @@ test("DEV capture success persists one complete canonical encounter and accepts 
   assert.equal(row.trainerExp, 798);
   assert.equal(row.pokemonExp, 798);
   assert.equal(row.gold, 1);
+  assert.deepEqual(row.lootItems, [{ itemId: "reference_straw", qty: 3 }]);
   assert.equal(row.lootSellValue, 8);
   assert.equal(row.cycleMs, 200);
   assert.ok(row.configId);

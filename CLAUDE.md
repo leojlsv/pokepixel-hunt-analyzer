@@ -4,7 +4,7 @@
 
 Standalone Tampermonkey userscript for passive, local PokePixel Hunt analytics.
 
-Current architecture baseline: v1.9.x.
+Current architecture baseline: v1.13.x.
 
 The userscript is production-oriented and must be evolved incrementally. Preserve validated behavior unless a change has a concrete reason and test path.
 

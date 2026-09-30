@@ -5,6 +5,29 @@ The project follows Semantic Versioning.
 
 > Detailed historical notes that previously lived in this file through v1.11.1 are preserved verbatim in [`docs/CHANGELOG_ARCHIVE_PRE_1.12.md`](docs/CHANGELOG_ARCHIVE_PRE_1.12.md). This file keeps the release-level history concise from v1.12.0 forward.
 
+## [Unreleased]
+
+### Coupled Workspace boundary
+- Added an explicit protocol-v1 embed marker and a bounded, read-only Current Hunt summary for PokePixel Better UI without exposing session ids, raw encounter rows, credentials or repository access.
+- Embedded mode keeps the Analyzer event pipeline, domain calculations and IndexedDB authoritative while skipping standalone panel/HUD/audio/gallery/history surfaces.
+- Hunt Analyzer `1.13.5` installs the same bounded/cloned public summary and allowlisted Pause/Resume/Reset control in the normal userscript runtime as well as explicit embed mode, allowing standalone Better UI Cards to consume Analyzer-owned state without duplicating event parsing, formulas, IndexedDB, leadership or persistence.
+- Hunt Analyzer `1.13.6` extends each terminal attempt projection with bounded scalar `ivTotal` (0–186), including failed captures, while keeping individual IVs/gender/nature captured-only. This lets Better UI show failed Pokémon total IV without broadening the public bridge to raw encounter data.
+- Normal Analyzer UI, diagnostics and leadership remain intact. A recent public-summary reader keeps Current hydration fresh even when the Analyzer UI is on another view; without a reader, the existing view-based refresh gate remains.
+
+### Analytics and presentation
+- Split revenue into direct gold, loot sell value and realized Pokémon auto-sell while retaining the existing Dollar compatibility fields; added explicit Revenue/Profit rates and Epic+ failed metrics.
+- Added bounded Current-target and capture-attempt presentation projections for the coupled Cards UI, including whole-session special history for Epic/Legendary/Mythical/Shiny attempts.
+- Added a bounded immutable `lootHistory` projection for the coupled Cards UI: the newest 32 canonical encounter rewards expose only loot time, species, direct gold, loot sell value, realized Pokémon auto-sell and a recomputed total. Internal/session identifiers and itemized loot are not exported; the public bridge returns cloned entries so consumers cannot mutate Analyzer-owned state.
+- Memoized immutable Cards presentation snapshots so the one-second Current refresh no longer re-sorts the full attempt history when encounter state has not changed.
+
+### Validation
+- Hunt Analyzer `1.13.6`: **453/453 automated tests PASS**, production userscript build PASS and release/update invariant verification PASS.
+- Exact production userscript: `1529448` bytes, SHA-256 `0131E53D542949D84E4677736CF3A50FF90573EF10407866ACE3AA4DA2A8EE60`; the Better UI embed bundle is byte-identical.
+
+### Runtime integrity
+- Startup session recovery now waits for actual ACTIVE-tab leadership; opening or reloading a STANDBY tab cannot pause or truncate the ACTIVE Hunt clock.
+- Event-pipeline tracker state and dedupe identity are committed only after persistence succeeds, keeping an exact event retryable after a transient IndexedDB failure.
+
 ## [1.13.0] - 2026-09-04
 
 ### Mobile interface

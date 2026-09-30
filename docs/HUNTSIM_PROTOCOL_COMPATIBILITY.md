@@ -32,7 +32,7 @@ The domain/persistence model remains unchanged. `userscript/protocol-adapter.js`
 | Target identity | `hunt.capture_queue` + `hunt.events` + full `hunt.frame` | Kill sequence becomes the stable local correlation key. |
 | Fight start | first HuntSim `hit` observed for the target slot | Used for cycle time when available. |
 | Capture result | `capture.failed` / `capture.success` | Authoritative terminal event; `hunt.events` capture projections are ignored. |
-| Reward | `loot.received.per_kill[]` | Aggregated reward is split into one canonical loot event per kill. |
+| Reward | `loot.received.per_kill[]` | Aggregated reward is split into one canonical loot event per kill; observed `items[]` preserves only bounded `item_id` + `qty`. |
 | No-capture closure | `hunt.capture_queue.rm[]` | Emits internal `hunt.kill_closed` after loot when no terminal capture exists. |
 
 The following are intentionally ignored as duplicate projections:
@@ -109,6 +109,8 @@ It does **not** expose Gender, Nature, full IV breakdown, Elements or Quality Mu
 HuntSim commonly emits terminal capture events before `loot.received`. The tracker therefore keeps the finalized encounter correlated in memory until late loot arrives, patches reward fields on the same persisted encounter, then releases the correlation.
 
 Legacy ordering (loot before capture) remains supported unchanged.
+
+When `loot.received.per_kill[].items[]` is present, the adapter keeps only the observed item identifier and quantity. Names, rarity and per-item value are not part of the confirmed HuntSim reward item contract and are not synthesized or apportioned from aggregate `loot_sell_value`.
 
 ## Build targets
 

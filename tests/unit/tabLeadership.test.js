@@ -179,3 +179,108 @@ test("fallback lease immediately drops ACTIVE when ownership was replaced", () =
   assert.equal(leadership.isActive(), false);
   assert.deepEqual(states, [true, false]);
 });
+
+test("acquire resolves true as soon as Web Lock leadership is acquired", async () => {
+  const storage = createMemoryStorage();
+  const lockManager = createMemoryLockManager();
+  const leadership = createTabLeadership({
+    storage,
+    key: "lock",
+    tabId: "tab-a",
+    now: () => 1_000,
+    lockManager
+  });
+
+  assert.equal(await leadership.acquire(), true);
+  assert.equal(leadership.isActive(), true);
+  assert.equal(JSON.parse(storage.getItem("lock")).tabId, "tab-a");
+
+  leadership.release();
+  await nextTask();
+});
+
+test("acquire resolves false immediately when another tab holds the Web Lock", async () => {
+  const storage = createMemoryStorage();
+  const lockManager = createMemoryLockManager();
+  const tabA = createTabLeadership({
+    storage,
+    key: "lock",
+    tabId: "tab-a",
+    now: () => 1_000,
+    lockManager
+  });
+  const tabB = createTabLeadership({
+    storage,
+    key: "lock",
+    tabId: "tab-b",
+    now: () => 1_000,
+    lockManager
+  });
+
+  assert.equal(await tabA.acquire(), true);
+  assert.equal(await tabB.acquire(), false);
+  assert.equal(tabA.isActive(), true);
+  assert.equal(tabB.isActive(), false);
+
+  tabA.release();
+  tabB.release();
+  await nextTask();
+});
+
+test("acquire preserves fallback lease behavior when Web Locks are unavailable", async () => {
+  const storage = createMemoryStorage();
+  const leadership = createTabLeadership({
+    storage,
+    key: "lock",
+    ttlMs: 6_000,
+    tabId: "tab-a",
+    now: () => 1_000,
+    lockManager: null
+  });
+
+  assert.equal(await leadership.acquire(), true);
+  assert.equal(leadership.isActive(), true);
+  assert.deepEqual(JSON.parse(storage.getItem("lock")), {
+    tabId: "tab-a",
+    expiresAt: 7_000
+  });
+});
+
+test("acquire falls back to the lease when the Web Locks API rejects", async () => {
+  const storage = createMemoryStorage();
+  const leadership = createTabLeadership({
+    storage,
+    key: "lock",
+    tabId: "tab-a",
+    now: () => 1_000,
+    lockManager: {
+      request() {
+        return Promise.reject(new Error("locks unavailable"));
+      }
+    }
+  });
+
+  assert.equal(await leadership.acquire(), true);
+  assert.equal(leadership.isActive(), true);
+  assert.equal(JSON.parse(storage.getItem("lock")).tabId, "tab-a");
+});
+
+test("acquire never reuses a stale successful decision while a lost Web Lock is releasing", async () => {
+  const storage = createMemoryStorage();
+  const lockManager = createMemoryLockManager();
+  const leadership = createTabLeadership({
+    storage,
+    key: "lock",
+    tabId: "tab-a",
+    now: () => 1_000,
+    lockManager
+  });
+
+  assert.equal(await leadership.acquire(), true);
+  storage.setItem("lock", JSON.stringify({ tabId: "tab-b", expiresAt: 9_000 }));
+  assert.equal(leadership.isActive(), false);
+  assert.equal(await leadership.acquire(), false);
+
+  leadership.release();
+  await nextTask();
+});

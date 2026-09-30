@@ -39,10 +39,17 @@ test("refreshSessionMetrics updates elapsed time and per-hour rates without chan
   assert.equal(refreshed.trainerExp, 100);
   assert.equal(refreshed.pokemonExp, 50);
   assert.equal(refreshed.gold, 25);
+  assert.equal(refreshed.directGold, 25);
+  assert.equal(refreshed.lootSellValue, 0);
+  assert.equal(refreshed.autoSellValue, 0);
+  assert.equal(refreshed.revenue, 25);
+  assert.equal(refreshed.revenuePerHour, 25 / (2_000 / 3_600_000));
   assert.equal(refreshed.seen, 1);
   assert.equal(refreshed.captured, 1);
   assert.equal(refreshed.capsulesCost, 5);
   assert.equal(refreshed.expenses, 15);
+  assert.equal(refreshed.profit, 10);
+  assert.equal(refreshed.profitPerHour, 10 / (2_000 / 3_600_000));
   assert.equal(refreshed.trainerExpPerHour, 100 / (2_000 / 3_600_000));
 });
 
@@ -64,6 +71,7 @@ test("refreshSessionMetrics applies session-only potion and status changes", () 
   assert.equal(refreshed.potionsUsed, 4);
   assert.equal(refreshed.potionsCost, 80);
   assert.equal(refreshed.expenses, 80);
+  assert.equal(refreshed.profit, -80);
 });
 
 test("incremental encounter replacement matches a complete metrics rebuild", () => {

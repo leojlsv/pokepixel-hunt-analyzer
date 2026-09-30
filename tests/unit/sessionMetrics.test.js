@@ -99,7 +99,7 @@ test("per-hour figures are null when elapsed active time is zero", () => {
   assert.equal(metrics.seenPerHour, null);
 });
 
-test("rarity buckets, Rare+ failed, and unknown-quality flag", () => {
+test("rarity buckets, Rare+/Epic+ failed, and unknown-quality flag", () => {
   const session = createSession({ sessionId: "s1", now: 0 });
 
   const encounters = [
@@ -116,6 +116,7 @@ test("rarity buckets, Rare+ failed, and unknown-quality flag", () => {
   assert.equal(metrics.rarities.weak.failed, 1);
   assert.equal(metrics.rarities.unknown.failed, 1);
   assert.equal(metrics.rarePlusFailed, 2); // rare + epic, not weak
+  assert.equal(metrics.epicPlusFailed, 1); // epic only; Rare is intentionally excluded
   assert.equal(metrics.hasUnknownQuality, true);
 });
 
@@ -177,8 +178,15 @@ test("Dólar/h includes lootSellValue and autoSellValue only when autoSold is tr
 
   const metrics = computeSessionMetrics({ session, encounters, now: 3_600_000 });
 
+  assert.equal(metrics.directGold, 150);
+  assert.equal(metrics.lootSellValue, 100);
+  assert.equal(metrics.autoSellValue, 250);
+  assert.equal(metrics.revenue, 500);
+  assert.equal(metrics.revenuePerHour, 500);
   assert.equal(metrics.gold, 100 + 40 + 250 + 50 + 60);
   assert.equal(metrics.goldPerHour, 500);
+  assert.equal(metrics.profit, 500);
+  assert.equal(metrics.profitPerHour, 500);
 });
 
 test("Gastos/h: capsulesCost sums supplyCost across encounters (Pokébolas)", () => {
@@ -196,6 +204,9 @@ test("Gastos/h: capsulesCost sums supplyCost across encounters (Pokébolas)", ()
   assert.equal(metrics.potionsCost, 0);
   assert.equal(metrics.expenses, 180);
   assert.equal(metrics.expensesPerHour, 180);
+  assert.equal(metrics.revenue, 0);
+  assert.equal(metrics.profit, -180);
+  assert.equal(metrics.profitPerHour, -180);
 });
 
 test("potionsUsed/potionsCost come from the session row, not from encounters", () => {
@@ -211,6 +222,7 @@ test("potionsUsed/potionsCost come from the session row, not from encounters", (
   assert.equal(metrics.potionsCost, 84);
   assert.equal(metrics.capsulesCost, 50);
   assert.equal(metrics.expenses, 50 + 84);
+  assert.equal(metrics.profit, -(50 + 84));
 });
 
 test("potionsUsed/potionsCost default to 0 on a session row from before these fields existed", () => {

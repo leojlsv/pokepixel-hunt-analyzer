@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Hunt Analyzer — comparação M0 × M1.1</title>
+  <style>
+    :root { font-family: Inter,"Segoe UI",Arial,sans-serif; background:#11181b; color:#edf1ef; --edge:#35474a; --gold:#d7b45d; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; }
+    header { padding:20px clamp(14px,3vw,34px) 15px; border-bottom:1px solid var(--edge); background:#192225; }
+    h1 { margin:0 0 7px; font-size:clamp(20px,2.5vw,30px); letter-spacing:-.025em; }
+    h1 span { color:var(--gold); }
+    p { margin:0; color:#b7c8c5; font-size:13px; line-height:1.5; }
+    .controls { display:flex; flex-wrap:wrap; align-items:center; gap:12px 23px; padding:14px clamp(14px,3vw,34px); background:#172023; border-bottom:1px solid var(--edge); }
+    .group { display:flex; flex-wrap:wrap; gap:5px; align-items:center; }
+    .group-label { color:#a2b4b2; font-size:10px; font-weight:800; letter-spacing:.1em; margin-right:4px; }
+    button { min-height:36px; padding:7px 11px; border:1px solid #435659; border-radius:5px; background:#253135; color:#dae7e4; font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; }
+    button[aria-pressed="true"] { border-color:#a98e51; color:#ffe2a4; background:#383529; }
+    button:focus-visible { outline:2px solid #80d5e6; outline-offset:2px; }
+    .path { color:#95aba8; margin-left:auto; font-size:11px; }
+    .scroll-area { overflow-x:auto; padding:22px clamp(12px,3vw,34px) 28px; }
+    .two-up { display:grid; grid-template-columns: max-content max-content; gap:20px; width:max-content; margin:0 auto; align-items:start; }
+    .card { min-width:0; padding:12px; border:1px solid #394c50; border-radius:8px; background:#1a2427; }
+    .card-head { min-height:45px; display:flex; align-items:start; justify-content:space-between; gap:12px; color:#dce8e5; }
+    .card-head strong { font-size:14px; }
+    .card-head small { display:block; margin-top:3px; color:#93aaa8; font-size:11px; }
+    .tag { padding:4px 7px; border:1px solid #a98e51; color:#f2d58d; border-radius:4px; font-size:10px; font-weight:700; white-space:nowrap; }
+    .viewport { position:relative; overflow:hidden; width:var(--frame-width); height:var(--frame-height); border:1px solid #526367; background:#1c2424; border-radius:5px; }
+    .viewport img { display:block; position:absolute; max-width:none; }
+    .source img { left:var(--source-x); top:var(--source-y); }
+    .proposal img { left:0; top:0; width:var(--frame-width); height:var(--frame-height); }
+    .notes { width:min(1100px,calc(100% - 24px)); margin:0 auto 35px; padding:14px 18px; border:1px solid #394c50; border-radius:7px; background:#192427; }
+    .notes strong { color:var(--gold); }
+    .notes p { padding-top:6px; }
+    .disclaimer { margin-top:8px; color:#8ca39f; }
+    a { color:#9edbed; }
+    @media (max-width:800px) { .path { display:none; } }
+  </style>
+  <script src="./compare.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>Hunt Analyzer · <span>Antes / proposta</span></h1>
+    <p>Referência M0 renderizada pelos componentes atuais à esquerda; protótipo M1.1 de linhas contínuas à direita. A proposta M1.1 elimina a rolagem horizontal preservando a densidade necessária aos prints de Discord.</p>
+  </header>
+  <div class="controls">
+    <div class="group" id="size-controls" aria-label="Dimensões da comparação">
+      <span class="group-label">FORMATO</span>
+      <button type="button" data-size="desktop-415" aria-pressed="true">Desktop 415</button>
+      <button type="button" data-size="desktop-620" aria-pressed="false">Desktop 620</button>
+      <button type="button" data-size="mobile-320" aria-pressed="false">Mobile 320</button>
+      <button type="button" data-size="mobile-390" aria-pressed="false">Mobile 390</button>
+    </div>
+    <div class="group" id="view-controls" aria-label="Tela da comparação">
+      <span class="group-label">TELA</span>
+      <button type="button" data-screen="current" aria-pressed="true">Current</button>
+      <button type="button" data-screen="history" aria-pressed="false">History</button>
+      <button type="button" data-screen="misc" aria-pressed="false">Misc</button>
+      <button type="button" data-screen="hud" aria-pressed="false">HUD</button>
+    </div>
+    <span class="path">16 pares de capturas locais · sem conexão com o jogo</span>
+  </div>
+  <main class="scroll-area">
+    <div class="two-up" id="pair">
+      <section class="card">
+        <div class="card-head"><div><strong>Interface atual</strong><small>Componentes reais / fixture offline</small></div><span class="tag">M0</span></div>
+        <div class="viewport source"><img id="source-image" src="../reference/screenshots/desktop-415-current.png" alt="Captura da interface atual com dados sintéticos"></div>
+      </section>
+      <section class="card">
+        <div class="card-head"><div><strong>Direção proposta</strong><small>Protótipo visual independente, linhas contínuas</small></div><span class="tag">M1.1</span></div>
+        <div class="viewport proposal"><img id="proposal-image" src="./screenshots/desktop-415-current.png" alt="Protótipo Dark Tactical Analytics com dados sintéticos"></div>
+      </section>
+    </div>
+  </main>
+  <section class="notes" aria-live="polite">
+    <strong id="notes-title">Current · hierarquia e densidade</strong>
+    <p id="notes-text">KPIs e controles são reorganizados conforme a largura. Verificar valores críticos e espaço para os botões da Hunt.</p>
+    <p class="disclaimer">As imagens são de estados iniciais. O baseline M0 pode ter scroll horizontal, pois registra o código anterior. A condição de zero scroll se aplica à proposta M1.1 e à integração futura no runtime. Capturas são locais e não entram no release.</p>
+    <p class="disclaimer"><a href="./share-compare.html">Ver comparação específica da densidade de screenshots (boxes rejeitados × linhas contínuas)</a> ou abrir o <a href="../prototype/index.html">protótipo interativo</a>.</p>
+  </section>
+</body>
+</html>

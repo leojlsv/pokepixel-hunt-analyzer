@@ -64,7 +64,7 @@ function combatStarted(
   );
 }
 
-function lootReceived(wildId, { ts, seq }) {
+function lootReceived(wildId, { ts, seq, items = [] }) {
   return envelope(
     "loot.received",
     {
@@ -74,6 +74,7 @@ function lootReceived(wildId, { ts, seq }) {
       trainer_exp: 4305,
       pokemon_exp: 4305,
       gold: 37,
+      loot_items: items,
       loot_sell_value: 0
     },
     { seq, ts }
@@ -169,12 +170,17 @@ test("start -> loot: creates then updates with a correct cycle_ms", (t) => {
   const encounterId = started.effects[1].row.encounterId;
   assert.equal(started.effects[1].row.state, "started");
 
-  const looted = applyEvent(state, lootReceived("wild_1", { ts: 1500, seq: 2 }), nextId);
+  const looted = applyEvent(state, lootReceived("wild_1", {
+    ts: 1500,
+    seq: 2,
+    items: [{ item_id: "reference_straw", qty: 3 }]
+  }), nextId);
   state = looted.state;
   const updateEffect = looted.effects.find((e) => e.type === "encounter.update");
   assert.equal(updateEffect.encounterId, encounterId);
   assert.equal(updateEffect.patch.cycleMs, 500);
   assert.equal(updateEffect.patch.state, "looted");
+  assert.deepEqual(updateEffect.patch.lootItems, [{ itemId: "reference_straw", qty: 3 }]);
 });
 
 test("start -> loot -> failed finalizes as failed", () => {

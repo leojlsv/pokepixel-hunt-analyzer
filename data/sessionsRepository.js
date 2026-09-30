@@ -8,21 +8,26 @@
  * Every method here is either "automatic" (driven by protocol signals via
  * services/eventPipeline.js: `hunt.stopped`, `combat.started`/
  * `loot.received`/`hunt.analyzer_reset`, a confirmed new `serverSessionId`)
- * or "manual" (driven by the Side Panel's New Hunt/Pause/Resume/End Hunt
- * buttons, via background.js). Automatic methods respect `locked`
+ * or "manual" (driven by the Analyzer's New Hunt/Pause/Resume/End Hunt
+ * controls). Automatic methods respect `locked`
  * (domain/sessionTiming.js) and no-op while it's set; manual methods are
  * the only ones that set or clear it. This is what keeps a manual
  * Pause/End Hunt from being silently undone by the next `combat.started`.
  *
- * `recoverOnStartup` must be called exactly once from
- * `chrome.runtime.onStartup` (a real browser restart) — never from the
- * per-event path. MV3 suspends/wakes the service worker constantly during
- * normal use; applying the browser-restart recovery formula on every wake
- * would incorrectly zero out the active-time baseline on every message.
+ * `recoverOnStartup` is a mutating startup operation. The Tampermonkey
+ * runtime must call it only after this tab has actually acquired analytics
+ * leadership, never from STANDBY or from the per-event path. Re-running the
+ * browser-restart recovery formula during an active Hunt would truncate the
+ * active-time baseline.
  */
 
 import { createRepository } from "./repository.js";
 import { STORE_NAMES } from "./migrations.js";
+import {
+  abortIfWriteGateLost,
+  assertDatabaseWriteGate,
+  WriteLeadershipLostError
+} from "./write-gate.js";
 import {
   createSession,
   touchActivity,
@@ -52,16 +57,42 @@ export function createSessionsRepository(
     return session ?? null;
   }
 
-  async function startNew() {
-    const session = createSession({
+  async function startNew({ startPaused = false, startEnded = false } = {}) {
+    const startedAt = now();
+    const runningSession = createSession({
       sessionId: crypto.randomUUID(),
-      now: now()
+      now: startedAt
     });
+    const session = startEnded
+      ? lockSession(endSession(runningSession, startedAt))
+      : startPaused
+        ? lockSession(pause(runningSession, startedAt))
+        : runningSession;
 
-    await sessions.put(session);
-    await meta.put(session.sessionId, CURRENT_SESSION_KEY);
-
-    return session;
+    // Creating the row without its current-session pointer would leave an
+    // unreferenced Hunt if leadership changed between the two old puts.
+    assertDatabaseWriteGate(db);
+    return new Promise((resolve, reject) => {
+      let transaction;
+      let leadershipLost = false;
+      try {
+        transaction = db.transaction([STORE_NAMES.SESSIONS, STORE_NAMES.META], "readwrite");
+        const sessionStore = transaction.objectStore(STORE_NAMES.SESSIONS);
+        const metaStore = transaction.objectStore(STORE_NAMES.META);
+        sessionStore.put(session);
+        metaStore.put(session.sessionId, CURRENT_SESSION_KEY);
+        transaction.addEventListener("success", () => {
+          if (abortIfWriteGateLost(db, transaction)) leadershipLost = true;
+        }, true);
+        transaction.addEventListener("complete", () => resolve(session));
+        transaction.addEventListener("abort", () => reject(
+          leadershipLost ? new WriteLeadershipLostError() : transaction.error ?? new Error("New Hunt aborted")
+        ));
+      } catch (error) {
+        try { transaction?.abort(); } catch {}
+        reject(error);
+      }
+    });
   }
 
   // Only recreates when there is truly nothing usable to attach data to —
@@ -150,15 +181,11 @@ export function createSessionsRepository(
    */
   async function endManual() {
     const current = await readCurrent();
-    const base = current ?? createSession({ sessionId: crypto.randomUUID(), now: now() });
-
-    const ended = lockSession(endSession(base, now()));
+    // End before the first observed encounter must insert the locked row and
+    // its current pointer atomically, just like New Hunt/Reset.
+    if (!current) return startNew({ startEnded: true });
+    const ended = lockSession(endSession(current, now()));
     await sessions.put(ended);
-
-    if (!current) {
-      await meta.put(ended.sessionId, CURRENT_SESSION_KEY);
-    }
-
     return ended;
   }
 
@@ -194,20 +221,80 @@ export function createSessionsRepository(
   /**
    * Manual override (`New Hunt`) or an automatic "new_hunt" boundary
    * decision (domain/huntLifecycle.js): always ends whatever session is
-   * current and starts a fresh, unlocked one, regardless of its state.
+   * current and starts a fresh one, regardless of its state. The explicit
+   * reset variant persists the new session already paused and locked.
    */
-  async function forceNewSession() {
-    const current = await readCurrent();
+  async function forceNewSession({ startPaused = false } = {}) {
+    // The old session's end marker, new session, and current pointer must
+    // commit together. A takeover mid-switch aborts all three writes.
+    assertDatabaseWriteGate(db);
+    return new Promise((resolve, reject) => {
+      let transaction;
+      let nextSession;
+      let leadershipLost = false;
+      try {
+        transaction = db.transaction([STORE_NAMES.SESSIONS, STORE_NAMES.META], "readwrite");
+        const sessionStore = transaction.objectStore(STORE_NAMES.SESSIONS);
+        const metaStore = transaction.objectStore(STORE_NAMES.META);
 
-    if (current && current.status !== "ended") {
-      await sessions.put(endSession(current, now()));
-    }
+        function checkOwnership() {
+          if (!abortIfWriteGateLost(db, transaction)) return true;
+          leadershipLost = true;
+          return false;
+        }
 
-    return startNew();
+        const pointer = metaStore.get(CURRENT_SESSION_KEY);
+        pointer.onsuccess = () => {
+          if (!checkOwnership()) return;
+          const currentId = pointer.result;
+          if (!currentId) {
+            scheduleSwitch(null);
+            return;
+          }
+          const currentRequest = sessionStore.get(currentId);
+          currentRequest.onsuccess = () => {
+            if (!checkOwnership()) return;
+            scheduleSwitch(currentRequest.result ?? null);
+          };
+        };
+
+        function scheduleSwitch(current) {
+          if (!checkOwnership()) return;
+          const switchedAt = now();
+          const runningSession = createSession({
+            sessionId: crypto.randomUUID(),
+            now: switchedAt
+          });
+          nextSession = startPaused
+            ? lockSession(pause(runningSession, switchedAt))
+            : runningSession;
+
+          if (current && current.status !== "ended") {
+            sessionStore.put(endSession(current, switchedAt));
+          }
+          sessionStore.put(nextSession);
+          metaStore.put(nextSession.sessionId, CURRENT_SESSION_KEY);
+          if (!checkOwnership()) return;
+          // Every request is complete before the transaction commits; this
+          // final check also runs on each request's success event below.
+        }
+
+        transaction.addEventListener("success", () => {
+          checkOwnership();
+        }, true);
+        transaction.addEventListener("complete", () => resolve(nextSession));
+        transaction.addEventListener("abort", () => reject(
+          leadershipLost ? new WriteLeadershipLostError() : transaction.error ?? new Error("Hunt switch aborted")
+        ));
+      } catch (error) {
+        try { transaction?.abort(); } catch {}
+        reject(error);
+      }
+    });
   }
 
   /**
-   * Read-only accessor for the Side Panel's Current view — unlike
+   * Read-only accessor for the Analyzer's Current view — unlike
    * getOrStartCurrent(), this NEVER creates a session as a side effect of
    * merely looking at it. Returns null if no Hunt has started yet.
    */
@@ -260,12 +347,35 @@ export function createSessionsRepository(
    * pointing at a sessionId that no longer exists.
    */
   async function deleteSession(sessionId) {
-    await sessions.delete(sessionId);
-
-    const currentSessionId = await meta.get(CURRENT_SESSION_KEY);
-    if (currentSessionId === sessionId) {
-      await meta.delete(CURRENT_SESSION_KEY);
-    }
+    assertDatabaseWriteGate(db);
+    return new Promise((resolve, reject) => {
+      let transaction;
+      let leadershipLost = false;
+      try {
+        transaction = db.transaction([STORE_NAMES.SESSIONS, STORE_NAMES.META], "readwrite");
+        const sessionsStore = transaction.objectStore(STORE_NAMES.SESSIONS);
+        const metaStore = transaction.objectStore(STORE_NAMES.META);
+        function checkOwnership() {
+          if (!abortIfWriteGateLost(db, transaction)) return true;
+          leadershipLost = true;
+          return false;
+        }
+        const pointer = metaStore.get(CURRENT_SESSION_KEY);
+        pointer.onsuccess = () => {
+          if (!checkOwnership()) return;
+          sessionsStore.delete(sessionId);
+          if (pointer.result === sessionId) metaStore.delete(CURRENT_SESSION_KEY);
+        };
+        transaction.addEventListener("success", () => { checkOwnership(); }, true);
+        transaction.addEventListener("complete", () => resolve());
+        transaction.addEventListener("abort", () => reject(
+          leadershipLost ? new WriteLeadershipLostError() : transaction.error ?? new Error("Hunt deletion aborted")
+        ));
+      } catch (error) {
+        try { transaction?.abort(); } catch {}
+        reject(error);
+      }
+    });
   }
 
   return {

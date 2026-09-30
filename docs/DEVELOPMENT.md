@@ -239,7 +239,7 @@ Required after UI/runtime/WebSocket changes:
 22. Capture Ticket BETA Generate works for Legend / Mythic / Shiny fixtures or eligible real captures.
 23. Capture Ticket Copy can be pasted into a compatible target when the browser supports image clipboard writes.
 24. F5 preserves IndexedDB data and intended UI state.
-25. With two game tabs, only one is ACTIVE and the other is STANDBY.
+25. With two game tabs, only one is ACTIVE and the other is STANDBY; opening or reloading the STANDBY tab must not pause or rewrite the ACTIVE tab's running Hunt.
 
 A clean automated suite does not replace this smoke test for browser behavior.
 

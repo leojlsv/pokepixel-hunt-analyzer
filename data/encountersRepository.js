@@ -10,6 +10,11 @@
 import { createRepository } from "./repository.js";
 import { promisifyRequest } from "./db.js";
 import { STORE_NAMES } from "./migrations.js";
+import {
+  abortIfWriteGateLost,
+  assertDatabaseWriteGate,
+  WriteLeadershipLostError
+} from "./write-gate.js";
 
 export function createEncountersRepository(db) {
   const repo = createRepository(db, STORE_NAMES.ENCOUNTERS);
@@ -42,8 +47,8 @@ export function createEncountersRepository(db) {
     return repo.getAll();
   }
 
-  // Uses the `sessionId` index created in Fase 1's migration — needed by
-  // the Side Panel's Current view (domain/sessionMetrics.js) to fetch only
+  // Uses the `sessionId` index created in the initial migration — needed by
+  // the Analyzer's Current view (domain/sessionMetrics.js) to fetch only
   // the current session's encounters instead of the whole store.
   function getBySessionId(sessionId) {
     const store = db
@@ -107,26 +112,46 @@ export function createEncountersRepository(db) {
    */
   function deleteBySessionId(sessionId) {
     return new Promise((resolve, reject) => {
-      const store = db
-        .transaction(STORE_NAMES.ENCOUNTERS, "readwrite")
-        .objectStore(STORE_NAMES.ENCOUNTERS);
+      let transaction;
+      try {
+        assertDatabaseWriteGate(db);
+        transaction = db.transaction(STORE_NAMES.ENCOUNTERS, "readwrite");
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      const store = transaction.objectStore(STORE_NAMES.ENCOUNTERS);
+      let leadershipLost = false;
+      function checkOwnership() {
+        if (!abortIfWriteGateLost(db, transaction)) return true;
+        leadershipLost = true;
+        return false;
+      }
+
+      transaction.addEventListener("complete", () => resolve());
+      transaction.addEventListener("abort", () => reject(
+        leadershipLost ? new WriteLeadershipLostError() : transaction.error ?? new Error("Encounter deletion aborted")
+      ));
 
       // A bare (non-IDBKeyRange) query is treated as an exact-match range.
       const request = store.index("sessionId").openCursor(sessionId);
 
       request.onsuccess = () => {
+        if (!checkOwnership()) return;
         const cursor = request.result;
 
         if (!cursor) {
-          resolve();
           return;
         }
 
-        cursor.delete();
+        const deletion = cursor.delete();
+        deletion.addEventListener("success", () => { checkOwnership(); });
         cursor.continue();
       };
 
-      request.onerror = () => reject(request.error);
+      request.onerror = () => reject(
+        leadershipLost ? new WriteLeadershipLostError() : request.error
+      );
     });
   }
 

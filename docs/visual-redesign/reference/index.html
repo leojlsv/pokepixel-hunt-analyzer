@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Hunt Analyzer — referência offline da UI atual</title>
+  <style>
+    html,body { width:100%; min-height:100%; margin:0; background:#172022; color:#c2d2d0; font:13px/1.4 Inter,Segoe UI,Arial,sans-serif; }
+    body { background-image:linear-gradient(100deg,#10191cd9,#10191ce8),radial-gradient(circle at 24% 22%,#35534c70,transparent 46%),linear-gradient(#1f3033 1px,transparent 1px),linear-gradient(90deg,#1f3033 1px,transparent 1px);background-size:100% 100%,100% 100%,44px 44px,44px 44px; }
+    .reference-label { position:absolute;top:24px;left:24px;width:240px;padding:14px 16px;border:1px solid #4d6266;border-radius:6px;background:#121b1edc; }
+    .reference-label strong { display:block;font-size:15px;color:#f1d38a; }
+    .reference-label small { display:block;margin-top:8px;line-height:1.45; }
+    body[data-mode="mobile"] .reference-label { display:none; }
+  </style>
+</head>
+<body>
+  <div class="reference-label"><strong>UI atual · referência</strong><small>Renderização offline dos módulos reais, alimentada com dados sintéticos. Não se conecta ao jogo e não altera a Hunt.</small></div>
+  <script src="./reference.bundle.js"></script>
+</body>
+</html>

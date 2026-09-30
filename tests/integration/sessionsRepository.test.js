@@ -213,6 +213,29 @@ test("forceNewSession always ends the current session and starts a fresh, unlock
   assert.equal(oldRow.accumulatedActiveMs, 1000);
 });
 
+test("forceNewSession can create an already-paused and locked reset session", async () => {
+  const db = await setup();
+  const clock = fakeClock(1_000);
+  const repo = createSessionsRepository(db, { now: clock.now });
+  const previous = await repo.getOrStartCurrent();
+  clock.advance(5_000);
+
+  const reset = await repo.forceNewSession({ startPaused: true });
+
+  assert.notEqual(reset.sessionId, previous.sessionId);
+  assert.equal(reset.status, "paused");
+  assert.equal(reset.locked, true);
+  assert.equal(reset.accumulatedActiveMs, 0);
+  assert.equal(reset.activeStartedAtMs, null);
+  const persisted = await repo.getCurrentReadOnly();
+  assert.equal(persisted.status, "paused");
+  assert.equal(persisted.locked, true);
+  assert.equal((await repo.touchActivityAutomatic()).status, "paused");
+  const oldRow = await createRepository(db, STORE_NAMES.SESSIONS).get(previous.sessionId);
+  assert.equal(oldRow.status, "ended");
+  assert.equal(oldRow.accumulatedActiveMs, 5_000);
+});
+
 // --- Manual Pause/Resume/End Hunt vs. the automatic lifecycle ---
 
 test("pauseManual locks the session; touchActivityAutomatic does not resume it", async () => {

@@ -24,6 +24,10 @@ export const EVENT_TYPES = Object.freeze([
   "hunt.kill_closed"
 ]);
 
+const LOOT_ITEM_LIMIT = 32;
+const LOOT_ITEM_ID_LIMIT = 64;
+const LOOT_ITEM_QTY_LIMIT = 1e15;
+
 function str(value) {
   return typeof value === "string" ? value : null;
 }
@@ -69,6 +73,22 @@ function normalizeIvs(value) {
   };
 }
 
+function normalizeLootItems(value) {
+  if (!Array.isArray(value)) return [];
+  const items = [];
+  for (const item of value) {
+    if (items.length >= LOOT_ITEM_LIMIT) break;
+    const itemId = str(item?.item_id)?.trim().slice(0, LOOT_ITEM_ID_LIMIT) || "";
+    const qty = num(item?.qty);
+    if (!itemId || qty === null || qty < 0) continue;
+    items.push({
+      item_id: itemId,
+      qty: Math.min(LOOT_ITEM_QTY_LIMIT, Math.floor(qty))
+    });
+  }
+  return items;
+}
+
 function normalizeCombatStarted(data) {
   const enemy = plainObjectOrNull(data.enemy);
   if (!enemy) return null;
@@ -111,6 +131,7 @@ function normalizeLootReceived(data) {
     trainer_exp: num(data.trainer_exp),
     pokemon_exp: num(data.pokemon_exp),
     gold: num(data.gold),
+    loot_items: normalizeLootItems(data.loot_items),
     loot_sell_value: num(data.loot_sell_value),
     auto_potion_used: str(data.auto_potion_used),
     supply_cost: num(data.supply_cost)
