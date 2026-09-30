@@ -7,26 +7,41 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
-### Coupled Workspace boundary
-- Added an explicit protocol-v1 embed marker and a bounded, read-only Current Hunt summary for PokePixel Better UI without exposing session ids, raw encounter rows, credentials or repository access.
-- Embedded mode keeps the Analyzer event pipeline, domain calculations and IndexedDB authoritative while skipping standalone panel/HUD/audio/gallery/history surfaces.
-- Hunt Analyzer `1.13.5` installs the same bounded/cloned public summary and allowlisted Pause/Resume/Reset control in the normal userscript runtime as well as explicit embed mode, allowing standalone Better UI Cards to consume Analyzer-owned state without duplicating event parsing, formulas, IndexedDB, leadership or persistence.
-- Hunt Analyzer `1.13.6` extends each terminal attempt projection with bounded scalar `ivTotal` (0–186), including failed captures, while keeping individual IVs/gender/nature captured-only. This lets Better UI show failed Pokémon total IV without broadening the public bridge to raw encounter data.
-- Normal Analyzer UI, diagnostics and leadership remain intact. A recent public-summary reader keeps Current hydration fresh even when the Analyzer UI is on another view; without a reader, the existing view-based refresh gate remains.
+### Coupled Workspace and Better UI boundary
+- Added an explicit protocol-v1 embed marker, a cloned and bounded read-only Current Hunt summary, and allowlisted Pause/Resume/Reset controls for standalone and embedded consumers. The embedded runtime keeps the Analyzer pipeline and IndexedDB authoritative without mounting its standalone UI, audio, gallery or History controls.
+- The Current presentation contract exposes a canonical active target, latest capture chance, bounded normal and Epic/Legendary/Mythical/Shiny histories, and captured-only IV/gender/nature details. A bounded scalar total IV (0–186) is also available for failed terminal captures.
+- Loot history exposes up to 32 recent rewards with authoritative item identifiers and quantities, realized direct gold, loot-sell and auto-sell components, and their calculated total; it does not infer unavailable item names, rarity or prices.
+- Added bounded, memoized presentation caches and independently bounded public snapshots (up to 32 normal, special and loot entries each), while keeping complete Hunt history in IndexedDB.
 
-### Analytics and presentation
-- Split revenue into direct gold, loot sell value and realized Pokémon auto-sell while retaining the existing Dollar compatibility fields; added explicit Revenue/Profit rates and Epic+ failed metrics.
-- Added bounded Current-target and capture-attempt presentation projections for the coupled Cards UI, including whole-session special history for Epic/Legendary/Mythical/Shiny attempts.
-- Added a bounded immutable `lootHistory` projection for the coupled Cards UI: the newest 32 canonical encounter rewards expose only loot time, species, direct gold, loot sell value, realized Pokémon auto-sell and a recomputed total. Internal/session identifiers and itemized loot are not exported; the public bridge returns cloned entries so consumers cannot mutate Analyzer-owned state.
-- Memoized immutable Cards presentation snapshots so the one-second Current refresh no longer re-sorts the full attempt history when encounter state has not changed.
+### Analytics and runtime integrity
+- Separated direct gold, loot sell value and realized Pokémon auto-sell in revenue/profit calculations, while retaining the existing Dollar compatibility fields; added Epic+ failed metrics.
+- Startup recovery requires ACTIVE leadership. Queued events, session commands and History deletion recheck leadership after asynchronous waits; runtime IndexedDB writes revalidate before dispatch and after requests, aborting in-flight transactions when a detected takeover occurs.
+- Coupled `sessions` and `meta` operations (new session, Reset, initial End Hunt, session switch and current-session deletion) are committed atomically; encounter bulk deletion aborts if leadership is lost while scanning.
+- Protocol deduplication/tracker state advances only after successful persistence. This mitigates detected multi-tab handoffs; localStorage election and IndexedDB commits do not provide a strict cross-system fencing guarantee.
+
+### Visual design work
+- Added offline M1.1 continuous-table prototypes, reference-capture tooling, sharing-density evidence and a review gate. These prototypes are not integrated into the production userscript and still require product-owner visual approval.
 
 ### Validation
-- Hunt Analyzer `1.13.6`: **453/453 automated tests PASS**, production userscript build PASS and release/update invariant verification PASS.
-- Exact production userscript: `1529448` bytes, SHA-256 `0131E53D542949D84E4677736CF3A50FF90573EF10407866ACE3AA4DA2A8EE60`; the Better UI embed bundle is byte-identical.
+- The merged branch passed 467 automated tests, including the 4,000+ event fixture and transactional leadership-handoff tests; PROD/DEV builds, userscript update verification, offline prototype QA and dependency audit also passed. The new changes have not yet received an in-game smoke test.
 
-### Runtime integrity
-- Startup session recovery now waits for actual ACTIVE-tab leadership; opening or reloading a STANDBY tab cannot pause or truncate the ACTIVE Hunt clock.
-- Event-pipeline tracker state and dedupe identity are committed only after persistence succeeds, keeping an exact event retryable after a transient IndexedDB failure.
+## [1.14.0] - 2026-09-07
+
+### Capture chance presentation
+- Capture chances now use three decimal places on the relevant Current and History surfaces, while non-zero values below `0.001%` render as `<0.001%` instead of appearing as zero or overflowing compact tables.
+- Current > Failed column widths were rebalanced so values up to `100.000%` remain readable without colliding with `Fled at`.
+- History > Hunts > Details notable rows were resized to preserve the timestamp, capture chance and IV columns in the compact nested table.
+
+### History and Current UI
+- Desktop top navigation now remains visible while vertically scrolling, without changing the Mobile positioning rules.
+- History > Hunts > Details > Notables now includes capture Chance alongside the existing Pokémon identification and encounter result data.
+- History > Attempts now includes Chance, removes the standalone Rarity column and applies rarity color directly to the Pokémon name.
+- Current `By Rarity`, `Captured` and `Failed` section summaries now expose shiny counts through compact shiny badges.
+
+### Validation
+- Final in-game UI and behavior were manually validated before release preparation.
+- Added regression coverage for capture chance formatting, History column structure, rarity-colored Attempts and shiny summary badges.
+- No IndexedDB migration, protocol contract change, dependency change or new userscript permission was introduced.
 
 ## [1.13.0] - 2026-09-04
 
