@@ -7,6 +7,12 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+**Candidate v1.15.1 (not yet merged, tagged or published).** The existing
+`v1.15.0` tag and GitHub Release refer to the earlier `main` commit `09ba8de`;
+the following CURRENT/embedded-consumer changes are subsequent to that release.
+Publication requires its own manual/CI gates and the guarded `publish/v1.15.1`
+workflow from a merged and validated `main` commit.
+
 - Exposed CURRENT lifecycle as an allowlisted `sessionGeneration` (runtime-local
   ordinal), `activityKind`, `startedAtMs` and `endedAtMs` projection for Cards,
   while preserving the privacy of the local `sessionId`, transport IDs and
