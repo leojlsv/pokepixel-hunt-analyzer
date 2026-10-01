@@ -244,8 +244,9 @@ Required after UI/runtime/WebSocket changes:
 27. Capture Ticket Copy can be pasted into a compatible target when the browser supports image clipboard writes.
 28. F5 preserves IndexedDB data and intended UI state.
 29. With two game tabs, only one is ACTIVE and the other is STANDBY; opening or reloading the STANDBY tab must not pause or rewrite the ACTIVE tab's running Hunt.
+30. For coupled Cards consuming the public CURRENT summary, verify cold login's last CURRENT species without a live target; Hunt live target versus last terminal encounter; running Expedition's `EXPEDITION` heading without a stale Hunt target; Pause, End→Resume, New Hunt/Reset and reconnect/F5 boundaries. The session generation is runtime-local, and the public bridge must not disclose private session/run IDs. Only the Product Owner performs this check in the real game.
 
-A clean automated suite or synthetic GIF does not replace this smoke test for actual browser/game behavior. The exact v1.15.0 PROD candidate must pass the smoke before PR merge and guarded publishing.
+A clean automated suite or synthetic GIF does not replace this smoke test for actual browser/game behavior. Every subsequent runtime release, including the v1.15.1 CURRENT-bridge candidate, must pass the smoke on its exact PROD bundle before PR merge and guarded publishing. This does not retroactively change the already published v1.15.0 release.
 
 ## 9. Build and release
 

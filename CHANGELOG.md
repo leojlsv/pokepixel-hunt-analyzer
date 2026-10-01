@@ -7,11 +7,11 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
-**Candidate v1.15.1 (not yet merged, tagged or published).** The existing
-`v1.15.0` tag and GitHub Release refer to the earlier `main` commit `09ba8de`;
-the following CURRENT/embedded-consumer changes are subsequent to that release.
-Publication requires its own manual/CI gates and the guarded `publish/v1.15.1`
-workflow from a merged and validated `main` commit.
+**v1.15.1 preparation note:** The `v1.15.0` tag and GitHub Release refer to
+the earlier `main` commit `09ba8de`; the following CURRENT/embedded-consumer
+changes were prepared after that release. This changelog entry alone does not
+announce publication. A subsequent release requires its own manual/CI gates
+and the guarded `publish/v1.15.1` workflow from a merged, validated `main`.
 
 - Exposed CURRENT lifecycle as an allowlisted `sessionGeneration` (runtime-local
   ordinal), `activityKind`, `startedAtMs` and `endedAtMs` projection for Cards,
