@@ -8,6 +8,7 @@ import {
   resolveUiMode
 } from "./ui-mode.js";
 import { createUiStateStore } from "./ui-state.js";
+import { PALETTE_STYLES, readPalette, selectPalette } from "./palette-theme.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const COLLAPSE_KEY = "pokepixel_hunt_analyzer_collapsed_v1";
@@ -39,7 +40,8 @@ function clamp(value, min, max) {
 export function createUi({
   onSessionAction,
   onLoadHistorySessions,
-  onLoadHistorySessionEncounters
+  onLoadHistorySessionEncounters,
+  getLootItemCatalog
 }) {
   const uiStateStore = createUiStateStore(localStorage);
   const initialUiState = uiStateStore.read();
@@ -59,6 +61,7 @@ export function createUi({
   let suppressLauncherClick = false;
   let currentView;
   let historyView;
+  let lastHistorySource = null;
 
   mount();
 
@@ -69,9 +72,10 @@ export function createUi({
     host.id = ROOT_ID;
     host.dataset.uiMode = uiMode;
     shadow = host.attachShadow({ mode: "open" });
+    selectPalette(shadow, readPalette());
 
     const style = document.createElement("style");
-    style.textContent = `${STYLES}\n${MOBILE_STYLES}`;
+    style.textContent = `${STYLES}\n${MOBILE_STYLES}\n${PALETTE_STYLES}`;
     const wrapper = document.createElement("div");
     wrapper.innerHTML = createUiMarkup();
     shadow.append(style, wrapper);
@@ -83,10 +87,11 @@ export function createUi({
       panel.style.minHeight = `${MIN_PANEL_HEIGHT_PX}px`;
     }
     launcher = shadow.getElementById("pha-toggle");
-    currentView = createCurrentView(shadow);
+    currentView = createCurrentView(shadow, { getLootItemCatalog });
     historyView = createHistoryView(shadow, {
       loadSessions: onLoadHistorySessions,
-      loadSessionEncounters: onLoadHistorySessionEncounters
+      loadSessionEncounters: onLoadHistorySessionEncounters,
+      getLootItemCatalog
     });
 
     bindUiEvents();
@@ -162,14 +167,32 @@ export function createUi({
     saveUiState({ view: activeView });
 
     if (activeView === "history") {
-      historyView.refresh().catch((error) => {
+      historyView.ensureLoaded().catch((error) => {
         console.error("PokePixel Hunt Analyzer (History):", error);
       });
     }
   }
 
   function renderCurrent(state) {
+    const source = {
+      sessionId: state?.sessionId ?? null,
+      lootDataRevision: state?.lootDataRevision ?? null,
+      status: state?.metrics?.status ?? null,
+      activityKind: state?.metrics?.activityKind ?? null
+    };
+    if (lastHistorySource && (
+      lastHistorySource.sessionId !== source.sessionId
+      || lastHistorySource.lootDataRevision !== source.lootDataRevision
+      || lastHistorySource.status !== source.status
+      || lastHistorySource.activityKind !== source.activityKind
+    )) {
+      // Keep loaded History pages across tab navigation only while the
+      // authoritative Current encounter revision has not changed.
+      historyView.invalidate();
+    }
+    lastHistorySource = source;
     currentView.render(state);
+    if (activeView === "history") historyView.refreshLootCatalog();
   }
 
   function setActive(isActive) {
@@ -586,7 +609,7 @@ export function createUi({
 
   function applyCollapseState() {
     const state = readCollapseState();
-    for (const key of ["hunt", "rarity", "captured", "failed"]) {
+    for (const key of ["hunt", "rarity", "loot", "captured", "failed"]) {
       setCollapsed(key, state[key] === true);
     }
   }
@@ -672,7 +695,12 @@ export function createUi({
 
   return {
     renderCurrent,
+    markHistoryDirty: () => historyView.invalidate(),
     setActive,
+    refreshLootCatalog: () => {
+      currentView?.refreshLootCatalog();
+      historyView?.refreshLootCatalog();
+    },
     getActiveView: () => activeView,
     getUiMode: () => uiMode
   };

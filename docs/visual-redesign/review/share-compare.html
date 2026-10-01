@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Hunt Analyzer — densidade para screenshots</title>
+  <style>
+    :root { color-scheme:dark; background:#111a1c; color:#e4efea; font:14px/1.5 Inter,"Segoe UI",sans-serif; }
+    * { box-sizing:border-box; }
+    body { margin:0; }
+    header { padding:20px clamp(12px,4vw,36px); background:#1d272a; border-bottom:1px solid #435356; }
+    h1 { font-size:clamp(20px,3vw,28px); margin:0 0 5px; letter-spacing:-.025em; }
+    header p, footer { max-width:850px; color:#b3cac6; margin:0; }
+    .chooser { padding:13px clamp(12px,4vw,36px); display:flex; align-items:center; flex-wrap:wrap; gap:10px; background:#172124; }
+    label { display:flex; flex-wrap:wrap; align-items:center; gap:8px; color:#b6d0ca; font-weight:650; }
+    select { min-height:44px; max-width:min(98vw,360px); padding:7px; background:#273437; color:#edf5f1; border:1px solid #58706d; border-radius:5px; font:inherit; }
+    select:focus-visible { outline:2px solid #8adce3; outline-offset:2px; }
+    .comparison { display:flex; flex-wrap:wrap; gap:20px; align-items:flex-start; justify-content:center; padding:22px 12px; }
+    .frame { width:calc(var(--width) + 22px); max-width:calc(100vw - 24px); padding:10px; border:1px solid #496160; border-radius:7px; background:#202e30; }
+    .frame h2 { display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:14px; margin:0 0 10px; }
+    .frame h2 span { font-size:11px; color:#adc9c2; font-weight:500; }
+    .frame img { display:block; max-width:100%; width:var(--width); height:auto; background:#162022; border:1px solid #5b6b67; }
+    .summary { width:min(900px,calc(100% - 24px)); margin:0 auto 25px; padding:13px 16px; border-left:3px solid #d7b45d; background:#202b2c; }
+    footer { width:min(900px,calc(100% - 24px)); margin:0 auto 25px; font-size:12px; }
+    a { color:#95e0eb; }
+  </style>
+  <script src="./share-compare.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>Hunt Analyzer · comparação para prints do Discord</h1>
+    <p>Aprovação visual deve considerar quantos Pokémon e valores completos aparecem no mesmo print. O redesign precisa manter zero rolagem horizontal, sem aumentar a altura de cada linha.</p>
+  </header>
+  <div class="chooser">
+    <label for="sample">Captura para comparar
+      <select id="sample">
+        <option value="mobile-390-current-captured">Mobile 390 · Captured</option>
+        <option value="mobile-320-current-captured">Mobile 320 · Captured</option>
+        <option value="desktop-415-current-captured">Desktop 415 · Captured</option>
+        <option value="desktop-620-current-captured">Desktop 620 · Captured</option>
+        <option value="mobile-320-history-attempts">Mobile 320 · History Attempts</option>
+      </select>
+    </label>
+  </div>
+  <main class="comparison">
+    <section class="frame">
+      <h2>Formato em cartões <span>M1 rejeitado</span></h2>
+      <img id="before" alt="Versão anterior com um cartão alto por registro">
+    </section>
+    <section class="frame">
+      <h2>Linhas compactas <span>M1.1 proposta</span></h2>
+      <img id="after" alt="Nova proposta com uma tabela contínua e linhas compactas">
+    </section>
+  </main>
+  <section class="summary">
+    <strong>Critérios que devem permanecer simultaneamente:</strong>
+    cada screenshot deve expor vários Pokémon e os atributos correspondentes; IV Total + seis IVs visíveis em Captured; nenhuma tabela com rolagem horizontal; sem Level em Captured/Failed. Os dados são sintéticos em ambas as imagens.
+  </section>
+  <footer>Arquivos PNG são capturas offline locais; a primeira coluna é um snapshot congelado da composição rejeitada. A segunda é regenerada com <code>node docs/visual-redesign/review/capture-prototype.mjs</code>. A UI operacional do jogo não é acessada. Veja também o <a href="../prototype/index.html">protótipo interativo</a>.</footer>
+</body>
+</html>

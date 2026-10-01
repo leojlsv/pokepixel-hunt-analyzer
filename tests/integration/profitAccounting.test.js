@@ -95,8 +95,14 @@ test("profit accounting includes kill gold, loot sell value and realized Pokémo
 
   const metrics = computeSessionMetrics({ session, encounters, now: 3_600_000 });
 
+  assert.equal(metrics.directGold, 100);
+  assert.equal(metrics.lootSellValue, 40);
+  assert.equal(metrics.autoSellValue, 250);
+  assert.equal(metrics.revenue, 390);
+  assert.equal(metrics.revenuePerHour, 390);
   assert.equal(metrics.gold, 390);
   assert.equal(metrics.goldPerHour, 390);
   assert.equal(metrics.expenses, 50);
-  assert.equal(metrics.gold - metrics.expenses, 340);
+  assert.equal(metrics.profit, 340);
+  assert.equal(metrics.profitPerHour, 340);
 });

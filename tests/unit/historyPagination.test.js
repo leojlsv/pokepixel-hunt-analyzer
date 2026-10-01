@@ -62,8 +62,27 @@ test("History page requests one lookahead row and exposes the next cursor", asyn
 
   assert.deepEqual(request, { after: 1_000, before: Infinity, limit: 21 });
   assert.equal(page.bundles.length, 20);
-  assert.equal(page.nextBefore, available[19].startedAtMs);
+  assert.deepEqual(page.nextBefore, {
+    startedAtMs: available[19].startedAtMs,
+    sessionId: available[19].sessionId
+  });
   assert.equal(peak, 4);
+});
+
+test("History continuation forwards both timestamp and session ID to the session repository", async () => {
+  let request;
+  await loadHistoryPage({
+    loadSessions: async (options) => {
+      request = options;
+      return [];
+    },
+    loadSessionEncounters: async () => [],
+    range: { after: 1_000 },
+    before: { startedAtMs: 4_200, sessionId: "hunt-b" }
+  });
+  assert.deepEqual(request, {
+    after: 1_000, before: 4_200, beforeSessionId: "hunt-b", limit: 21
+  });
 });
 
 test("final History page has no continuation cursor", async () => {

@@ -117,6 +117,10 @@ export function createEventPipeline(
   }
 
   let trackerState = createTrackerState();
+  // Only active, not-yet-fully-correlated encounters are retained here.
+  // Their owner survives a session switch so late loot cannot touch the new clock.
+  const encounterOwners = new Map();
+  let observedExpeditionRunId = null;
   let lastReceivedEvent = null;
   let lastAcceptedEvent = null;
   const recentEvents = [];
@@ -186,6 +190,19 @@ export function createEventPipeline(
   // combat.started is the event that carries the server session/zone context
   // used to decide automatic Hunt boundaries.
   async function resolveSessionForCombatStarted(row) {
+    const previous = await sessionsRepo.getCurrentReadOnly();
+
+    if (previous?.activityKind === "expedition") {
+      if (previous.locked) return previous;
+      // An Expedition may reuse the HuntSim transport session identifier.
+      // Zone identifies combat context, not the run identity.
+      if (!row.zoneId || row.zoneId === "expedition") return previous;
+      // Confirmed first encounter of an ordinary Hunt, even if the Expedition
+      // finish signal was missed. This switch remains atomic in the repository.
+      await sessionsRepo.forceNewSession();
+      observedExpeditionRunId = null;
+    }
+
     const session = await sessionsRepo.getOrStartCurrent();
 
     // Manual Pause/End locks the Hunt. Only explicit Resume/New Hunt should
@@ -237,7 +254,9 @@ export function createEventPipeline(
 
     async function currentSessionId() {
       if (sessionId === undefined) {
-        const session = await sessionsRepo.getOrStartCurrent();
+        const previous = await sessionsRepo.getCurrentReadOnly();
+        const session = previous?.activityKind === "expedition" && previous.status === "ended"
+          ? previous : await sessionsRepo.getOrStartCurrent();
         sessionId = session.sessionId;
       }
       return sessionId;
@@ -256,10 +275,17 @@ export function createEventPipeline(
       sessionId = session.sessionId;
     }
 
+    const matchingOwnerIds = effects
+      .filter((effect) => effect.type === "encounter.update" || effect.type === "encounter.finalize")
+      .map((effect) => encounterOwners.get(effect.encounterId))
+      .filter(Boolean);
+    const current = matchingOwnerIds.length ? await sessionsRepo.getCurrentReadOnly() : null;
+    const lateForEarlierSession = current && matchingOwnerIds.some((id) => id !== current.sessionId);
+
     for (const effect of effects) {
       switch (effect.type) {
         case "session.activity":
-          await sessionsRepo.touchActivityAutomatic();
+          if (!lateForEarlierSession) await sessionsRepo.touchActivityAutomatic();
           break;
 
         case "session.pause":
@@ -274,6 +300,7 @@ export function createEventPipeline(
           const resolvedSessionId = await currentSessionId();
           const row = await finishRowForPersistence(effect.row, resolvedSessionId);
           const created = await encountersRepo.create(row);
+          if (effect.row.state === "started") encounterOwners.set(created.encounterId, resolvedSessionId);
           changedEncounters.set(created.encounterId, created);
           break;
         }
@@ -326,7 +353,23 @@ export function createEventPipeline(
       recordRuntimeEvent(message, "duplicate");
       return { ok: true, duplicate: true };
     }
-    rememberEventKey(dedupeKey);
+
+    // A run's own ID is authoritative; never rotate on each periodic live tick.
+    if (message.type.startsWith("expedition.")) {
+      if (message.type === "expedition.run_finished") {
+        await sessionsRepo.finishExpedition(normalized.runId);
+        if (observedExpeditionRunId === normalized.runId) observedExpeditionRunId = null;
+      } else if (observedExpeditionRunId !== normalized.runId) {
+        const current = await sessionsRepo.beginExpedition(normalized.runId);
+        if (current?.activityKind === "expedition" &&
+            current.activityInstanceId === normalized.runId && current.status !== "ended") {
+          observedExpeditionRunId = normalized.runId;
+        }
+      }
+      rememberEventKey(dedupeKey);
+      recordRuntimeEvent(message, "accepted");
+      return { ok: true, changedEncounters: [] };
+    }
 
     const envelope = {
       type: message.type,
@@ -339,19 +382,26 @@ export function createEventPipeline(
     // Production dedupe is handled by the bounded registry above. Keep
     // the reducer's own Set empty between events so its immutable state
     // cloning remains O(active encounters), not O(total events in the Hunt).
-    trackerState = { ...trackerState, seenKeys: new Set() };
+    const currentTrackerState = { ...trackerState, seenKeys: new Set() };
 
-    const swept = sweepStale(trackerState, now());
-    trackerState = swept.state;
+    const swept = sweepStale(currentTrackerState, now());
     const changedEncounters = await applyEffects(swept.effects);
 
-    const terminalAlert = buildTerminalAlert(envelope, trackerState);
-    const result = applyEvent(trackerState, envelope);
-    trackerState = { ...result.state, seenKeys: new Set() };
+    const terminalAlert = buildTerminalAlert(envelope, swept.state);
+    const result = applyEvent(swept.state, envelope);
     const resultChanges = await applyEffects(result.effects);
     for (const [encounterId, row] of resultChanges) {
       changedEncounters.set(encounterId, row);
     }
+
+    // Commit in-memory state and dedupe only after persistence succeeds. A
+    // transient write failure must leave the exact protocol event retryable
+    // against the same tracker state rather than consuming or losing it.
+    trackerState = { ...result.state, seenKeys: new Set() };
+    for (const id of encounterOwners.keys()) {
+      if (!trackerState.inProgress.has(id)) encounterOwners.delete(id);
+    }
+    rememberEventKey(dedupeKey);
 
     const orphansCreated = result.effects.filter(
       (effect) => effect.type === "encounter.create" && effect.row.state === "orphan"

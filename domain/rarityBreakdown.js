@@ -103,9 +103,13 @@ export function computeRarityBreakdown(encounters = []) {
     rarities.epic.failed +
     rarities.legendary.failed +
     rarities.mythical.failed;
+  const epicPlusFailed =
+    rarities.epic.failed +
+    rarities.legendary.failed +
+    rarities.mythical.failed;
 
   const hasUnknownQuality =
     rarities.unknown.seen + rarities.unknown.captured + rarities.unknown.failed > 0;
 
-  return { seen, captured, failed, rarities, shiny, rarePlusFailed, hasUnknownQuality };
+  return { seen, captured, failed, rarities, shiny, rarePlusFailed, epicPlusFailed, hasUnknownQuality };
 }

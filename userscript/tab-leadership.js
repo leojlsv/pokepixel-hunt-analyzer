@@ -13,6 +13,7 @@ export function createTabLeadership({
   let active = false;
   let stopped = false;
   let webLockRequest = null;
+  let webLockDecision = null;
   let releaseWebLock = null;
 
   function readLock() {
@@ -50,16 +51,33 @@ export function createTabLeadership({
   }
 
   function requestWebLock() {
-    if (webLockRequest || stopped) return;
+    if (stopped) return Promise.resolve(false);
+    if (webLockDecision) return webLockDecision;
+    if (webLockRequest) return Promise.resolve(isActive());
+
+    let resolveDecision;
+    webLockDecision = new Promise((resolve) => {
+      resolveDecision = resolve;
+    });
+    const decision = webLockDecision;
+
+    function settleDecision(value) {
+      resolveDecision(value);
+      if (webLockDecision === decision) webLockDecision = null;
+    }
 
     webLockRequest = Promise.resolve()
       .then(() => lockManager.request(
         key,
         { mode: "exclusive", ifAvailable: true },
         async (lock) => {
-          if (!lock || stopped || !refreshLease()) return;
+          if (!lock || stopped || !refreshLease()) {
+            settleDecision(false);
+            return;
+          }
 
           setActive(true);
+          settleDecision(true);
           await new Promise((resolve) => {
             releaseWebLock = resolve;
           });
@@ -68,13 +86,31 @@ export function createTabLeadership({
         }
       ))
       .catch(() => {
-        // A broken Web Locks implementation falls back to the verified lease
-        // on the next refresh rather than leaving the Analyzer permanently idle.
+        // A broken Web Locks implementation falls back to the same verified
+        // lease used when Web Locks are unavailable.
         lockManager = null;
+        const ownsLease = stopped ? false : refreshLease();
+        setActive(ownsLease);
+        settleDecision(ownsLease);
       })
       .finally(() => {
         webLockRequest = null;
       });
+
+    return decision;
+  }
+
+  async function acquire() {
+    if (stopped) return false;
+
+    if (!lockManager) {
+      const ownsLease = refreshLease();
+      setActive(ownsLease);
+      return ownsLease;
+    }
+
+    if (active) return isActive();
+    return requestWebLock();
   }
 
   function refresh() {
@@ -114,6 +150,7 @@ export function createTabLeadership({
   }
 
   return {
+    acquire,
     refresh,
     release,
     isActive

@@ -3,12 +3,18 @@ export const MOBILE_STYLES = String.raw`
   height: 18px;
   max-width: 62px;
   padding: 0 2px;
-  border: 1px solid #4b4a43;
+  border: 1px solid var(--border);
   border-radius: 3px;
-  background: #20211e;
-  color: #aaa79c;
-  font-size: 8px;
+  background: var(--hunt-surface-control);
+  color: var(--text);
+  font-size: 12px;
   line-height: 1;
+}
+
+.pha-ui-mode-select option {
+  background: var(--hunt-surface-control);
+  color: var(--text);
+  font-size: 12px;
 }
 
 :host([data-ui-mode="mobile"]) {
@@ -275,6 +281,60 @@ export const MOBILE_STYLES = String.raw`
   text-align: right;
 }
 
+:host([data-ui-mode="mobile"]) #loot-section .section-head {
+  position: relative;
+  min-height: 44px;
+}
+
+:host([data-ui-mode="mobile"]) #loot-section .section-meta {
+  padding-right: 34px;
+  pointer-events: none;
+}
+
+:host([data-ui-mode="mobile"]) #loot-section .collapse-button {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  min-width: 100%;
+  height: 100%;
+  padding: 0 10px 0 0;
+  justify-content: flex-end;
+  border: 0;
+  background: transparent;
+  pointer-events: auto;
+}
+
+:host([data-ui-mode="mobile"]) .current-loot-controls {
+  flex-wrap: wrap;
+}
+
+:host([data-ui-mode="mobile"]) .current-loot-filter-field {
+  flex: 1 1 100%;
+  max-width: none;
+}
+
+:host([data-ui-mode="mobile"]) .current-loot-controls > span {
+  flex: 1 1 100%;
+  padding-bottom: 0;
+  text-align: left;
+}
+
+:host([data-ui-mode="mobile"]) #loot-section .table-wrap {
+  max-height: none;
+  overflow-x: hidden;
+}
+
+:host([data-ui-mode="mobile"]) #loot-section th,
+:host([data-ui-mode="mobile"]) #loot-section td {
+  padding: 6px 5px;
+  font-size: 10px;
+}
+
+:host([data-ui-mode="mobile"]) .current-loot-row {
+  touch-action: manipulation;
+}
+
 :host([data-ui-mode="mobile"]) .resize-bottom-left {
   display: none !important;
 }
@@ -297,14 +357,14 @@ export const MOBILE_STYLES = String.raw`
 
 :host([data-ui-mode="mobile"]) .encounter-section .filters select,
 :host([data-ui-mode="mobile"]) .encounter-section .filters input,
-:host([data-ui-mode="mobile"]) .encounter-section .rarity-multiselect summary {
+:host([data-ui-mode="mobile"]) .rarity-multiselect summary {
   min-height: 44px;
   padding-top: 8px;
   padding-bottom: 8px;
   font-size: 11px;
 }
 
-:host([data-ui-mode="mobile"]) .encounter-section .rarity-check-menu {
+:host([data-ui-mode="mobile"]) .rarity-check-menu {
   position: absolute;
   z-index: 40;
   top: calc(100% + 4px);
@@ -318,14 +378,14 @@ export const MOBILE_STYLES = String.raw`
   box-shadow: 0 6px 18px rgba(0,0,0,.38);
 }
 
-:host([data-ui-mode="mobile"]) .encounter-section .rarity-check-option {
+:host([data-ui-mode="mobile"]) .rarity-check-menu .rarity-check-option {
   min-height: 44px;
   padding: 8px;
   gap: 10px;
   font-size: 11px;
 }
 
-:host([data-ui-mode="mobile"]) .encounter-section .rarity-check-option input {
+:host([data-ui-mode="mobile"]) .rarity-check-menu .rarity-check-option input {
   width: 18px;
   min-width: 18px;
   height: 18px;
@@ -379,6 +439,11 @@ export const MOBILE_STYLES = String.raw`
 }
 
 /* History Mobile: interaction-only improvements; preserve the original layout. */
+:host([data-ui-mode="mobile"]) .history-loot-scope .pha-history-select-proxy {
+  flex: 1 1 160px;
+  max-width: 240px;
+}
+
 :host([data-ui-mode="mobile"]) .history-subtabs .tab {
   min-height: 44px;
   touch-action: manipulation;
@@ -447,7 +512,7 @@ export const MOBILE_STYLES = String.raw`
   height: 44px;
   max-width: 72px;
   padding: 0 4px;
-  font-size: 9px;
+  font-size: 12px;
   touch-action: manipulation;
 }
 

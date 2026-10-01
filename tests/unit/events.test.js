@@ -10,6 +10,10 @@ test("EVENT_TYPES lists the canonical inbound events", () => {
       "capture.failed",
       "capture.success",
       "combat.started",
+      "expedition.run_started",
+      "expedition.run_updated",
+      "expedition.run_live",
+      "expedition.run_finished",
       "hunt.analyzer_reset",
       "hunt.kill_closed",
       "hunt.stopped",
@@ -20,6 +24,28 @@ test("EVENT_TYPES lists the canonical inbound events", () => {
 
 test("unrecognized event type returns null", () => {
   assert.equal(normalizeEvent("some.other.event", { x: 1 }), null);
+});
+
+test("Expedition events normalize only validated run identities, never lobby waiting", () => {
+  assert.equal(normalizeEvent("expedition.run_started", {
+    lobby: { id: "waiting-run", status: "waiting" }
+  }), null);
+  assert.deepEqual(normalizeEvent("expedition.run_started", {
+    lobby: { id: "run-1", status: "running" }, map_id: 261
+  }), { runId: "run-1" });
+  assert.deepEqual(normalizeEvent("expedition.run_updated", {
+    id: "run-1", status: "running"
+  }), { runId: "run-1" });
+  assert.deepEqual(normalizeEvent("expedition.run_live", {
+    run_id: "run-1", remaining_seconds: 0, members: [{ away: true }]
+  }), { runId: "run-1" });
+  assert.deepEqual(normalizeEvent("expedition.run_finished", {
+    run_id: "run-1", reason: "time_up"
+  }), { runId: "run-1" });
+  assert.equal(normalizeEvent("expedition.run_live", { run_id: null }), null);
+  assert.equal(normalizeEvent("expedition.run_finished", { run_id: 123 }), null);
+  assert.equal(normalizeEvent("expedition.run_finished", { run_id: "  " }), null);
+  assert.equal(normalizeEvent("expedition.run_updated", { id: "run-1", status: "completed" }), null);
 });
 
 test("missing or non-object data returns null", () => {
@@ -150,6 +176,11 @@ test("loot.received extracts the documented reward fields", () => {
     trainer_exp: 4305,
     pokemon_exp: 4305,
     gold: 37,
+    loot_items: [
+      { item_id: "reference_straw", qty: 3, name: "must-not-cross" },
+      { item_id: "negative", qty: -1 },
+      { item_id: "fractional", qty: 2.9 }
+    ],
     loot_sell_value: 0
   });
 
@@ -157,6 +188,10 @@ test("loot.received extracts the documented reward fields", () => {
   assert.equal(normalized.trainer_exp, 4305);
   assert.equal(normalized.pokemon_exp, 4305);
   assert.equal(normalized.gold, 37);
+  assert.deepEqual(normalized.loot_items, [
+    { item_id: "reference_straw", qty: 3 },
+    { item_id: "fractional", qty: 2 }
+  ]);
   assert.equal(normalized.creature_id, undefined);
   assert.equal(normalized.auto_potion_used, null);
   assert.equal(normalized.supply_cost, null);

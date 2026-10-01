@@ -5,6 +5,49 @@ The project follows Semantic Versioning.
 
 > Detailed historical notes that previously lived in this file through v1.11.1 are preserved verbatim in [`docs/CHANGELOG_ARCHIVE_PRE_1.12.md`](docs/CHANGELOG_ARCHIVE_PRE_1.12.md). This file keeps the release-level history concise from v1.12.0 forward.
 
+## [Unreleased]
+
+No additional changes after the v1.15.0 release scope have been scheduled.
+
+## [1.15.0]
+
+### Current and History Loot
+- Added a collapsible **Current > Loot** view and **History > Loot** tab with direct Gold, Loot Value, realized Pokémon auto-sell and Total; item quantities, number of drops and expandable Pokémon sources use persisted encounter data. Loot views intentionally show no per-drop timestamps.
+- Added independent, persistent **Item Rarity** multi-select filters in Current and History: seven recognized rarities, a separate **No rarity** option, All and empty selection. Item filters never redistribute encounter-level financial totals into unavailable individual item prices.
+- Uses authoritative Inventory API identity, names and rarity with a bounded, read-only fallback to identified native Bag metadata (including cached detached scenes). Unknown or conflicting metadata remains unknown rather than being inferred. Catalog updates can reclassify already recorded drops without replaying gameplay or fetching all encounters.
+
+### Expedition and session integrity
+- Separates a Hunt and a server-identified Expedition into distinct local session records; handles run start, recovery/reconnect, voluntary finish and delayed results without merging the next Hunt into the previous activity. Current shows **EXPEDITION** for a running Expedition.
+- Retains existing session primary keys, stores, passive WebSocket observation, leadership checks and Tampermonkey permissions. No IndexedDB schema migration or gameplay automation was added.
+
+### History responsiveness and accessibility
+- History pagination uses a stable `(startedAtMs, sessionId)` cursor; sessions started in the same millisecond are not skipped.
+- A period change or data invalidation during loading discards superseded results. Reopening History preserves already loaded pages when the underlying Current revision and local calendar period have not changed. Data changes mark **Refresh •** and block stale Load More; **Refresh** explicitly reloads.
+- Failed refresh/pagination reads preserve previous results and expose **Retry**. Keyboard activation of expandable Hunts, Pokémon, Attempts and Loot rows restores focus after a redraw; focus moves to a persistent status when Retry or Load More disappears.
+
+### Visual themes and platform
+- Added the four approved interface palettes: **Obsidiana** (default), **Ametista Noturna**, **Cobre Vulcânico**, and **Titânio**, with versioned preference persistence and immediate switching.
+- Kept the existing compact Desktop/Mobile structure, existing independent Pokémon rarity filters and touch-target rules; offline prototypes in `docs/visual-redesign/` remain research artifacts, not an alternate production table implementation.
+
+### Coupled Workspace and Better UI boundary
+- Added an explicit protocol-v1 embed marker, a cloned and bounded read-only Current Hunt summary, and allowlisted Pause/Resume/Reset controls for standalone and embedded consumers. The embedded runtime keeps the Analyzer pipeline and IndexedDB authoritative without mounting its standalone UI, audio, gallery or History controls.
+- The Current presentation contract exposes a canonical active target, latest capture chance, bounded normal and Epic/Legendary/Mythical/Shiny histories, and captured-only IV/gender/nature details. A bounded scalar total IV (0–186) is also available for failed terminal captures.
+- Loot history exposes up to 32 recent rewards with authoritative item identifiers and quantities, realized direct gold, loot-sell and auto-sell components, and their calculated total; it does not infer unavailable item names, rarity or prices.
+- Added bounded, memoized presentation caches and independently bounded public snapshots (up to 32 normal, special and loot entries each), while keeping complete Hunt history in IndexedDB.
+
+### Analytics and runtime integrity
+- Separated direct gold, loot sell value and realized Pokémon auto-sell in revenue/profit calculations, while retaining the existing Dollar compatibility fields; added Epic+ failed metrics.
+- Startup recovery requires ACTIVE leadership. Queued events, session commands and History deletion recheck leadership after asynchronous waits; runtime IndexedDB writes revalidate before dispatch and after requests, aborting in-flight transactions when a detected takeover occurs.
+- Coupled `sessions` and `meta` operations (new session, Reset, initial End Hunt, session switch and current-session deletion) are committed atomically; encounter bulk deletion aborts if leadership is lost while scanning.
+- Protocol deduplication/tracker state advances only after successful persistence. This mitigates detected multi-tab handoffs; localStorage election and IndexedDB commits do not provide a strict cross-system fencing guarantee.
+
+### Visual design work
+- Added offline M1.1 continuous-table prototypes, reference-capture tooling, sharing-density evidence and a review gate. These prototypes are not integrated into the production userscript and still require product-owner visual approval.
+
+### Validation
+- The previous integration checkpoint passed 467 automated tests and dependency/preview checks. The v1.15.0 release preparation subsequently passed **536/536 automated tests**, including the 4,000+ event fixture, Expedition transitions, cached Bag lookup, exact-timestamp pagination, loading races, retry and keyboard focus; production userscript build and release metadata verification passed.
+- **Release gate:** automated results alone do not constitute a manual smoke test on the exact production bundle, green CI on the final release PR, or verification of a published GitHub Release. Those checks must be recorded separately before announcing availability.
+
 ## [1.14.0] - 2026-09-07
 
 ### Capture chance presentation

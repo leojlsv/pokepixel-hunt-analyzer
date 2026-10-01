@@ -37,14 +37,22 @@ function sessionStatus(session) {
 function emptyMetrics() {
   return {
     status: "waiting",
+    activityKind: "hunt",
     startedAtMs: null,
     activeMs: 0,
     trainerExp: 0,
     trainerExpPerHour: null,
     pokemonExp: 0,
     pokemonExpPerHour: null,
+    directGold: 0,
+    lootSellValue: 0,
+    autoSellValue: 0,
+    revenue: 0,
+    revenuePerHour: null,
     gold: 0,
     goldPerHour: null,
+    profit: 0,
+    profitPerHour: null,
     seen: 0,
     seenPerHour: null,
     captured: 0,
@@ -52,6 +60,7 @@ function emptyMetrics() {
     seenToCaptureRate: null,
     attemptRate: null,
     rarePlusFailed: 0,
+    epicPlusFailed: 0,
     rarities: buildEmptyRarities(),
     shiny: emptyBucket(),
     hasUnknownQuality: false,
@@ -76,15 +85,23 @@ export function refreshSessionMetrics(metrics, session, now = Date.now()) {
   const potionsUsed = session.potionsUsed || 0;
   const potionsCost = session.potionsCost || 0;
   const expenses = (base.capsulesCost || 0) + potionsCost;
+  const revenue = Number.isFinite(base.revenue) ? base.revenue : (base.gold || 0);
+  const profit = revenue - expenses;
 
   return {
     ...base,
     status: sessionStatus(session),
+    activityKind: session.activityKind === "expedition" ? "expedition" : "hunt",
     startedAtMs: Number.isFinite(session.startedAtMs) ? session.startedAtMs : null,
     activeMs: elapsedMs,
     trainerExpPerHour: perHour(base.trainerExp || 0, elapsedMs),
     pokemonExpPerHour: perHour(base.pokemonExp || 0, elapsedMs),
-    goldPerHour: perHour(base.gold || 0, elapsedMs),
+    revenue,
+    revenuePerHour: perHour(revenue, elapsedMs),
+    gold: revenue,
+    goldPerHour: perHour(revenue, elapsedMs),
+    profit,
+    profitPerHour: perHour(profit, elapsedMs),
     seenPerHour: perHour(base.seen || 0, elapsedMs),
     potionsUsed,
     potionsCost,
@@ -98,6 +115,9 @@ export function computeSessionMetrics({ session, encounters = [], now = Date.now
 
   let trainerExp = 0;
   let pokemonExp = 0;
+  let directGold = 0;
+  let lootSellValue = 0;
+  let autoSellValue = 0;
   let gold = 0;
   let capsulesCost = 0;
 
@@ -107,12 +127,13 @@ export function computeSessionMetrics({ session, encounters = [], now = Date.now
 
     // Dollar/Profit treat all encounter reward value as revenue: direct
     // monster gold, sell value of dropped loot, and realized Pokémon auto-sell.
-    gold += Number(encounter.gold) || 0;
-    gold += Number(encounter.lootSellValue) || 0;
-
-    if (encounter.autoSold) {
-      gold += Number(encounter.autoSellValue) || 0;
-    }
+    const encounterDirectGold = Number(encounter.gold) || 0;
+    const encounterLootSellValue = Number(encounter.lootSellValue) || 0;
+    const encounterAutoSellValue = encounter.autoSold ? Number(encounter.autoSellValue) || 0 : 0;
+    directGold += encounterDirectGold;
+    lootSellValue += encounterLootSellValue;
+    autoSellValue += encounterAutoSellValue;
+    gold += encounterDirectGold + encounterLootSellValue + encounterAutoSellValue;
 
     capsulesCost += Number(encounter.supplyCost) || 0;
   }
@@ -124,6 +145,7 @@ export function computeSessionMetrics({ session, encounters = [], now = Date.now
     rarities,
     shiny,
     rarePlusFailed,
+    epicPlusFailed,
     hasUnknownQuality
   } = computeRarityBreakdown(encounters);
 
@@ -131,6 +153,10 @@ export function computeSessionMetrics({ session, encounters = [], now = Date.now
     ...emptyMetrics(),
     trainerExp,
     pokemonExp,
+    directGold,
+    lootSellValue,
+    autoSellValue,
+    revenue: gold,
     gold,
     seen,
     captured,
@@ -138,6 +164,7 @@ export function computeSessionMetrics({ session, encounters = [], now = Date.now
     seenToCaptureRate: rate(captured, seen),
     attemptRate: rate(captured, captured + failed),
     rarePlusFailed,
+    epicPlusFailed,
     rarities,
     shiny,
     hasUnknownQuality,
@@ -152,6 +179,9 @@ function encounterContribution(encounter) {
     return {
       trainerExp: 0,
       pokemonExp: 0,
+      directGold: 0,
+      lootSellValue: 0,
+      autoSellValue: 0,
       gold: 0,
       capsulesCost: 0,
       ...computeRarityBreakdown([])
@@ -161,6 +191,9 @@ function encounterContribution(encounter) {
   return {
     trainerExp: Number(encounter.trainerExp) || 0,
     pokemonExp: Number(encounter.pokemonExp) || 0,
+    directGold: Number(encounter.gold) || 0,
+    lootSellValue: Number(encounter.lootSellValue) || 0,
+    autoSellValue: encounter.autoSold ? Number(encounter.autoSellValue) || 0 : 0,
     gold:
       (Number(encounter.gold) || 0) +
       (Number(encounter.lootSellValue) || 0) +
@@ -213,9 +246,13 @@ export function updateSessionMetricsForEncounter(
   const seen = captured + failed;
   const trainerExp = metrics.trainerExp + difference("trainerExp");
   const pokemonExp = metrics.pokemonExp + difference("pokemonExp");
+  const directGold = (metrics.directGold || 0) + difference("directGold");
+  const lootSellValue = (metrics.lootSellValue || 0) + difference("lootSellValue");
+  const autoSellValue = (metrics.autoSellValue || 0) + difference("autoSellValue");
   const gold = metrics.gold + difference("gold");
   const capsulesCost = metrics.capsulesCost + difference("capsulesCost");
   const expenses = capsulesCost + (metrics.potionsCost || 0);
+  const profit = gold - expenses;
 
   return {
     ...metrics,
@@ -223,8 +260,15 @@ export function updateSessionMetricsForEncounter(
     trainerExpPerHour: perHour(trainerExp, metrics.activeMs),
     pokemonExp,
     pokemonExpPerHour: perHour(pokemonExp, metrics.activeMs),
+    directGold,
+    lootSellValue,
+    autoSellValue,
+    revenue: gold,
+    revenuePerHour: perHour(gold, metrics.activeMs),
     gold,
     goldPerHour: perHour(gold, metrics.activeMs),
+    profit,
+    profitPerHour: perHour(profit, metrics.activeMs),
     seen,
     seenPerHour: perHour(seen, metrics.activeMs),
     captured,
@@ -233,6 +277,10 @@ export function updateSessionMetricsForEncounter(
     attemptRate: rate(captured, captured + failed),
     rarePlusFailed:
       rarities.rare.failed +
+      rarities.epic.failed +
+      rarities.legendary.failed +
+      rarities.mythical.failed,
+    epicPlusFailed:
       rarities.epic.failed +
       rarities.legendary.failed +
       rarities.mythical.failed,

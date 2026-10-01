@@ -169,7 +169,12 @@ test("HuntSim flow becomes canonical start -> terminal -> late loot without dupl
           exp: 798,
           trainer_exp: 798,
           pokemon_exp: 798,
-          gold: 1
+          gold: 1,
+          items: [
+            { item_id: "reference_straw", qty: 3, name: "must-not-cross" },
+            { item_id: "negative", qty: -1 },
+            { item_id: `long-${"x".repeat(80)}`, qty: 2.9 }
+          ]
         }
       ]
     }
@@ -180,6 +185,10 @@ test("HuntSim flow becomes canonical start -> terminal -> late loot without dupl
   assert.equal(loot[0].data.wild_monster_id, "huntsim:server-session:308");
   assert.equal(loot[0].data.species_id, "pidgey");
   assert.equal(loot[0].data.loot_sell_value, 8);
+  assert.deepEqual(loot[0].data.loot_items, [
+    { item_id: "reference_straw", qty: 3 },
+    { item_id: `long-${"x".repeat(59)}`, qty: 2 }
+  ]);
 });
 
 test("aggregated multi-kill loot is split into canonical per-kill rewards preserving totals", () => {

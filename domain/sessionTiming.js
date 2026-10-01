@@ -16,7 +16,7 @@ function isFiniteNumber(value) {
   return Number.isFinite(value);
 }
 
-export function createSession({ sessionId, now }) {
+export function createSession({ sessionId, now, activityKind = "hunt", activityInstanceId = null }) {
   return {
     sessionId,
     status: "running",
@@ -30,6 +30,9 @@ export function createSession({ sessionId, now }) {
     // adopts them (see adoptServerContext below).
     serverSessionId: null,
     zoneId: null,
+    // Older session rows without these fields are implicitly ordinary Hunts.
+    activityKind,
+    activityInstanceId,
     // Set by a manual Pause/End Hunt action (data/sessionsRepository.js
     // pauseManual/endManual) — while true, no automatic protocol signal
     // (hunt.stopped, combat.started, a confirmed new serverSessionId) may

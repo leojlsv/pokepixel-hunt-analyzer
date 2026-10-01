@@ -255,7 +255,7 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
   border-radius: 3px;
   background: var(--bg);
   color: var(--text);
-  font-size: 11px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
@@ -300,7 +300,7 @@ export const MOBILE_CLOSED_HUD_STYLES = String.raw`
   border-radius: 3px;
   background: var(--bg-elevated);
   color: var(--text);
-  font-size: 11px;
+  font-size: 12px;
   text-align: left;
 }
 

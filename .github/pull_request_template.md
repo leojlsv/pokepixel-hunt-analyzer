@@ -6,7 +6,7 @@
 
 - [ ] `npm run validate`
 - [ ] Smoke test no PokePixel, quando aplicável
-- [ ] Sem regressão observada em Current / Compare / HUD
+- [ ] Sem regressão observada em Current / History / HUD
 - [ ] Sem dados sensíveis, logs ou artefatos locais adicionados
 
 ## Riscos / observações

@@ -1,3 +1,5 @@
+import { inventoryItemRarity } from "./loot-item-catalog.js";
+
 const INVENTORY_REFRESH_DELAY_MS = 2_150;
 const INVENTORY_FAST_REFRESH_DELAY_MS = 150;
 const INVENTORY_RETRY_MS = 500;
@@ -17,17 +19,26 @@ function itemQuantity(item) {
 function normalizeItems(response) {
   const payload = response?.data ?? response;
   if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.inventory)) return payload.inventory;
   if (Array.isArray(payload?.items)) return payload.items;
   return [];
 }
 
 export function normalizeInventorySnapshot(response, updatedAtMs = Date.now()) {
-  const items = normalizeItems(response).map((item) => ({
-    ...item,
-    item_id: String(item?.item_id ?? item?.id ?? ""),
-    qty: itemQuantity(item),
-    quantity: itemQuantity(item)
-  }));
+  const items = normalizeItems(response).map((item) => {
+    const metadata = item?.item;
+    const rarity = inventoryItemRarity(item);
+    return {
+      ...item,
+      item_id: String(item?.item_id ?? item?.id ?? metadata?.item_id ?? metadata?.id ?? "").trim(),
+      name: item?.name || metadata?.name || "",
+      type: item?.type || metadata?.type || "",
+      category: item?.category || metadata?.category || "",
+      rarity,
+      qty: itemQuantity(item),
+      quantity: itemQuantity(item)
+    };
+  });
 
   const byId = new Map();
   const capsules = [];

@@ -6,6 +6,7 @@
  */
 
 import { promisifyRequest } from "./db.js";
+import { hasDatabaseWriteGate, writeWithGate } from "./write-gate.js";
 
 export function createRepository(db, storeName) {
   function readStore() {
@@ -29,6 +30,11 @@ export function createRepository(db, storeName) {
     // in-line keyPath stores (sessions/configs/encounters) derive it from
     // the value itself.
     put(value, key) {
+      if (hasDatabaseWriteGate(db)) {
+        return writeWithGate(db, storeName, (store) =>
+          key === undefined ? store.put(value) : store.put(value, key)
+        );
+      }
       const store = writeStore();
 
       return promisifyRequest(
@@ -37,6 +43,9 @@ export function createRepository(db, storeName) {
     },
 
     delete(key) {
+      if (hasDatabaseWriteGate(db)) {
+        return writeWithGate(db, storeName, (store) => store.delete(key));
+      }
       return promisifyRequest(writeStore().delete(key));
     }
   };

@@ -9,6 +9,7 @@ test("empty input returns zeroed buckets for every known quality plus unknown", 
   assert.equal(breakdown.captured, 0);
   assert.equal(breakdown.failed, 0);
   assert.equal(breakdown.rarePlusFailed, 0);
+  assert.equal(breakdown.epicPlusFailed, 0);
   assert.equal(breakdown.hasUnknownQuality, false);
 
   for (const quality of [...QUALITIES, "unknown"]) {
@@ -68,7 +69,9 @@ test("rarePlusFailed sums only Rare/Epic/Legendary/Mythical failures", () => {
     { state: "failed", quality: "mythical", captureResult: "failed" }
   ];
 
-  assert.equal(computeRarityBreakdown(encounters).rarePlusFailed, 4);
+  const breakdown = computeRarityBreakdown(encounters);
+  assert.equal(breakdown.rarePlusFailed, 4);
+  assert.equal(breakdown.epicPlusFailed, 3, "Epic+ excludes Rare");
 });
 
 test("shiny buckets follow the same seen/captured/failed split as totals", () => {

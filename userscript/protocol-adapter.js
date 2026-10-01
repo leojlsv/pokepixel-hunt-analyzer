@@ -4,6 +4,9 @@ const WILD_ENTITY_TYPE = 2;
 const TERMINAL_MATCH_WINDOW_MS = 30_000;
 const DEFAULT_RUNTIME_RETENTION_MS = 60_000;
 const DEFAULT_RUNTIME_ENTRY_LIMIT = 2_048;
+const LOOT_ITEM_LIMIT = 32;
+const LOOT_ITEM_ID_LIMIT = 64;
+const LOOT_ITEM_QTY_LIMIT = 1e15;
 const textDecoder = new TextDecoder();
 
 const PASSTHROUGH_TYPES = new Set([
@@ -12,7 +15,11 @@ const PASSTHROUGH_TYPES = new Set([
   "capture.failed",
   "capture.success",
   "hunt.stopped",
-  "hunt.analyzer_reset"
+  "hunt.analyzer_reset",
+  "expedition.run_started",
+  "expedition.run_updated",
+  "expedition.run_live",
+  "expedition.run_finished"
 ]);
 
 function finite(value) {
@@ -22,6 +29,24 @@ function finite(value) {
 
 function stringOrNull(value) {
   return typeof value === "string" && value ? value : null;
+}
+
+function normalizeLootItems(items) {
+  if (!Array.isArray(items)) return [];
+  const normalized = [];
+  for (const item of items) {
+    if (normalized.length >= LOOT_ITEM_LIMIT) break;
+    const itemId = stringOrNull(item?.item_id)?.trim().slice(0, LOOT_ITEM_ID_LIMIT) || "";
+    const qty = item?.qty === null || item?.qty === undefined || item?.qty === ""
+      ? null
+      : finite(item.qty);
+    if (!itemId || qty === null || qty < 0) continue;
+    normalized.push({
+      item_id: itemId,
+      qty: Math.min(LOOT_ITEM_QTY_LIMIT, Math.floor(qty))
+    });
+  }
+  return normalized;
 }
 
 function decodeBase64Bytes(value) {
@@ -149,11 +174,15 @@ export function createProtocolAdapter({
     mapId: null,
     autoCapture: null
   };
+  let activeExpeditionRunId = null;
+  let finishedExpeditionRunId = null;
+  let transportSessionId = null;
 
   const entitiesBySlot = new Map();
   const firstHitAtBySlot = new Map();
   const captureQueueByKillSeq = new Map();
   const killsBySeq = new Map();
+  const retiredHunts = [];
 
   function trimMap(map) {
     while (map.size > runtimeEntryLimit) {
@@ -174,6 +203,15 @@ export function createProtocolAdapter({
     }
     trimMap(captureQueueByKillSeq);
     trimMap(killsBySeq);
+    for (let index = retiredHunts.length - 1; index >= 0; index--) {
+      const retired = retiredHunts[index];
+      for (const [killSeq, context] of retired.killsBySeq) {
+        if (timestamp - context.retainedAtMs > runtimeRetentionMs) {
+          retired.killsBySeq.delete(killSeq);
+        }
+      }
+      if (retired.killsBySeq.size === 0) retiredHunts.splice(index, 1);
+    }
   }
 
   function retain(map, key, value) {
@@ -187,6 +225,30 @@ export function createProtocolAdapter({
     firstHitAtBySlot.clear();
     captureQueueByKillSeq.clear();
     killsBySeq.clear();
+  }
+
+  function rotateHuntRuntime() {
+    if (killsBySeq.size > 0) {
+      retiredHunts.push({
+        transportSessionId: transportSessionId ?? sessionContext.id,
+        killsBySeq: new Map(killsBySeq)
+      });
+      // Retain at most two immediately preceding runs for delayed captures
+      // and rewards; the normal 60-second retention also applies to them.
+      if (retiredHunts.length > 2) retiredHunts.shift();
+    }
+    clearHuntRuntime();
+  }
+
+  function adoptExpeditionContext(runId, mapId = null) {
+    if (!runId || runId === finishedExpeditionRunId) return;
+    if (activeExpeditionRunId === runId) return;
+    // A new run resets the HuntSim kill sequence. Keep bounded previous-run
+    // matches for delayed rewards while isolating the new slot/kill registry.
+    rotateHuntRuntime();
+    activeExpeditionRunId = runId;
+    transportSessionId = null;
+    sessionContext = { id: runId, zoneId: "expedition", mapId, autoCapture: null };
   }
 
   function updateSessionFromCombat(payload) {
@@ -288,7 +350,10 @@ export function createProtocolAdapter({
     const zoneId = stringOrNull(data?.zone_id);
 
     const candidates = [];
-    for (const context of killsBySeq.values()) {
+    for (const context of [
+      ...killsBySeq.values(),
+      ...retiredHunts.flatMap((retired) => [...retired.killsBySeq.values()])
+    ]) {
       if (context.terminalSeen) continue;
       if (Number.isFinite(ts) && Number.isFinite(context.killedAtMs)) {
         const age = ts - context.killedAtMs;
@@ -391,8 +456,19 @@ export function createProtocolAdapter({
 
   function adaptAggregatedLoot(payload) {
     const data = payload.data || {};
+    const sourceSessionId = stringOrNull(data.session_id);
+    const retired = sourceSessionId
+      ? retiredHunts.find((entry) => entry.transportSessionId === sourceSessionId)
+      : null;
     const perKill = Array.isArray(data.per_kill) ? data.per_kill : null;
-    if (!perKill) return [payload];
+    if (!perKill) return retired ? [] : [payload];
+    if (sourceSessionId && transportSessionId && sourceSessionId !== transportSessionId && !retired) {
+      // Unknown transport session: never attribute its reward to the active run.
+      return [];
+    }
+    if (sourceSessionId && !retired && !transportSessionId) {
+      transportSessionId = sourceSessionId;
+    }
 
     const output = [];
     const splitLoot = splitIntegerTotal(data.loot_sell_value, perKill.length);
@@ -401,9 +477,11 @@ export function createProtocolAdapter({
       const killSeq = finite(kill?.seq);
       if (killSeq === null) return;
 
-      const context = ensureKillContext(killSeq, payload);
-      emitStartIfNeeded(payload, context, output);
-      if (!context) return;
+      const context = retired
+        ? retired.killsBySeq.get(killSeq) || null
+        : ensureKillContext(killSeq, payload);
+      if (!retired) emitStartIfNeeded(payload, context, output);
+      if (!context || !context.startedEmitted) return;
 
       output.push({
         type: "loot.received",
@@ -416,6 +494,7 @@ export function createProtocolAdapter({
           trainer_exp: finite(kill.trainer_exp),
           pokemon_exp: finite(kill.pokemon_exp),
           gold: finite(kill.gold),
+          loot_items: normalizeLootItems(kill.items),
           loot_sell_value:
             finite(kill.loot_sell_value) ?? splitLoot[index]
         }
@@ -431,9 +510,9 @@ export function createProtocolAdapter({
           ts: finite(payload.ts),
           data: { wild_monster_id: context.syntheticWildMonsterId }
         });
-        killsBySeq.delete(killSeq);
+        (retired?.killsBySeq ?? killsBySeq).delete(killSeq);
       } else if (context.terminalSeen) {
-        killsBySeq.delete(killSeq);
+        (retired?.killsBySeq ?? killsBySeq).delete(killSeq);
       }
     });
 
@@ -443,7 +522,12 @@ export function createProtocolAdapter({
   function adaptTerminal(payload) {
     const ts = finite(payload.ts);
     const context = matchTerminalContext(payload.data, ts);
-    if (!context) return [payload];
+    if (!context) {
+      if (payload.data?.zone_id === "expedition" && sessionContext.zoneId !== "expedition") {
+        return []; // An unresolved late Expedition capture must not become a Hunt orphan.
+      }
+      return [payload];
+    }
 
     context.terminalSeen = true;
     context.retainedAtMs = now();
@@ -457,7 +541,12 @@ export function createProtocolAdapter({
     };
 
     if (context.lootSeen && context.closedSeen) {
-      killsBySeq.delete(context.killSeq);
+      if (killsBySeq.get(context.killSeq) === context) killsBySeq.delete(context.killSeq);
+      for (const retired of retiredHunts) {
+        if (retired.killsBySeq.get(context.killSeq) === context) {
+          retired.killsBySeq.delete(context.killSeq);
+        }
+      }
     }
 
     return [canonical];
@@ -468,21 +557,54 @@ export function createProtocolAdapter({
 
     switch (payload.type) {
       case "combat.started":
-        updateSessionFromCombat(payload);
         if (!payload.data?.enemy && payload.data?.session) {
-          clearHuntRuntime();
+          if (payload.data.session.zone_id && payload.data.session.zone_id !== "expedition") {
+            activeExpeditionRunId = null;
+          }
+          rotateHuntRuntime();
+          transportSessionId = stringOrNull(payload.data.session.id);
           updateSessionFromCombat(payload);
           return [];
         }
+        updateSessionFromCombat(payload);
+        if (payload.data?.session?.id) transportSessionId = payload.data.session.id;
         return [payload];
 
       case "hunt.analyzer_reset":
-        clearHuntRuntime();
+        rotateHuntRuntime();
+        if (payload.data?.zone_id && payload.data.zone_id !== "expedition") {
+          activeExpeditionRunId = null;
+        }
+        transportSessionId = stringOrNull(payload.data?.session_id);
         sessionContext = {
           ...sessionContext,
           id: stringOrNull(payload.data?.session_id) ?? sessionContext.id,
           zoneId: stringOrNull(payload.data?.zone_id) ?? sessionContext.zoneId
         };
+        return [payload];
+
+      case "expedition.run_started":
+        if (payload.data?.lobby?.status === "running") {
+          adoptExpeditionContext(stringOrNull(payload.data.lobby.id),
+            finite(payload.data.map_id) ?? finite(payload.data.lobby.map_id));
+        }
+        return [payload];
+
+      case "expedition.run_updated":
+        if (payload.data?.status === "running") {
+          adoptExpeditionContext(stringOrNull(payload.data.id), finite(payload.data.map_id));
+        }
+        return [payload];
+
+      case "expedition.run_live":
+        adoptExpeditionContext(stringOrNull(payload.data?.run_id));
+        return [payload];
+
+      case "expedition.run_finished":
+        finishedExpeditionRunId = stringOrNull(payload.data?.run_id);
+        if (finishedExpeditionRunId && activeExpeditionRunId === finishedExpeditionRunId) {
+          activeExpeditionRunId = null;
+        }
         return [payload];
 
       case "hunt.frame": {

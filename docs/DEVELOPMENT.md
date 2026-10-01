@@ -230,18 +230,22 @@ Required after UI/runtime/WebSocket changes:
 13. Potion Tracker shows current inventory + `↓ used`; consuming increments, refill does not increment, F5 preserves the same Hunt count and New Hunt resets it.
 14. Supply symbols remain visually secondary and separated from their numeric values.
 15. Drag, resize, wheel scroll and alpha work.
-16. History loads Hunts / Pokémon / Attempts and filters/drill-downs work.
-17. DELETE is unavailable for the Running/Paused Current Hunt; after End Hunt, DELETE removes the Hunt and its encounters and remains deleted after refresh/F5.
-18. Sound 1 / Sound 2 previews and per-event exclusivity work.
-19. Global Sound Alerts Mute blocks new alerts without changing individual choices; Unmute restores playback and reload preserves mute state.
-20. Custom Audio import / replace / remove / persistence work.
-21. Catch Gallery collapse, filters, sorting and pagination work.
-22. Capture Ticket BETA Generate works for Legend / Mythic / Shiny fixtures or eligible real captures.
-23. Capture Ticket Copy can be pasted into a compatible target when the browser supports image clipboard writes.
-24. F5 preserves IndexedDB data and intended UI state.
-25. With two game tabs, only one is ACTIVE and the other is STANDBY.
+16. History loads Hunts / Pokémon / Attempts / Loot and filters/drill-downs work. With more than 20 sessions, Load More preserves previously loaded pages; leaving and returning to History without new data does not reset pagination.
+17. Switching History period while a load is running must show the newly selected period, never append stale sessions. Refresh/Retry recover after a failed read; a changed Current session or deleted Hunt visibly marks History stale until it is reloaded. Test date filters after a local-day change when applicable.
+18. Current > Loot and History > Loot show quantities, drops and Pokémon sources without per-drop timestamps; Item Rarity allows independent multiple selections (including No rarity), preserves choices across F5, and does not change the encounter-level financial totals. Item names/rarity reflect identified Inventory or Bag metadata; unknown entries remain explicitly unknown.
+19. A running Expedition is a separate session with an EXPEDITION header; returning to Hunt must not mix records. Exercise reconnect/leave/end and delayed rewards only on a permitted production smoke; do not send or simulate gameplay traffic.
+20. Misc > Interface switches Obsidiana/Ametista Noturna/Cobre Vulcânico/Titânio and persists the choice across F5. Verify 320/390/415/620 widths without horizontal overflow and keyboard focus on expandable Loot/History rows, Refresh and Retry.
+21. DELETE is unavailable for the Running/Paused Current Hunt; after End Hunt, DELETE removes the Hunt and its encounters and remains deleted after refresh/F5.
+22. Sound 1 / Sound 2 previews and per-event exclusivity work.
+23. Global Sound Alerts Mute blocks new alerts without changing individual choices; Unmute restores playback and reload preserves mute state.
+24. Custom Audio import / replace / remove / persistence work.
+25. Catch Gallery collapse, filters, sorting and pagination work.
+26. Capture Ticket BETA Generate works for Legend / Mythic / Shiny fixtures or eligible real captures.
+27. Capture Ticket Copy can be pasted into a compatible target when the browser supports image clipboard writes.
+28. F5 preserves IndexedDB data and intended UI state.
+29. With two game tabs, only one is ACTIVE and the other is STANDBY; opening or reloading the STANDBY tab must not pause or rewrite the ACTIVE tab's running Hunt.
 
-A clean automated suite does not replace this smoke test for browser behavior.
+A clean automated suite or synthetic GIF does not replace this smoke test for actual browser/game behavior. The exact v1.15.0 PROD candidate must pass the smoke before PR merge and guarded publishing.
 
 ## 9. Build and release
 

@@ -1,6 +1,6 @@
 # HuntSim protocol compatibility
 
-Status: v1.9.0 release-ready compatibility layer. Validated against the HuntSim DEV protocol; merge/release is intentionally gated on the game update reaching production.
+Status: HuntSim compatibility first prepared for v1.9.0. The v1.15.0 implementation additionally recognizes Expedition run boundaries and routes late correlated HuntSim results into the originating session. Offline protocol/reconnect regressions are necessary but do not replace the required smoke test of the exact production bundle.
 
 ## Why an adapter exists
 
@@ -32,8 +32,11 @@ The domain/persistence model remains unchanged. `userscript/protocol-adapter.js`
 | Target identity | `hunt.capture_queue` + `hunt.events` + full `hunt.frame` | Kill sequence becomes the stable local correlation key. |
 | Fight start | first HuntSim `hit` observed for the target slot | Used for cycle time when available. |
 | Capture result | `capture.failed` / `capture.success` | Authoritative terminal event; `hunt.events` capture projections are ignored. |
-| Reward | `loot.received.per_kill[]` | Aggregated reward is split into one canonical loot event per kill. |
+| Reward | `loot.received.per_kill[]` | Aggregated reward is split into one canonical loot event per kill; observed `items[]` preserves only bounded `item_id` + `qty`. |
 | No-capture closure | `hunt.capture_queue.rm[]` | Emits internal `hunt.kill_closed` after loot when no terminal capture exists. |
+| Expedition start | `expedition.run_started.lobby.id` | Opens a local Expedition identified by its run ID. |
+| Expedition recovery | `expedition.run_updated.id` / `expedition.run_live.run_id` | Recovers the same session after reconnect. |
+| Expedition end | `expedition.run_finished.run_id` | Ends only the matching run, regardless of end reason. |
 
 The following are intentionally ignored as duplicate projections:
 
@@ -52,6 +55,18 @@ huntsim:<server-session-or-zone>:<kill-seq>
 ```
 
 `hunt.capture_queue.add[].id`, `hunt.events[].cap.id` and `loot.received.per_kill[].seq` were observed to represent the same HuntSim kill sequence.
+
+An Expedition's `run_id` is distinct from its transport's
+`loot.received.session_id`. A switch to/from Expedition rotates the HuntSim
+kill registry; at most two previous registries are retained for the normal
+bounded 60-second correlation window. Late rewards with a recognized older
+transport session are linked to the originating encounter rather than the
+current activity. Unknown cross-activity origins are not guessed.
+
+`node --test tests/integration/expeditionLifecycle.test.js` simulates
+the transitions with sanitized server-event shapes and covers reconnect,
+voluntary exit, expiry, old rewards and the Current title. This is an offline
+test, not a substitute for manual verification in the game.
 
 ## Full frame decoder
 
@@ -109,6 +124,8 @@ It does **not** expose Gender, Nature, full IV breakdown, Elements or Quality Mu
 HuntSim commonly emits terminal capture events before `loot.received`. The tracker therefore keeps the finalized encounter correlated in memory until late loot arrives, patches reward fields on the same persisted encounter, then releases the correlation.
 
 Legacy ordering (loot before capture) remains supported unchanged.
+
+When `loot.received.per_kill[].items[]` is present, the adapter keeps only the observed item identifier and quantity. Names, rarity and per-item value are not part of the confirmed HuntSim reward item contract and are not synthesized or apportioned from aggregate `loot_sell_value`.
 
 ## Build targets
 

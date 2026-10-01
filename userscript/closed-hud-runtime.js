@@ -5,6 +5,7 @@ import {
 } from "./closed-hud.js";
 import { MOBILE_CLOSED_HUD_STYLES } from "./closed-hud-mobile-styles.js";
 import { createSelectProxy } from "./select-proxy.js";
+import { PALETTES, readPalette, selectPalette } from "./palette-theme.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STYLE_ID = "pha-closed-hud-polish-style";
@@ -35,6 +36,7 @@ const LAYOUT_RECONCILE_SELECTOR = [
   "[data-hud-item]",
   "#view-current .encounter-section select",
   "#view-history .history-filter-grid select",
+  "#history-loot-session",
   ".catch-gallery-rarity-filter"
 ].join(",");
 const NAV_ITEMS = Object.freeze([
@@ -183,10 +185,25 @@ const POLISH_STYLE = `
     width:96px;
     max-width:96px;
     height:28px;
+    font-size:12px;
   }
   .pha-interface-setting .alpha-button {
     min-width:72px;
     height:28px;
+  }
+  .pha-interface-palette { grid-column:1 / -1; }
+  .pha-interface-palette select {
+    min-width:0;
+    width:min(210px,65%);
+    height:30px;
+    padding:3px 6px;
+    border:1px solid var(--border);
+    border-radius:3px;
+    background:var(--hunt-surface-control);
+    color:var(--text);
+    font:inherit;
+    font-size:11px;
+    cursor:pointer;
   }
 
   :host([data-ui-mode="mobile"]) .pha-hud-topbar {
@@ -245,6 +262,12 @@ const POLISH_STYLE = `
     width:min(92px,45vw);
     max-width:92px;
     height:38px;
+  }
+  :host([data-ui-mode="mobile"]) .pha-interface-palette select {
+    width:min(210px,67%);
+    height:44px;
+    max-width:67%;
+    font-size:12px;
   }
 
   :host([data-ui-mode="mobile"]) .capture-strip {
@@ -461,8 +484,23 @@ export function createClosedHud(options = {}) {
             <span>Opacity</span>
             <span data-interface-alpha></span>
           </div>
+          <label class="pha-interface-setting pha-interface-palette">
+            <span>Paleta</span>
+            <select id="pha-palette-select" aria-label="Paleta de cores do Analyzer">
+              ${Object.values(PALETTES).map(({ id, label }) => `<option value="${id}">${label}</option>`).join("")}
+            </select>
+          </label>
         </div>`;
       alertsView.prepend(section);
+    }
+
+    const paletteSelect = section.querySelector("#pha-palette-select");
+    if (paletteSelect && paletteSelect.dataset.paletteBound !== "true") {
+      paletteSelect.dataset.paletteBound = "true";
+      paletteSelect.value = shadow.host.dataset.phaPalette || readPalette();
+      paletteSelect.addEventListener("change", () => {
+        paletteSelect.value = selectPalette(shadow, paletteSelect.value);
+      });
     }
 
     const modeSlot = section.querySelector("[data-interface-mode]");
@@ -948,7 +986,7 @@ export function createClosedHud(options = {}) {
   }
 
   function syncHistoryFilterProxies() {
-    for (const select of shadow?.querySelectorAll("#view-history .history-filter-grid select") || []) {
+    for (const select of shadow?.querySelectorAll("#view-history .history-filter-grid select, #history-loot-session") || []) {
       const proxy = SELECT_PROXY_BY_ELEMENT.get(select);
       const summary = proxy?.querySelector(".pha-history-select-summary");
       if (!summary) continue;
@@ -960,7 +998,7 @@ export function createClosedHud(options = {}) {
   }
 
   function installHistoryFilterProxies() {
-    for (const select of shadow?.querySelectorAll("#view-history .history-filter-grid select") || []) {
+    for (const select of shadow?.querySelectorAll("#view-history .history-filter-grid select, #history-loot-session") || []) {
       if (SELECT_PROXY_BY_ELEMENT.has(select)) continue;
       const parent = select.parentElement;
       const anchor = select.previousSibling;

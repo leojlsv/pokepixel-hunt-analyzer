@@ -1,4 +1,5 @@
 import { openDatabase } from "../data/db.js";
+import { registerDatabaseWriteGate } from "../data/write-gate.js";
 import { createSessionsRepository } from "../data/sessionsRepository.js";
 import { createEncountersRepository } from "../data/encountersRepository.js";
 import { createEventPipeline } from "../services/eventPipeline.js";
@@ -24,10 +25,28 @@ import { createAudioAlerts } from "./audio-alerts-runtime.js";
 import { createCatchGallery } from "./catch-gallery.js";
 import { createHistoryDeleteControl } from "./history-delete.js";
 import { createClosedHud } from "./closed-hud-runtime.js";
+import { createLootItemCatalogReader } from "./loot-item-catalog.js";
+import {
+  createPublicSummary,
+  installPublicSessionControl,
+  installPublicSummaryBridge,
+  isEmbedMode
+} from "./public-summary.js";
+import {
+  latestCaptureAttemptFromRows,
+  updateLatestCaptureAttempt
+} from "./latest-capture-attempt.js";
+import {
+  cardPresentationSnapshot,
+  createCardPresentationCache,
+  updateCardPresentationCache,
+  updateLiveActiveKeys
+} from "./card-presentation.js";
 
 const APP_VERSION = __APP_VERSION__;
 const TAB_LOCK_REFRESH_MS = 2_000;
 const CURRENT_REFRESH_MS = 1_000;
+const PUBLIC_SUMMARY_READER_GRACE_MS = 3_000;
 const EVENT_REFRESH_DELAY_MS = 75;
 const STANDBY_RECONCILE_MS = 10_000;
 const CATCH_GALLERY_LOAD_LIMIT = 500;
@@ -55,12 +74,20 @@ let historyDeleteControl;
 let closedHud;
 let ui;
 let pageWindow;
+const readLootItemCatalog = createLootItemCatalogReader({
+  getSnapshot: () => closedHud?.getInventorySnapshot(),
+  getPageDocument: () => pageWindow?.document,
+  getPageWindow: () => pageWindow
+});
 let updateQueue = Promise.resolve();
 let eventRefreshTimer = null;
 let cachedSessionId = null;
 let cachedEncounters = [];
 let cachedEncounterIndexes = new Map();
 let cachedAggregateMetrics = null;
+let cachedLatestCaptureAttempt = null;
+let cachedCardPresentation = createCardPresentationCache();
+let liveActiveEncounterKeys = new Set();
 let encounterDataRevision = 0;
 let cachedEncounterRevision = -1;
 let encounterListRevision = 0;
@@ -77,6 +104,12 @@ let protocolEventsDroppedStandby = 0;
 let lastProtocolQueuedAtMs = null;
 let lastProtocolProcessedAtMs = null;
 let lastProtocolProcessed = null;
+let embedded = false;
+let publicSummary = createPublicSummary({ appVersion: APP_VERSION });
+let disposePublicSummaryBridge = null;
+let disposePublicSessionControl = null;
+let lastPublicSummaryReadAtMs = null;
+let leadershipEpoch = 0;
 let resolveReady;
 const ready = new Promise((resolve) => {
   resolveReady = resolve;
@@ -96,6 +129,9 @@ function invalidateEncounterCache() {
   cachedEncounters = [];
   cachedEncounterIndexes = new Map();
   cachedAggregateMetrics = null;
+  cachedLatestCaptureAttempt = null;
+  cachedCardPresentation = createCardPresentationCache();
+  liveActiveEncounterKeys = new Set();
   cachedEncounterRevision = -1;
   cachedEncounterListRevision = -1;
   lastEncounterSyncAt = 0;
@@ -105,6 +141,7 @@ function invalidateEncounterCache() {
 function recordEncounterChanges(rows, { listChanged = false } = {}) {
   encounterDataRevision += 1;
   if (listChanged) encounterListRevision += 1;
+  liveActiveEncounterKeys = updateLiveActiveKeys(liveActiveEncounterKeys, rows);
 
   if (
     !cachedSessionId ||
@@ -131,7 +168,9 @@ function recordEncounterChanges(rows, { listChanged = false } = {}) {
     } else {
       cachedEncounters[index] = row;
     }
+    cachedLatestCaptureAttempt = updateLatestCaptureAttempt(cachedLatestCaptureAttempt, row);
   }
+  cachedCardPresentation = updateCardPresentationCache(cachedCardPresentation, rows);
 
   cachedEncounterRevision = encounterDataRevision;
   if (listChanged) {
@@ -180,10 +219,15 @@ function markCatchGalleryBeta() {
 
 const leadership = createTabLeadership({
   onChange: (isActive) => {
+    leadershipEpoch += 1;
     ui?.setActive(isActive);
     markEncounterListDirty();
   }
 });
+
+function stillOwnsLeadership(epoch) {
+  return leadership.isActive() && leadershipEpoch === epoch;
+}
 
 function finiteOrNull(value) {
   const number = Number(value);
@@ -209,6 +253,7 @@ function enqueueProtocolEvent(payload, socketId) {
     protocolEventsDroppedStandby += 1;
     return;
   }
+  const queuedLeadershipEpoch = leadershipEpoch;
 
   protocolEventsQueued += 1;
   protocolQueueDepth += 1;
@@ -218,6 +263,10 @@ function enqueueProtocolEvent(payload, socketId) {
   updateQueue = updateQueue
     .then(async () => {
       await ready;
+      if (!stillOwnsLeadership(queuedLeadershipEpoch)) {
+        protocolEventsDroppedStandby += 1;
+        return;
+      }
       const eventResult = await pipeline.handle({
         type: payload.type,
         seq: finiteOrNull(payload.seq),
@@ -263,7 +312,7 @@ function enqueueProtocolEvent(payload, socketId) {
 }
 
 async function performCurrentLoad() {
-  if (!sessionsRepository || !encountersRepository || !ui) return;
+  if (!sessionsRepository || !encountersRepository) return;
 
   const now = Date.now();
   const session = await sessionsRepository.getCurrentReadOnly();
@@ -286,6 +335,10 @@ async function performCurrentLoad() {
     cachedEncounterIndexes = new Map(
       cachedEncounters.map((encounter, index) => [encounter.encounterId, index])
     );
+    cachedLatestCaptureAttempt = latestCaptureAttemptFromRows(cachedEncounters);
+    const currentEncounterKeys = new Set(cachedEncounters.map(row => String(row?.encounterId || "")).filter(Boolean));
+    liveActiveEncounterKeys = new Set([...liveActiveEncounterKeys].filter(key => currentEncounterKeys.has(key)));
+    cachedCardPresentation = createCardPresentationCache(cachedEncounters, { activeKeys: liveActiveEncounterKeys });
 
     const listSnapshotChanged =
       sessionChanged ||
@@ -309,11 +362,19 @@ async function performCurrentLoad() {
   const currentState = {
     sessionId,
     encounterSnapshotVersion: encounterListSnapshotVersion,
+    lootDataRevision: cachedEncounterRevision,
     metrics,
-    encounters: cachedEncounters
+    encounters: cachedEncounters,
+    latestCaptureAttempt: cachedLatestCaptureAttempt,
+    cardPresentation: cardPresentationSnapshot(cachedCardPresentation)
   };
 
-  ui.renderCurrent(currentState);
+  publicSummary = createPublicSummary({
+    appVersion: APP_VERSION,
+    leadershipActive: leadership.isActive(),
+    currentState
+  });
+  ui?.renderCurrent(currentState);
   closedHud?.render(currentState);
 
   lastCurrentRenderAtMs = Date.now();
@@ -374,6 +435,8 @@ async function buildDiagnosticsSnapshot() {
           sessionId: session.sessionId,
           status: session.status,
           locked: Boolean(session.locked),
+          activityKind: session.activityKind ?? "hunt",
+          activityInstanceId: session.activityInstanceId ?? null,
           serverSessionId: session.serverSessionId ?? null,
           zoneId: session.zoneId ?? null,
           startedAtMs: session.startedAtMs ?? null,
@@ -399,37 +462,49 @@ function installDiagnosticsBridge() {
 }
 
 async function handleSessionAction(action) {
-  if (!leadership.isActive()) return;
+  if (!leadership.isActive()) return false;
+  const queuedLeadershipEpoch = leadershipEpoch;
+  let succeeded = false;
 
   updateQueue = updateQueue
     .then(async () => {
       await ready;
+      if (!stillOwnsLeadership(queuedLeadershipEpoch)) return;
+      let result = null;
       switch (action) {
         case "new":
-          await sessionsRepository.forceNewSession();
+          result = await sessionsRepository.forceNewSession();
+          invalidateEncounterCache();
+          break;
+        case "reset":
+          result = await sessionsRepository.forceNewSession({ startPaused: true });
           invalidateEncounterCache();
           break;
         case "pause":
-          await sessionsRepository.pauseManual();
+          result = await sessionsRepository.pauseManual();
           break;
         case "resume":
-          await sessionsRepository.resumeManual();
+          result = await sessionsRepository.resumeManual();
           break;
         case "end":
-          await sessionsRepository.endManual();
+          result = await sessionsRepository.endManual();
           break;
         default:
           return;
       }
+      if (!result) return;
 
       await loadCurrent();
+      ui?.markHistoryDirty();
       historyDeleteControl?.refresh();
+      succeeded = true;
     })
     .catch((error) => {
       console.error("PokePixel Hunt Analyzer (session action):", error);
     });
 
   await updateQueue;
+  return succeeded;
 }
 
 async function canDeleteHistorySession(sessionId) {
@@ -442,10 +517,17 @@ async function handleHistorySessionDelete(sessionId) {
   if (!leadership.isActive()) {
     throw new Error("Hunt deletion is available only on the ACTIVE tab");
   }
+  const queuedLeadershipEpoch = leadershipEpoch;
 
   const task = updateQueue.then(async () => {
     await ready;
+    if (!stillOwnsLeadership(queuedLeadershipEpoch)) {
+      throw new Error("Hunt deletion is available only on the ACTIVE tab");
+    }
     await loadCurrent();
+    if (!stillOwnsLeadership(queuedLeadershipEpoch)) {
+      throw new Error("Hunt deletion is available only on the ACTIVE tab");
+    }
 
     const { deletingCurrent } = await deleteHuntData({
       sessionId,
@@ -453,6 +535,7 @@ async function handleHistorySessionDelete(sessionId) {
       encountersRepository
     });
 
+    ui?.markHistoryDirty();
     catchGallery?.markDirty();
     if (deletingCurrent) {
       invalidateEncounterCache();
@@ -476,9 +559,13 @@ function mountUiWhenReady() {
       onSessionAction: (action) => void handleSessionAction(action),
       onLoadHistorySessions: (options) => sessionsRepository.getPage(options),
       onLoadHistorySessionEncounters: (sessionId) =>
-        encountersRepository.getBySessionId(sessionId)
+        encountersRepository.getBySessionId(sessionId),
+      getLootItemCatalog: readLootItemCatalog
     });
-    closedHud = createClosedHud({ pageWindow });
+    closedHud = createClosedHud({
+      pageWindow,
+      onInventoryChange: () => ui?.refreshLootCatalog()
+    });
     closedHud.mount();
     audioAlerts?.mountControls();
     catchGallery?.mountControls();
@@ -500,10 +587,15 @@ function mountUiWhenReady() {
   observer.observe(document, { childList: true, subtree: true });
 }
 
-function scheduleRefreshes() {
+function scheduleLeadershipRefresh() {
   setInterval(() => leadership.refresh(), TAB_LOCK_REFRESH_MS);
+}
+
+function scheduleRefreshes() {
   setInterval(() => {
-    if (ui?.getActiveView() !== "current") return;
+    const publicReaderActive = Number.isFinite(lastPublicSummaryReadAtMs)
+      && Date.now() - lastPublicSummaryReadAtMs <= PUBLIC_SUMMARY_READER_GRACE_MS;
+    if (!embedded && ui?.getActiveView() !== "current" && !publicReaderActive) return;
     loadCurrent().catch((error) => {
       console.error("PokePixel Hunt Analyzer (Current refresh):", error);
     });
@@ -516,30 +608,47 @@ async function initialize() {
       typeof unsafeWindow !== "undefined" ? unsafeWindow : null,
     windowObject: window
   });
+  embedded = isEmbedMode(pageWindow);
+  disposePublicSummaryBridge = installPublicSummaryBridge({
+    pageWindow,
+    appVersion: APP_VERSION,
+    getSummary: () => publicSummary,
+    onRead: () => { lastPublicSummaryReadAtMs = Date.now(); }
+  });
+  disposePublicSessionControl = installPublicSessionControl({
+    pageWindow,
+    performAction: handleSessionAction
+  });
 
   installWebSocketObserver({
     onPayload: enqueueProtocolEvent,
     windowObject: pageWindow
   });
-  leadership.refresh();
-  installDiagnosticsBridge();
+  const startupLeadershipActive = await leadership.acquire();
+  scheduleLeadershipRefresh();
+  if (!embedded) installDiagnosticsBridge();
 
   const database = await openDatabase();
+  registerDatabaseWriteGate(database, () => leadership.isActive());
   sessionsRepository = createSessionsRepository(database);
   encountersRepository = createEncountersRepository(database);
   pipeline = createEventPipeline(database, { appVersion: APP_VERSION });
-  audioAlerts = createAudioAlerts();
-  catchGallery = createCatchGallery({
-    loadEncounters: () =>
-      encountersRepository.getRecentCaptureTickets(CATCH_GALLERY_LOAD_LIMIT)
-  });
-  historyDeleteControl = createHistoryDeleteControl({
-    onDeleteSession: handleHistorySessionDelete,
-    canDeleteSession: canDeleteHistorySession
-  });
-  await pipeline.recoverOnStartup();
+  if (!embedded) {
+    audioAlerts = createAudioAlerts();
+    catchGallery = createCatchGallery({
+      loadEncounters: () =>
+        encountersRepository.getRecentCaptureTickets(CATCH_GALLERY_LOAD_LIMIT)
+    });
+    historyDeleteControl = createHistoryDeleteControl({
+      onDeleteSession: handleHistorySessionDelete,
+      canDeleteSession: canDeleteHistorySession
+    });
+  }
+  if (startupLeadershipActive && leadership.refresh() && leadership.isActive()) {
+    await pipeline.recoverOnStartup();
+  }
 
-  mountUiWhenReady();
+  if (!embedded) mountUiWhenReady();
   resolveReady();
 
   if (document.documentElement) await loadCurrent();
@@ -550,6 +659,8 @@ window.addEventListener("beforeunload", () => {
   catchGallery?.dispose();
   historyDeleteControl?.dispose();
   closedHud?.dispose();
+  disposePublicSummaryBridge?.();
+  disposePublicSessionControl?.();
   if (eventRefreshTimer !== null) clearTimeout(eventRefreshTimer);
   void pipeline?.flushDiagnostics();
   leadership.release();

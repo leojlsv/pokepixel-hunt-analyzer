@@ -100,9 +100,12 @@ HuntSim may aggregate rewards in an envelope containing:
 kills
 session_id
 per_kill[]
+per_kill[].items[] { item_id, qty }
 ```
 
 Each `per_kill[]` entry is converted by the adapter into exactly one canonical individual reward correlated by HuntSim kill sequence. Envelope totals must not be counted again after splitting.
+
+Observed dropped-item detail is limited to authoritative `item_id` and `qty`. The adapter persists that bounded pair as `encounter.lootItems` and the public presentation contract exposes it as `lootHistory[].items[] { itemId, qty }`. Item name, rarity and per-item value are not carried by the observed reward payload and must not be inferred from `loot_sell_value` or another catalog without separate authoritative evidence.
 
 HuntSim commonly emits terminal capture before `loot.received`; late reward must patch the already-persisted encounter instead of creating a second row.
 
@@ -171,6 +174,8 @@ creature.captured_by_name
 Never use `creature.level` as hunted target level. DEV can return a captured creature at a rebased level that differs from the target.
 
 A complete legacy `combat.started` snapshot remains preferred for target-individual fields. HuntSim may have no equivalent complete target snapshot; in that case successful terminal `creature` fields are authoritative for the missing persisted details. Unmatched HuntSim successes retain those terminal fields instead of degrading to mostly-empty orphan rows.
+
+Current-Hunt attempt/special presentation may expose the persisted `speciesId` and a finite non-negative `qualityMultiplier`. Missing or unsupported Quality Multiplier remains `null`; in particular, failed HuntSim attempts do not gain a synthesized value.
 
 `capturedByName` accepts the observed top-level `captured_by_name` and the nested `creature.captured_by_name` location. This is required by new Capture Ticket eligibility/data.
 

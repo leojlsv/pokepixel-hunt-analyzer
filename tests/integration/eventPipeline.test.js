@@ -427,6 +427,49 @@ test("resending the exact same socketId|type|seq counts as a duplicate, not a ne
   assert.equal(diagnostics.orphanEvents, 0);
 });
 
+test("a persistence failure leaves the exact event retryable without advancing tracker or dedupe state", async () => {
+  const db = await openDatabase({ indexedDBFactory: new IDBFactory() });
+  let failSessionWrite = true;
+  const flakyDb = {
+    transaction(storeNames, mode, ...rest) {
+      const names = Array.isArray(storeNames) ? storeNames : [storeNames];
+      if (
+        failSessionWrite &&
+        mode === "readwrite" &&
+        names.includes(STORE_NAMES.SESSIONS)
+      ) {
+        failSessionWrite = false;
+        throw new Error("forced session persistence failure");
+      }
+      return db.transaction(storeNames, mode, ...rest);
+    }
+  };
+  const pipeline = createEventPipeline(flakyDb, { now: () => 0 });
+  const event = combatStarted({ wildId: "wild_retry", seq: 1, ts: 1000 });
+
+  await assert.rejects(
+    pipeline.handle(event),
+    /forced session persistence failure/
+  );
+
+  const retry = await pipeline.handle(event);
+  assert.equal(retry.ok, true);
+  assert.equal(retry.duplicate, undefined);
+  assert.equal(retry.changedEncounters.length, 1);
+
+  const encounters = await createEncountersRepository(db).getAll();
+  assert.equal(encounters.length, 1);
+  assert.equal(encounters[0].wildMonsterId, "wild_retry");
+  const sessions = await createRepository(db, STORE_NAMES.SESSIONS).getAll();
+  assert.equal(sessions.length, 1);
+
+  const diagnostics = await pipeline.getDiagnosticsSnapshot();
+  assert.equal(diagnostics.eventsReceived, 2);
+  assert.equal(diagnostics.duplicateEvents, 0);
+  assert.equal(diagnostics.dedupeRegistrySize, 1);
+  assert.equal(diagnostics.activeEncounters, 1);
+});
+
 test("production dedupe registry stays within its configured event limit", async () => {
   const { pipeline } = await setup(() => 0, { dedupeEventLimit: 3 });
 

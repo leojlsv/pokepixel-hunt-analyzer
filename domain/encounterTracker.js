@@ -59,6 +59,11 @@ function ivTotalOrNull(ivs) {
   return ivs ? sumIvs(ivs) : null;
 }
 
+function persistedLootItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => ({ itemId: item.item_id, qty: item.qty }));
+}
+
 function draftRow({ encounterId, wildMonsterId, socketId, envelope, enemy, session }) {
   const startedAtMs = Number.isFinite(enemy.started_at_ms)
     ? enemy.started_at_ms
@@ -92,6 +97,7 @@ function draftRow({ encounterId, wildMonsterId, socketId, envelope, enemy, sessi
     trainerExp: null,
     pokemonExp: null,
     gold: null,
+    lootItems: [],
     lootSellValue: null,
     captureResult: "none",
     capsuleItemId: null,
@@ -134,6 +140,7 @@ function orphanRow({ encounterId, wildMonsterId, socketId, envelope, patch }) {
     trainerExp: null,
     pokemonExp: null,
     gold: null,
+    lootItems: [],
     lootSellValue: null,
     captureResult: "unknown",
     capsuleItemId: null,
@@ -264,6 +271,7 @@ function applyLootReceived(state, envelope) {
         trainerExp: data.trainer_exp,
         pokemonExp: data.pokemon_exp,
         gold: data.gold,
+        lootItems: persistedLootItems(data.loot_items),
         lootSellValue: data.loot_sell_value,
         captureResult: "none"
       }
@@ -289,6 +297,7 @@ function applyLootReceived(state, envelope) {
     trainerExp: data.trainer_exp,
     pokemonExp: data.pokemon_exp,
     gold: data.gold,
+    lootItems: persistedLootItems(data.loot_items),
     lootSellValue: data.loot_sell_value,
     state:
       existing.state === "orphan"

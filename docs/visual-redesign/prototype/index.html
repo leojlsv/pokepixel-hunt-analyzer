@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Hunt Analyzer — Dark Tactical Analytics / Offline Prototype</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <div class="lab">
+    <header class="lab-header">
+      <div>
+        <p class="overline">POKEPIXEL / VISUAL SYSTEM / M1 CONCEPT</p>
+        <h1>Hunt Analyzer <span>Dark Tactical Analytics</span></h1>
+        <p class="lab-description">Protótipo visual independente. Todos os dados, encontros e estados apresentados são sintéticos.</p>
+      </div>
+      <div class="lab-status"><span class="status-led" aria-hidden="true"></span> OFFLINE · LOCAL FILE</div>
+    </header>
+
+    <section class="preview-controls" aria-label="Controles da maquete">
+      <div class="control-cluster">
+        <span class="control-caption">Viewport</span>
+        <div class="viewport-switch" role="group" aria-label="Selecione o tamanho da prévia">
+          <button type="button" class="viewport-option is-selected" data-viewport="desktop-415" aria-pressed="true"><span>Desktop</span> 415</button>
+          <button type="button" class="viewport-option" data-viewport="desktop-620" aria-pressed="false"><span>Desktop</span> 620</button>
+          <button type="button" class="viewport-option" data-viewport="mobile-320" aria-pressed="false"><span>Mobile</span> 320</button>
+          <button type="button" class="viewport-option" data-viewport="mobile-390" aria-pressed="false"><span>Mobile</span> 390</button>
+        </div>
+      </div>
+      <label class="control-cluster control-cluster--screen">
+        <span class="control-caption">Tela</span>
+        <select id="screen-select" aria-label="Tela em destaque">
+          <option value="current">Current</option>
+          <option value="history">History</option>
+          <option value="misc">Misc</option>
+          <option value="hud">HUD</option>
+        </select>
+      </label>
+      <div class="control-dimensions" aria-live="polite">
+        <span>FRAME</span>
+        <strong id="dimension-label">415 × 700</strong>
+      </div>
+    </section>
+
+    <main class="workspace">
+      <div class="preview-area">
+        <div class="preview-ruler">
+          <span><span class="ruler-led"></span> STANDALONE INTERFACE</span>
+          <span id="preview-caption">DESKTOP / COMPACT</span>
+        </div>
+        <div id="prototype" class="analyzer" data-viewport="desktop-415" data-mode="desktop" data-screen="current" aria-label="Prévia do Hunt Analyzer com dados sintéticos">
+          <header class="analyzer-topbar">
+            <div class="product-identity">
+              <span class="product-monogram" aria-hidden="true">PX</span>
+              <div class="product-copy">
+                <span>POKEPIXEL / ANALYTICS</span>
+                <strong>Hunt Analyzer</strong>
+              </div>
+            </div>
+            <div class="active-pill"><span class="active-dot" aria-hidden="true"></span> ACTIVE</div>
+            <span class="minimize-glyph" aria-hidden="true">−</span>
+          </header>
+
+          <nav class="app-nav app-nav--desktop" aria-label="Navegação desktop" role="tablist">
+            <button id="desktop-current" type="button" role="tab" aria-controls="screen-current" aria-selected="true" tabindex="0" data-screen="current" class="app-tab is-active"><span class="tab-symbol" aria-hidden="true">◫</span>Current</button>
+            <button id="desktop-history" type="button" role="tab" aria-controls="screen-history" aria-selected="false" tabindex="-1" data-screen="history" class="app-tab"><span class="tab-symbol" aria-hidden="true">▤</span>History</button>
+            <button id="desktop-misc" type="button" role="tab" aria-controls="screen-misc" aria-selected="false" tabindex="-1" data-screen="misc" class="app-tab"><span class="tab-symbol" aria-hidden="true">⚙</span>Misc</button>
+            <button id="desktop-hud" type="button" role="tab" aria-controls="screen-hud" aria-selected="false" tabindex="-1" data-screen="hud" class="app-tab"><span class="tab-symbol" aria-hidden="true">▦</span>HUD</button>
+            <span class="nav-clock"><span class="tiny-led" aria-hidden="true"></span> 18:24:12</span>
+          </nav>
+
+          <div class="content-scroll" id="content-scroll">
+            <section id="screen-current" class="app-screen" role="tabpanel" aria-labelledby="desktop-current">
+              <div class="screen-heading">
+                <div><p class="eyebrow">01 / REAL-TIME OVERVIEW</p><h2>Current Hunt</h2></div>
+                <span class="source-chip"><span class="source-mark">●</span> SYNTHETIC</span>
+              </div>
+
+              <section class="hunt-hero" aria-label="Status da Hunt">
+                <div class="hunt-hero-top">
+                  <div>
+                    <p class="micro-label">SESSION STATE</p>
+                    <strong class="hunt-running"><span aria-hidden="true"></span> Running <small>· Gengar</small></strong>
+                  </div>
+                  <div class="hunt-time"><span>ACTIVE TIME</span><strong>18:24:12</strong></div>
+                </div>
+                <div class="hunt-actions" aria-label="Ações da Hunt, somente ilustrativas">
+                  <span class="mock-button mock-button--start">＋ New Hunt</span>
+                  <span class="mock-button mock-button--pause">Ⅱ Pause</span>
+                  <span class="mock-button mock-button--end">■ End Hunt</span>
+                </div>
+                <div class="kpi-grid" aria-label="Indicadores de experiência e economia">
+                  <article class="kpi"><span>XP/h You</span><strong>18.4K</strong><small>TOTAL <b>338.8K</b></small></article>
+                  <article class="kpi"><span>XP/h Poké</span><strong>94.2K</strong><small>TOTAL <b>1.73M</b></small></article>
+                  <article class="kpi"><span>Dollar</span><strong>1.82M</strong><small>$/H <b>98.9K</b></small></article>
+                  <article class="kpi kpi--profit"><span>Profit</span><strong>+1.80M</strong><small>EXPENSES <b>18.3K</b></small></article>
+                </div>
+              </section>
+
+              <section class="capture-grid" aria-label="Resumo de capturas">
+                <article class="capture-kpi"><span>Seen</span><strong>16,842</strong><small>915/h</small></article>
+                <article class="capture-kpi capture-kpi--success"><span>Captured</span><strong>1,409</strong><small>8.37% Seen</small></article>
+                <article class="capture-kpi capture-kpi--failure"><span>Failed</span><strong>15,433</strong><small>838 Rare+</small></article>
+                <article class="capture-kpi"><span>Capture</span><strong>8.37%</strong><small>Captured / Seen</small></article>
+              </section>
+
+              <details class="panel-block" open>
+                <summary class="panel-header">
+                  <span class="panel-title"><span class="header-tick"></span> By Rarity</span>
+                  <span class="panel-meta"><span class="quiet-badge">Rare+ Failed 838</span><span class="shiny-badge">✦ Shiny 3</span><span class="chevron" aria-hidden="true">⌄</span></span>
+                </summary>
+                <div class="table-scroll table-scroll--rarity">
+                  <table class="data-table rarity-table" aria-label="By Rarity: contagens por raridade e taxa">
+                    <thead><tr><th scope="col">Rarity</th><th scope="col">Seen</th><th scope="col">Cap.</th><th scope="col">Fail</th><th scope="col">Rate</th></tr></thead>
+                    <tbody>
+                      <tr><th scope="row" class="rarity-weak">Weak</th><td>9,510</td><td>925</td><td>8,585</td><td>9.73%</td></tr>
+                      <tr><th scope="row" class="rarity-common">Common</th><td>4,458</td><td>301</td><td>4,157</td><td>6.75%</td></tr>
+                      <tr><th scope="row" class="rarity-uncommon">Uncommon</th><td>1,982</td><td>129</td><td>1,853</td><td>6.51%</td></tr>
+                      <tr><th scope="row" class="rarity-rare">Rare</th><td>654</td><td>37</td><td>617</td><td>5.66%</td></tr>
+                      <tr><th scope="row" class="rarity-epic">Epic</th><td>184</td><td>12</td><td>172</td><td>6.52%</td></tr>
+                      <tr><th scope="row" class="rarity-legendary">Legendary</th><td>42</td><td>4</td><td>38</td><td>9.52%</td></tr>
+                      <tr><th scope="row" class="rarity-mythical">Mythical</th><td>12</td><td>1</td><td>11</td><td>8.33%</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+
+              <details class="panel-block" open>
+                <summary class="panel-header">
+                  <span class="panel-title"><span class="header-tick"></span> Captured</span>
+                  <span class="panel-meta"><span id="captured-count" class="quiet-badge">4 shown</span><span class="shiny-badge">✦ 1</span><span class="chevron" aria-hidden="true">⌄</span></span>
+                </summary>
+                <details class="filter-disclosure" data-filter-disclosure="captured" open>
+                  <summary>Filters <span data-filter-summary>Rarity (7) · Shiny all · Quality any · IV any</span><span aria-hidden="true">⌄</span></summary>
+                <div class="filter-grid" data-filter-group="captured">
+                  <details class="multiselect">
+                    <summary><span>Rarity</span><strong data-rarity-label>All (7)</strong></summary>
+                    <fieldset aria-label="Selecionar raridades capturadas">
+                      <label><input type="checkbox" data-rarity-value="weak" checked> Weak</label>
+                      <label><input type="checkbox" data-rarity-value="common" checked> Common</label>
+                      <label><input type="checkbox" data-rarity-value="uncommon" checked> Uncommon</label>
+                      <label><input type="checkbox" data-rarity-value="rare" checked> Rare</label>
+                      <label><input type="checkbox" data-rarity-value="epic" checked> Epic</label>
+                      <label><input type="checkbox" data-rarity-value="legendary" checked> Legendary</label>
+                      <label><input type="checkbox" data-rarity-value="mythical" checked> Mythical</label>
+                    </fieldset>
+                  </details>
+                  <label class="filter-field">Shiny<select data-filter-shiny><option value="all">All</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+                  <label class="filter-field">Quality &gt;<input data-filter-quality type="number" inputmode="decimal" min="0" step="0.01" placeholder="Any"></label>
+                  <label class="filter-field">IV &gt;<input data-filter-iv type="number" inputmode="numeric" min="0" max="186" placeholder="Any"></label>
+                </div>
+                </details>
+                <div class="table-scroll">
+                  <table class="data-table captured-table" aria-label="Captured: Pokémon, gênero, natureza, qualidade, IV Total e seis IVs">
+                    <thead><tr><th scope="col">Pokémon</th><th scope="col">Gender</th><th scope="col">Nature</th><th scope="col">Quality</th><th scope="col">IV Total</th><th scope="col">HP IV</th><th scope="col">Atk IV</th><th scope="col">sAtk IV</th><th scope="col">Def IV</th><th scope="col">sDef IV</th><th scope="col">SpD IV</th></tr></thead>
+                    <tbody data-filter-table="captured">
+                      <tr data-rarity="legendary" data-shiny="yes" data-quality="2.14" data-iv="181" data-captured-at="12:54:18" data-captured-ball="Ultra Ball" data-captured-chance="14.235%"><th scope="row" class="rarity-legendary">✦ Dragonite</th><td>♂</td><td>Jolly</td><td>×2.14</td><td class="iv-total">181</td><td class="iv-stat">31</td><td class="iv-stat">30</td><td class="iv-stat">29</td><td class="iv-stat">31</td><td class="iv-stat">29</td><td class="iv-stat">31</td></tr>
+                      <tr data-rarity="epic" data-shiny="no" data-quality="1.82" data-iv="172" data-captured-at="12:31:12" data-captured-ball="Great Ball" data-captured-chance="28.400%"><th scope="row" class="rarity-epic">Gengar</th><td>♀</td><td>Timid</td><td>×1.82</td><td class="iv-total">172</td><td class="iv-stat">29</td><td class="iv-stat">31</td><td class="iv-stat">31</td><td class="iv-stat">27</td><td class="iv-stat">27</td><td class="iv-stat">27</td></tr>
+                      <tr data-rarity="rare" data-shiny="no" data-quality="1.35" data-iv="160" data-captured-at="12:20:45" data-captured-ball="Ultra Ball" data-captured-chance="39.400%"><th scope="row" class="rarity-rare">Scizor</th><td>♂</td><td>Adamant</td><td>×1.35</td><td class="iv-total">160</td><td class="iv-stat">26</td><td class="iv-stat">31</td><td class="iv-stat">18</td><td class="iv-stat">30</td><td class="iv-stat">28</td><td class="iv-stat">27</td></tr>
+                      <tr data-rarity="common" data-shiny="no" data-quality="1.01" data-iv="144" data-captured-at="12:13:05" data-captured-ball="Poké Ball" data-captured-chance="66.000%"><th scope="row" class="rarity-common">Pidgeotto</th><td>♂</td><td>Hardy</td><td>×1.01</td><td class="iv-total">144</td><td class="iv-stat">25</td><td class="iv-stat">26</td><td class="iv-stat">21</td><td class="iv-stat">25</td><td class="iv-stat">23</td><td class="iv-stat">24</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p class="filter-empty" id="captured-empty" hidden>Nenhuma captura sintética corresponde aos filtros.</p>
+              </details>
+
+              <details class="panel-block" open>
+                <summary class="panel-header">
+                  <span class="panel-title"><span class="header-tick"></span> Failed</span>
+                  <span class="panel-meta"><span id="failed-count" class="quiet-badge">3 shown</span><span class="chevron" aria-hidden="true">⌄</span></span>
+                </summary>
+                <details class="filter-disclosure" data-filter-disclosure="failed" open>
+                  <summary>Filters <span data-filter-summary>Rarity all · Shiny all · IV any</span><span aria-hidden="true">⌄</span></summary>
+                <div class="filter-grid filter-grid--three" data-filter-group="failed">
+                  <label class="filter-field">Rarity<select data-filter-rarity><option value="all">All</option><option value="weak">Weak</option><option value="common">Common</option><option value="uncommon">Uncommon</option><option value="rare">Rare</option><option value="epic">Epic</option><option value="legendary">Legendary</option><option value="mythical">Mythical</option></select></label>
+                  <label class="filter-field">Shiny<select data-filter-shiny><option value="all">All</option><option value="yes">Yes</option><option value="no">No</option></select></label>
+                  <label class="filter-field">IV &gt;<input data-filter-iv type="number" inputmode="numeric" placeholder="Any"></label>
+                </div>
+                </details>
+                <div class="table-scroll">
+                  <table class="data-table failed-table" aria-label="Failed: Pokémon, IV, Pokéball, chance e hora de fuga">
+                    <thead><tr><th scope="col">Pokémon</th><th scope="col">IV</th><th scope="col">Pokéball</th><th scope="col">Chance</th><th scope="col">Fled at</th></tr></thead>
+                    <tbody data-filter-table="failed">
+                      <tr data-rarity="legendary" data-shiny="no" data-iv=""><th scope="row" class="rarity-legendary">Zapdos</th><td>—</td><td>Ultra Ball</td><td>2.015%</td><td>12:50:07</td></tr>
+                      <tr data-rarity="epic" data-shiny="yes" data-iv=""><th scope="row" class="rarity-epic">✦ Alakazam</th><td>—</td><td>Great Ball</td><td>7.420%</td><td>12:47:10</td></tr>
+                      <tr data-rarity="rare" data-shiny="no" data-iv=""><th scope="row" class="rarity-rare">Heracross</th><td>—</td><td>Poké Ball</td><td>99.999%</td><td>12:43:51</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p class="filter-empty" id="failed-empty" hidden>Nenhuma falha sintética corresponde aos filtros.</p>
+              </details>
+            </section>
+
+            <section id="screen-history" class="app-screen" role="tabpanel" aria-labelledby="desktop-history" hidden>
+              <div class="screen-heading">
+                <div><p class="eyebrow">02 / SESSION ARCHIVE</p><h2>History</h2></div>
+                <span class="source-chip"><span class="source-mark">●</span> SYNTHETIC</span>
+              </div>
+              <nav class="history-subtabs" aria-label="Visões de histórico" role="tablist">
+                <button id="history-tab-hunts" class="history-tab is-active" data-history="hunts" type="button" role="tab" aria-controls="history-hunts" aria-selected="true" tabindex="0">Hunts</button>
+                <button id="history-tab-pokemon" class="history-tab" data-history="pokemon" type="button" role="tab" aria-controls="history-pokemon" aria-selected="false" tabindex="-1">Pokémon</button>
+                <button id="history-tab-attempts" class="history-tab" data-history="attempts" type="button" role="tab" aria-controls="history-attempts" aria-selected="false" tabindex="-1">Attempts</button>
+              </nav>
+              <details class="history-filters filter-disclosure" data-compact-section="history" open>
+                <summary>History filters <span id="history-filter-summary">7 Days · more options</span><span aria-hidden="true">⌄</span></summary>
+                <div class="filter-grid filter-grid--history">
+                  <label class="filter-field">Period<select id="history-period"><option value="7d">7 Days</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="30d">30 Days</option><option value="all">All</option></select></label>
+                  <label class="filter-field">Pokémon<select disabled title="Unavailable in offline preview"><option>All (*)</option><option>Dragonite</option><option>Gengar</option><option>Zapdos</option></select></label>
+                  <label class="filter-field">Rarity<select disabled title="Unavailable in offline preview"><option>All (*)</option><option>Rare</option><option>Epic</option><option>Legendary</option><option>Mythical</option></select></label>
+                  <label class="filter-field">Result<select disabled title="Unavailable in offline preview"><option>All (*)</option><option>Captured</option><option>Failed</option></select></label>
+                </div>
+                <p class="history-filter-note">Only Period filters synthetic History rows in this preview; the other selectors are disabled placeholders.</p>
+                <details class="advanced-filters">
+                  <summary>More filters <span aria-hidden="true">⌄</span></summary>
+                  <div class="filter-grid filter-grid--three">
+                    <label class="filter-field">Capsule<select disabled title="Unavailable in offline preview"><option>All (*)</option><option>Ultra Ball</option><option>Great Ball</option></select></label>
+                    <label class="filter-field">Element<select disabled title="Unavailable in offline preview"><option>All (*)</option><option>Electric</option><option>Dragon</option></select></label>
+                    <label class="filter-field">Shiny<select disabled title="Unavailable in offline preview"><option>All (*)</option><option>Yes</option><option>No</option></select></label>
+                  </div>
+                </details>
+              </details>
+
+              <section id="history-hunts" class="history-panel" role="tabpanel" aria-labelledby="history-tab-hunts">
+                <div class="section-toolbar"><span><b id="history-total">3</b> synthetic Hunts</span><span class="quiet-badge">LATEST FIRST</span></div>
+                <div class="table-scroll">
+                  <table class="data-table history-table history-hunts-table" aria-label="History Hunts">
+                    <thead><tr><th scope="col">Date</th><th scope="col">Dur.</th><th scope="col">Seen</th><th scope="col">Cap.</th><th scope="col">Sh</th><th scope="col">Leg</th><th scope="col">Myt</th></tr></thead>
+                    <tbody id="history-hunts-body">
+                      <tr data-history-period="today"><th scope="row"><button type="button" class="history-detail-toggle" aria-expanded="true" aria-controls="history-hunt-detail-01">29/09 09:12 <span aria-hidden="true">⌄</span></button></th><td>18:24</td><td>16,842</td><td>1,409</td><td>1</td><td>4</td><td>1</td></tr>
+                      <tr id="history-hunt-detail-01" class="history-detail" data-history-period="today"><td colspan="7"><div class="detail-metrics"><span>XP/h YOU <b>18.4K</b></span><span>$/h <b>98.9K</b></span><span>PROFIT <b class="positive">+1.80M</b></span></div><div class="notable-line"><span>✦ Shiny Dragonite</span><span class="rarity-mythical">Mythical 1</span><span class="mock-delete">DELETE · DEMO</span></div></td></tr>
+                      <tr data-history-period="yesterday"><th scope="row">28/09 18:27</th><td>09:51</td><td>7,216</td><td>617</td><td>0</td><td>1</td><td>0</td></tr>
+                      <tr data-history-period="7d"><th scope="row">24/09 07:04</th><td>11:35</td><td>8,094</td><td>702</td><td>1</td><td>2</td><td>0</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="history-footer"><span>Ended Hunts only • Active Hunt protected</span><span class="mock-button mock-button--neutral">Load More</span></div>
+              </section>
+
+              <section id="history-pokemon" class="history-panel" role="tabpanel" aria-labelledby="history-tab-pokemon" hidden>
+                <div class="section-toolbar"><span>3 Pokémon / level aggregates</span><span class="quiet-badge">GROUPED</span></div>
+                <div class="table-scroll">
+                  <table class="data-table history-table history-pokemon-table" aria-label="History Pokémon e níveis"><thead><tr><th scope="col">Pokémon</th><th scope="col">Lvl</th><th scope="col">Seen</th><th scope="col">Cap.</th><th scope="col">Rate</th><th scope="col">XP/Cyc</th><th scope="col">$/Cyc</th></tr></thead><tbody>
+                    <tr><th scope="row" class="rarity-legendary">Dragonite</th><td>88</td><td>42</td><td>4</td><td>9.52%</td><td>8,420</td><td>2,180</td></tr>
+                    <tr><th scope="row" class="rarity-epic">Gengar</th><td>82</td><td>184</td><td>12</td><td>6.52%</td><td>3,860</td><td>980</td></tr>
+                    <tr><th scope="row" class="rarity-rare">Scizor</th><td>77</td><td>654</td><td>37</td><td>5.66%</td><td>1,724</td><td>410</td></tr>
+                  </tbody></table>
+                </div>
+                <div class="history-note">Agrupamento sintético por Pokémon + nível; métricas apenas ilustrativas.</div>
+              </section>
+
+              <section id="history-attempts" class="history-panel" role="tabpanel" aria-labelledby="history-tab-attempts" hidden>
+                <div class="section-toolbar"><span>3 synthetic attempts</span><span class="quiet-badge">CHRONOLOGICAL</span></div>
+                <div class="table-scroll">
+                  <table class="data-table history-table history-attempts-table" aria-label="History Attempts"><thead><tr><th scope="col">At</th><th scope="col">Pokémon</th><th scope="col">Result</th><th scope="col">Ball</th><th scope="col">Chance</th><th scope="col">IV</th></tr></thead><tbody>
+                    <tr><th scope="row">12:54:18</th><td class="rarity-legendary">✦ Dragonite</td><td class="positive">Cap.</td><td>Ultra Ball</td><td>14.235%</td><td>181</td></tr>
+                    <tr><th scope="row">12:50:07</th><td class="rarity-legendary">Zapdos</td><td class="negative">Fled</td><td>Ultra Ball</td><td>2.015%</td><td>—</td></tr>
+                    <tr><th scope="row">12:47:10</th><td class="rarity-epic">✦ Alakazam</td><td class="negative">Fled</td><td>Great Ball</td><td>7.420%</td><td>—</td></tr>
+                  </tbody></table>
+                </div>
+                <div class="history-note">Chance histórica da tentativa concluída, não previsão de captura.</div>
+              </section>
+            </section>
+
+            <section id="screen-misc" class="app-screen" role="tabpanel" aria-labelledby="desktop-misc" hidden>
+              <div class="screen-heading">
+                <div><p class="eyebrow">03 / CONTROL CENTER</p><h2>Misc</h2></div>
+                <span class="source-chip"><span class="source-mark">●</span> SYNTHETIC</span>
+              </div>
+              <details class="panel-block" open>
+                <summary class="panel-header"><span class="panel-title"><span class="header-tick"></span> Interface</span><span class="panel-meta"><span class="quiet-badge">PREFERENCES</span><span class="chevron">⌄</span></span></summary>
+                <div class="settings-grid">
+                  <label class="filter-field">UI Mode<select aria-label="Modo visual demonstrativo" disabled><option>Auto</option><option>Desktop</option><option>Mobile</option></select></label>
+                  <label class="filter-field">Opacity<select aria-label="Opacidade demonstrativa" disabled><option>100%</option><option>90%</option><option>80%</option></select></label>
+                </div>
+                <div class="settings-note">Modo e opacidade da aplicação real são apenas representados. Use os seletores acima da maquete para trocar o viewport.</div>
+              </details>
+
+              <details class="panel-block" open>
+                <summary class="panel-header"><span class="panel-title"><span class="header-tick"></span> Sound Alerts</span><span class="panel-meta"><span class="quiet-badge">6 / 8 CONFIGURED</span><span class="chevron">⌄</span></span></summary>
+                <div class="volume-row"><span>MASTER VOLUME</span><input type="range" min="0" max="100" step="5" value="75" aria-label="Volume ilustrativo"><b>75%</b></div>
+                <div class="audio-matrix">
+                  <div class="audio-head"><span>RARITY</span><span>CAPTURED</span><span>FLED</span></div>
+                  <div class="audio-row"><strong class="rarity-epic">Epic</strong><div class="audio-choicegroup"><span class="cell-caption">Captured</span><div class="audio-segments"><span class="choice is-on">1</span><span class="choice">2</span><span class="choice">C</span></div></div><div class="audio-choicegroup"><span class="cell-caption">Fled</span><div class="audio-segments"><span class="choice">1</span><span class="choice is-on">2</span><span class="choice">C</span></div></div></div>
+                  <div class="audio-row"><strong class="rarity-legendary">Legendary</strong><div class="audio-choicegroup"><span class="cell-caption">Captured</span><div class="audio-segments"><span class="choice">1</span><span class="choice is-on">2</span><span class="choice">C</span></div></div><div class="audio-choicegroup"><span class="cell-caption">Fled</span><div class="audio-segments"><span class="choice is-on">1</span><span class="choice">2</span><span class="choice">C</span></div></div></div>
+                  <div class="audio-row"><strong class="rarity-mythical">Mythical</strong><div class="audio-choicegroup"><span class="cell-caption">Captured</span><div class="audio-segments"><span class="choice is-on">1</span><span class="choice">2</span><span class="choice">C</span></div></div><div class="audio-choicegroup"><span class="cell-caption">Fled</span><div class="audio-segments"><span class="choice">1</span><span class="choice">2</span><span class="choice is-custom">C</span></div></div></div>
+                  <div class="audio-row"><strong class="shiny">✦ Shiny</strong><div class="audio-choicegroup"><span class="cell-caption">Captured</span><div class="audio-segments"><span class="choice">1</span><span class="choice is-on">2</span><span class="choice">C</span></div></div><div class="audio-choicegroup"><span class="cell-caption">Fled</span><div class="audio-segments"><span class="choice">1</span><span class="choice is-on">2</span><span class="choice">C</span></div></div></div>
+                </div>
+                <div class="settings-note"><span class="tiny-key">C</span> Custom Audio · escolhas e previews são ilustrativos. Áudio não é reproduzido.</div>
+              </details>
+
+              <details class="panel-block" open>
+                <summary class="panel-header"><span class="panel-title"><span class="header-tick"></span> Catch Gallery</span><span class="panel-meta"><span class="quiet-badge">3 ELIGIBLE</span><span class="chevron">⌄</span></span></summary>
+                <details class="filter-disclosure gallery-filter-disclosure" data-compact-section="gallery" open>
+                  <summary>Gallery filters <span>Pokémon · Rarity</span><span aria-hidden="true">⌄</span></summary>
+                <div class="gallery-filters">
+                  <label class="filter-field">Pokémon<input id="gallery-search" type="search" placeholder="Filter Pokémon" aria-label="Filtrar nomes sintéticos da galeria"></label>
+                  <label class="filter-field">Rarity<select id="gallery-rarity"><option value="all">All</option><option value="legendary">Legendary</option><option value="mythical">Mythical</option><option value="shiny">Shiny</option></select></label>
+                </div>
+                </details>
+                <div class="table-scroll">
+                  <table class="data-table gallery-table" aria-label="Catch Gallery">
+                    <thead><tr><th scope="col">Pokémon</th><th scope="col">Captured</th><th scope="col">Quality</th><th scope="col">IV</th><th scope="col">Actions</th></tr></thead>
+                    <tbody id="gallery-body">
+                      <tr data-gallery-name="Dragonite" data-gallery-rarity="legendary shiny"><th scope="row" class="rarity-legendary">✦ Dragonite</th><td>29/09 · 12:54:18</td><td>×2.14</td><td>181</td><td><button type="button" disabled class="inline-action" title="Preview only">Generate</button> <button type="button" disabled class="inline-action inline-action--secondary" title="Preview only">Copy</button></td></tr>
+                      <tr data-gallery-name="Mew" data-gallery-rarity="mythical"><th scope="row" class="rarity-mythical">Mew</th><td>28/09 · 23:12:41</td><td>×1.72</td><td>177</td><td><button type="button" disabled class="inline-action" title="Preview only">Generate</button> <button type="button" disabled class="inline-action inline-action--secondary" title="Preview only">Copy</button></td></tr>
+                      <tr data-gallery-name="Zapdos" data-gallery-rarity="legendary"><th scope="row" class="rarity-legendary">Zapdos</th><td>25/09 · 06:09:02</td><td>×1.36</td><td>162</td><td><button type="button" disabled class="inline-action" title="Preview only">Generate</button> <button type="button" disabled class="inline-action inline-action--secondary" title="Preview only">Copy</button></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p id="gallery-empty" class="filter-empty" hidden>Não há capturas sintéticas para essa combinação.</p>
+                <div class="history-footer"><span id="gallery-count">3 shown</span><span class="page-mark">‹ &nbsp; 1 / 1 &nbsp; ›</span></div>
+              </details>
+            </section>
+
+            <section id="screen-hud" class="app-screen" role="tabpanel" aria-labelledby="desktop-hud" hidden>
+              <div class="screen-heading">
+                <div><p class="eyebrow">04 / COMPACT TELEMETRY</p><h2>Closed HUD</h2></div>
+                <span class="source-chip"><span class="source-mark">●</span> SYNTHETIC</span>
+              </div>
+              <div class="hud-hero">
+                <div class="hud-hero-heading"><span>LAUNCHER PREVIEW</span><span>HYDRATED · MOCK</span></div>
+                <div class="hud-launcher" id="hud-launcher" data-hud-layout="2" aria-label="Prévia sintética do launcher">
+                  <span class="hud-monogram" aria-hidden="true">PX</span>
+                  <div class="hud-widget-grid" aria-label="Default: Seen, Seen/h e Rarity Tracker (slots 3 e 4)">
+                    <div class="hud-widget" data-hud-slot="0" data-widget="seen" data-size="1"><span data-hud-label>Seen</span><strong data-hud-value>16,842</strong></div>
+                    <div class="hud-widget" data-hud-slot="1" data-widget="seenPerHour" data-size="1"><span data-hud-label>Seen/h</span><strong data-hud-value>915</strong></div>
+                    <div class="hud-widget hud-widget--wide" data-hud-slot="2" data-widget="rarityTracker" data-size="2" aria-label="Rarity Tracker: captured por raridade, sete categorias">
+                      <div class="hud-rarity-row" aria-label="Weak 925, Common 301, Uncommon 129, Rare 37, Epic 12, Legendary 4, Mythical 1">
+                        <span data-hud-rarity="weak" class="rarity-weak" title="Weak: 925 captured">925</span>
+                        <span data-hud-rarity="common" class="rarity-common" title="Common: 301 captured">301</span>
+                        <span data-hud-rarity="uncommon" class="rarity-uncommon" title="Uncommon: 129 captured">129</span>
+                        <span data-hud-rarity="rare" class="rarity-rare" title="Rare: 37 captured">37</span>
+                        <span data-hud-rarity="epic" class="rarity-epic" title="Epic: 12 captured">12</span>
+                        <span data-hud-rarity="legendary" class="rarity-legendary" title="Legendary: 4 captured">4</span>
+                        <span data-hud-rarity="mythical" class="rarity-mythical" title="Mythical: 1 captured">1</span>
+                      </div>
+                    </div>
+                    <div class="hud-widget" data-hud-slot="3" data-widget="empty" data-size="1" data-consumed="true" hidden><span data-hud-label></span><strong data-hud-value></strong></div>
+                  </div>
+                </div>
+                <div class="hud-dimensions" id="hud-dimensions">2 Columns · 220 × 52</div>
+              </div>
+              <section class="panel-block panel-block--static">
+                <div class="panel-header"><span class="panel-title"><span class="header-tick"></span> Configuration</span><span class="quiet-badge">PREVIEW ONLY</span></div>
+                <div class="settings-grid">
+                  <label class="filter-field">Columns<select id="hud-layout"><option value="2">2 Columns · 220 px</option><option value="1">One Column · 145 px</option><option value="0">PX Only · 52 px</option></select></label>
+                  <label class="filter-field">Preset<select id="hud-preset"><option value="default">Default</option><option value="leveling">Leveling</option><option value="economy">Economy</option><option value="capture">Capture</option></select></label>
+                </div>
+                <div class="slot-grid" aria-label="Quatro slots de layout ilustrativos">
+                  <div class="slot-card" data-slot-config="0"><span>SLOT 01</span><strong data-slot-name>Seen</strong><small data-slot-caption>First unit</small></div>
+                  <div class="slot-card" data-slot-config="1"><span>SLOT 02</span><strong data-slot-name>Seen/h</strong><small data-slot-caption>Second unit</small></div>
+                  <div class="slot-card" data-slot-config="2"><span>SLOT 03</span><strong data-slot-name>Rarity Tracker</strong><small data-slot-caption>Wide · spans slots 03 + 04</small></div>
+                  <div class="slot-card slot-card--consumed" data-slot-config="3" data-consumed="true"><span>SLOT 04</span><strong data-slot-name>Empty</strong><small data-slot-caption>Consumed by slot 03</small></div>
+                </div>
+                <div class="settings-note">Presets alteram apenas o exemplo do launcher. Na interface real, Custom permite selecionar cada widget e as raridades.</div>
+              </section>
+              <section class="panel-block panel-block--static">
+                <div class="panel-header"><span class="panel-title"><span class="header-tick"></span> Telemetry Semantics</span><span class="quiet-badge">DATA CONTRACT</span></div>
+                <div class="hud-semantics">
+                  <div><span class="micro-label">SHINY TRACKER</span><strong class="shiny">✦ <em>3</em> / 1</strong><small>Seen / Captured</small></div>
+                  <div><span class="micro-label">RARITY TRACKER</span><strong><span class="rarity-rare">617</span> / <span class="rarity-rare">37</span></strong><small>Rare · Failed / Captured</small></div>
+                  <div><span class="micro-label">BALL TRACKER</span><strong>46 <span class="sub-number">↓ 88</span></strong><small>Ultra Ball · stock / used</small></div>
+                  <div><span class="micro-label">POTION TRACKER</span><strong>12 <span class="sub-number">↓ 4</span></strong><small>Hyper Potion · stock / used</small></div>
+                </div>
+              </section>
+            </section>
+          </div>
+
+          <nav class="app-nav app-nav--mobile" aria-label="Navegação mobile" role="tablist">
+            <button id="mobile-current" type="button" role="tab" aria-controls="screen-current" aria-selected="true" tabindex="-1" data-screen="current" class="app-tab is-active"><span class="tab-symbol" aria-hidden="true">◫</span>Current</button>
+            <button id="mobile-history" type="button" role="tab" aria-controls="screen-history" aria-selected="false" tabindex="-1" data-screen="history" class="app-tab"><span class="tab-symbol" aria-hidden="true">▤</span>History</button>
+            <button id="mobile-misc" type="button" role="tab" aria-controls="screen-misc" aria-selected="false" tabindex="-1" data-screen="misc" class="app-tab"><span class="tab-symbol" aria-hidden="true">⚙</span>Misc</button>
+            <button id="mobile-hud" type="button" role="tab" aria-controls="screen-hud" aria-selected="false" tabindex="-1" data-screen="hud" class="app-tab"><span class="tab-symbol" aria-hidden="true">▦</span>HUD</button>
+          </nav>
+        </div>
+        <div class="preview-footnote"><span>ALL VALUES SYNTHETIC</span><span id="current-route">CURRENT / DESKTOP 415</span></div>
+      </div>
+
+      <aside class="design-inspector" aria-label="Notas do sistema visual">
+        <div class="inspector-heading"><p class="overline">DESIGN EXPLORATION / A</p><h2>Dark Tactical Analytics</h2><p>Instrumento de leitura rápida, com contraste alto, superfícies discretas e conteúdo denso.</p></div>
+        <div class="inspector-block">
+          <strong class="inspector-label">SURFACE & ACCENT</strong>
+          <div class="swatch-list"><span><i style="--swatch:#151B1D"></i>Canvas <code>#151B1D</code></span><span><i style="--swatch:#1D2528"></i>Raised <code>#1D2528</code></span><span><i style="--swatch:#273134"></i>Header <code>#273134</code></span><span><i style="--swatch:#D7B45D"></i>Gold <code>#D7B45D</code></span><span><i style="--swatch:#80D5E6"></i>Focus <code>#80D5E6</code></span></div>
+        </div>
+        <div class="inspector-block">
+          <strong class="inspector-label">SEMANTIC STATES</strong>
+          <div class="state-samples"><span class="sample sample--active">● Active</span><span class="sample sample--standby">● Standby</span><span class="sample sample--captured">✓ Captured</span><span class="sample sample--failed">✕ Failed</span><span class="sample sample--shiny">✦ Shiny</span></div>
+        </div>
+        <div class="inspector-block">
+          <strong class="inspector-label">DESIGN CONSTRAINTS</strong>
+          <p>4 views · 1 scroll vertical · tabelas contínuas compactas com cabeçalhos compartilhados, sem cards por Pokémon nem rolagem horizontal.</p>
+          <p>Closed HUD mantém 2×2, 1 coluna e PX Only. Cores de raridade preservadas como semântica independente.</p>
+        </div>
+        <p class="inspector-disclaimer">Ações de Hunt, Delete, Generate, Copy e áudio são representações estáticas. Seletores de viewport/tela, subtabs e filtros sintéticos são locais à maquete.</p>
+      </aside>
+    </main>
+    <footer class="lab-footer">M1 / STATIC DESIGN EXPLORATION <span>HTML + CSS + JS LOCAL · NO NETWORK / NO GAME RUNTIME</span></footer>
+  </div>
+</body>
+</html>

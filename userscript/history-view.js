@@ -1,6 +1,12 @@
 import { computeGroupMetrics } from "../domain/groupMetrics.js";
 import { computeRarityBreakdown } from "../domain/rarityBreakdown.js";
 import { computeSessionMetrics } from "../domain/sessionMetrics.js";
+import { aggregateLootHistory } from "./loot-history-model.js";
+import { bindLootRarityFilter } from "./loot-rarity-filter.js";
+import {
+  knownLootItemRarity,
+  lootItemCatalogSignature
+} from "./loot-item-catalog.js";
 import {
   NOTABLE_RARITIES,
   notableEncounters
@@ -19,6 +25,10 @@ const HISTORY_PAGE_SIZE = 20;
 const HISTORY_LOAD_CONCURRENCY = 4;
 const ATTEMPT_BATCH_SIZE = 100;
 
+function sameHistoryRange(left, right) {
+  return left?.after === right?.after && left?.before === right?.before;
+}
+
 const RARITY_SHORT = new Map([
   ["weak", "Wk"],
   ["common", "Com"],
@@ -28,6 +38,11 @@ const RARITY_SHORT = new Map([
   ["legendary", "Leg"],
   ["mythical", "Myt"]
 ]);
+
+function lootItemRarity(metadata) {
+  const key = knownLootItemRarity(metadata?.rarity);
+  return RARITIES.some(([rarity]) => rarity === key) ? key : "none";
+}
 
 function addColumnGroup(table, classNames) {
   const group = document.createElement("colgroup");
@@ -159,9 +174,11 @@ export async function loadHistoryPage({
   concurrency = HISTORY_LOAD_CONCURRENCY,
   now = Date.now
 }) {
+  const cursor = before && typeof before === "object" ? before : null;
   const rows = await loadSessions({
     ...range,
-    before,
+    before: cursor ? cursor.startedAtMs : before,
+    ...(cursor ? { beforeSessionId: cursor.sessionId } : {}),
     limit: pageSize + 1
   });
   const sessions = rows.slice(0, pageSize);
@@ -181,20 +198,46 @@ export async function loadHistoryPage({
   return {
     bundles,
     nextBefore: rows.length > pageSize && sessions.length > 0
-      ? sessions[sessions.length - 1].startedAtMs
+      ? {
+          startedAtMs: sessions[sessions.length - 1].startedAtMs,
+          sessionId: sessions[sessions.length - 1].sessionId
+        }
       : null
   };
 }
 
-export function createHistoryView(shadow, { loadSessions, loadSessionEncounters }) {
+export function createHistoryView(shadow, {
+  loadSessions,
+  loadSessionEncounters,
+  getLootItemCatalog = () => null,
+  now = Date.now
+}) {
   let bundles = [];
   let activeSubview = "hunts";
   let attemptRenderCount = ATTEMPT_BATCH_SIZE;
   let loading = false;
+  let loadPromise = null;
+  let pendingRefresh = false;
+  let inFlightPeriod = null;
+  let inFlightRange = null;
+  let inFlightOperation = null;
+  let inFlightDataVersion = null;
+  let dataVersion = 0;
+  let loadedPeriod = null;
+  let failedLoad = null;
   let nextBefore = null;
   const expandedHunts = new Set();
   const expandedAttempts = new Set();
   const expandedPokemon = new Set();
+  const expandedLoot = new Set();
+  let selectedLootSessionId = "*";
+  const lootRarityFilter = bindLootRarityFilter(shadow, {
+    prefix: "history-loot",
+    scope: "history",
+    onChange: () => renderLoot({ preserveScroll: true, reuseSummary: true })
+  });
+  let cachedLootSummary = null;
+  let currentLootCatalogSignature = "";
   const notableSelectionBySession = new Map();
   const filters = {
     period: "7d",
@@ -205,7 +248,15 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     element: "*",
     shiny: "*"
   };
-  let activeRange = periodRange(filters.period);
+  let activeRange = periodRange(filters.period, now());
+
+  function currentRange() {
+    return periodRange(filters.period, now());
+  }
+
+  function historyIsFresh() {
+    return loadedPeriod === filters.period && sameHistoryRange(activeRange, currentRange());
+  }
 
   bindControls();
 
@@ -221,9 +272,9 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
       });
     }
 
-    shadow.getElementById("history-period").addEventListener("change", async (event) => {
+    shadow.getElementById("history-period").addEventListener("change", (event) => {
       filters.period = event.target.value;
-      await refresh();
+      void refresh();
     });
 
     const bindings = [
@@ -252,6 +303,19 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     shadow.getElementById("history-load-more").addEventListener("click", () => {
       void loadMore();
     });
+    shadow.getElementById("history-refresh").addEventListener("click", () => {
+      void refresh();
+    });
+    shadow.getElementById("history-retry").addEventListener("click", () => {
+      if (failedLoad === "more") void loadMore();
+      else void refresh();
+    });
+
+    shadow.getElementById("history-loot-session").addEventListener("change", (event) => {
+      selectedLootSessionId = event.target.value;
+      expandedLoot.clear();
+      renderLoot();
+    });
 
     const attemptsWrap = shadow.getElementById("history-attempts-wrap");
     attemptsWrap.addEventListener("scroll", () => {
@@ -265,54 +329,159 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     }, { passive: true });
   }
 
-  async function refresh() {
-    if (loading) return;
-    loading = true;
-    nextBefore = null;
-    activeRange = periodRange(filters.period);
+  function clearLoadError() {
+    const wasRetryFocused = shadow.activeElement === shadow.getElementById("history-retry");
+    shadow.getElementById("history-load-error").hidden = true;
+    failedLoad = null;
+    if (wasRetryFocused) shadow.getElementById("history-count").focus({ preventScroll: true });
+  }
+
+  function reportLoadError(operation, error) {
+    failedLoad = operation;
+    const detail = operation === "more"
+      ? "Could not load more sessions. Previously loaded results are preserved."
+      : "Could not refresh History. Previously loaded results may belong to another period.";
+    shadow.getElementById("history-load-error-message").textContent = detail;
+    shadow.getElementById("history-load-error").hidden = false;
+    setStatus(operation === "more" && loadedPeriod != null
+      ? `Load More failed · ${bundles.length} sessions still loaded`
+      : "History refresh failed");
+    console.error("PokePixel Hunt Analyzer (History):", error);
+  }
+
+  async function performRefresh() {
+    pendingRefresh = false;
+    const period = filters.period;
+    const range = currentRange();
+    inFlightPeriod = period;
+    inFlightRange = range;
+    inFlightOperation = "refresh";
+    inFlightDataVersion = dataVersion;
     setStatus("Loading…");
+    clearLoadError();
 
     try {
       const page = await loadHistoryPage({
         loadSessions,
         loadSessionEncounters,
-        range: activeRange
+        range
       });
+      // A newer period/refresh request supersedes this response, including
+      // when the old request completed successfully after the new selection.
+      if (pendingRefresh || !sameHistoryRange(range, currentRange())) {
+        pendingRefresh = true;
+        return;
+      }
       bundles = page.bundles;
       nextBefore = page.nextBefore;
+      activeRange = range;
+      // A Current change during the read must not turn a potentially older
+      // History snapshot into a permanently clean cached page.
+      loadedPeriod = inFlightDataVersion === dataVersion ? period : null;
       expandedHunts.clear();
       expandedAttempts.clear();
       expandedPokemon.clear();
+      expandedLoot.clear();
       notableSelectionBySession.clear();
       attemptRenderCount = ATTEMPT_BATCH_SIZE;
       populateFilters();
+      populateLootSessions();
       render();
-    } finally {
-      loading = false;
-      syncLoadMore();
+    } catch (error) {
+      if (!pendingRefresh) reportLoadError("refresh", error);
     }
   }
 
-  async function loadMore() {
-    if (loading || nextBefore === null) return;
-    loading = true;
-    syncLoadMore();
-
+  async function performLoadMore() {
+    const before = nextBefore;
+    inFlightPeriod = loadedPeriod;
+    inFlightRange = activeRange;
+    inFlightOperation = "more";
+    inFlightDataVersion = dataVersion;
+    clearLoadError();
     try {
       const page = await loadHistoryPage({
         loadSessions,
         loadSessionEncounters,
         range: activeRange,
-        before: nextBefore
+        before
       });
+      if (pendingRefresh || inFlightDataVersion !== dataVersion || !sameHistoryRange(activeRange, currentRange())) {
+        pendingRefresh = true;
+        return;
+      }
       bundles.push(...page.bundles);
       nextBefore = page.nextBefore;
       populateFilters();
+      populateLootSessions();
       render();
-    } finally {
-      loading = false;
-      syncLoadMore();
+    } catch (error) {
+      if (inFlightDataVersion !== dataVersion || !sameHistoryRange(activeRange, currentRange())) {
+        pendingRefresh = true;
+      } else if (!pendingRefresh) {
+        reportLoadError("more", error);
+      }
     }
+  }
+
+  function startLoad(operation) {
+    if (loading) {
+      if (operation === "refresh") pendingRefresh = true;
+      return loadPromise;
+    }
+    const loadMoreButton = shadow.getElementById("history-load-more");
+    const restoreLoadMoreFocus = operation === "more" && shadow.activeElement === loadMoreButton;
+    loading = true;
+    const work = (async () => {
+      let action = operation;
+      while (action) {
+        if (action === "refresh") await performRefresh();
+        else await performLoadMore();
+        action = pendingRefresh ? "refresh" : null;
+      }
+    })();
+    loadPromise = work.finally(() => {
+      loading = false;
+      loadPromise = null;
+      inFlightPeriod = null;
+      inFlightRange = null;
+      inFlightOperation = null;
+      inFlightDataVersion = null;
+      syncLoadMore();
+      if (restoreLoadMoreFocus && (!shadow.activeElement || shadow.activeElement === loadMoreButton)) {
+        (loadMoreButton.hidden ? shadow.getElementById("history-count") : loadMoreButton)
+          .focus({ preventScroll: true });
+      }
+    });
+    syncLoadMore();
+    return loadPromise;
+  }
+
+  function refresh() {
+    return startLoad("refresh");
+  }
+
+  function ensureLoaded() {
+    if (historyIsFresh()) return loadPromise ?? Promise.resolve();
+    if (loading && inFlightOperation === "refresh" && inFlightPeriod === filters.period
+      && inFlightDataVersion === dataVersion && sameHistoryRange(inFlightRange, currentRange())
+      && !pendingRefresh) return loadPromise;
+    return refresh();
+  }
+
+  function invalidate() {
+    dataVersion += 1;
+    loadedPeriod = null;
+    syncLoadMore();
+  }
+
+  function loadMore() {
+    if (loading || nextBefore === null || !historyIsFresh()
+      || failedLoad === "refresh") {
+      syncLoadMore();
+      return loadPromise ?? Promise.resolve();
+    }
+    return startLoad("more");
   }
 
   function allEncounters() {
@@ -341,6 +510,28 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     filters.species = shadow.getElementById("history-species").value;
     filters.capsule = shadow.getElementById("history-capsule").value;
     filters.element = shadow.getElementById("history-element").value;
+  }
+
+  function populateLootSessions() {
+    const select = shadow.getElementById("history-loot-session");
+    const fragment = document.createDocumentFragment();
+    const all = document.createElement("option");
+    all.value = "*";
+    all.textContent = "All loaded sessions";
+    fragment.appendChild(all);
+
+    bundles.forEach(({ session }, index) => {
+      const option = document.createElement("option");
+      option.value = session.sessionId;
+      const kind = session.activityKind === "expedition" ? "Expedition" : "Hunt";
+      option.textContent = `${kind} #${index + 1}`;
+      fragment.appendChild(option);
+    });
+    select.replaceChildren(fragment);
+    if (!bundles.some(({ session }) => session.sessionId === selectedLootSessionId)) {
+      selectedLootSessionId = "*";
+    }
+    select.value = selectedLootSessionId;
   }
 
   function matchesEncounter(encounter) {
@@ -383,13 +574,25 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
       .sort((left, right) => (right.captureAtMs || 0) - (left.captureAtMs || 0));
   }
 
+  function rerenderKeepingFocus(row, rerender, selector, datasetKey, value) {
+    const focused = shadow.activeElement === row;
+    rerender();
+    if (!focused) return;
+    [...shadow.querySelectorAll(selector)]
+      .find((candidate) => candidate.dataset[datasetKey] === String(value))
+      ?.focus({ preventScroll: true });
+  }
+
   function render() {
     for (const section of shadow.querySelectorAll("[data-history-panel]")) {
       section.hidden = section.dataset.historyPanel !== activeSubview;
     }
 
+    shadow.getElementById("history-rarity-label").textContent =
+      activeSubview === "loot" ? "Pokémon Rarity" : "Rarity";
     if (activeSubview === "pokemon") renderPokemon();
     else if (activeSubview === "attempts") renderAttempts();
+    else if (activeSubview === "loot") renderLoot();
     else renderHunts();
   }
 
@@ -401,9 +604,24 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
   function syncLoadMore() {
     const button = shadow.getElementById("history-load-more");
     if (!button) return;
-    button.hidden = nextBefore === null;
+    const hadFocus = shadow.activeElement === button;
+    const fresh = historyIsFresh();
+    button.hidden = nextBefore === null || !fresh
+      || failedLoad === "refresh";
     button.disabled = loading;
     button.textContent = loading ? "Loading…" : "Load More";
+    const refreshButton = shadow.getElementById("history-refresh");
+    refreshButton.disabled = loading;
+    refreshButton.textContent = fresh ? "Refresh" : "Refresh •";
+    refreshButton.title = fresh
+      ? "Reload History from saved sessions"
+      : "History data or period has changed; refresh to update";
+    refreshButton.setAttribute("aria-label", refreshButton.title);
+    refreshButton.classList.toggle("history-refresh-dirty", !fresh);
+    shadow.getElementById("history-retry").disabled = loading;
+    if (hadFocus && button.hidden) {
+      shadow.getElementById("history-count").focus({ preventScroll: true });
+    }
   }
 
   function renderHunts() {
@@ -441,7 +659,7 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
       const toggle = () => {
         if (expandedHunts.has(bundle.session.sessionId)) expandedHunts.delete(bundle.session.sessionId);
         else expandedHunts.add(bundle.session.sessionId);
-        renderHunts();
+        rerenderKeepingFocus(row, renderHunts, ".history-hunt-row", "sessionId", bundle.session.sessionId);
       };
       row.addEventListener("click", toggle);
       row.addEventListener("keydown", (event) => {
@@ -649,6 +867,7 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     for (const item of rows) {
       const row = document.createElement("tr");
       row.className = "history-pokemon-row";
+      row.dataset.groupKey = item.key;
       row.tabIndex = 0;
       row.setAttribute("aria-expanded", String(expandedPokemon.has(item.key)));
       [
@@ -669,7 +888,7 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
       const toggle = () => {
         if (expandedPokemon.has(item.key)) expandedPokemon.delete(item.key);
         else expandedPokemon.add(item.key);
-        renderPokemon();
+        rerenderKeepingFocus(row, renderPokemon, ".history-pokemon-row", "groupKey", item.key);
       };
       row.addEventListener("click", toggle);
       row.addEventListener("keydown", (event) => {
@@ -733,6 +952,157 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     return detailRow;
   }
 
+  function createLootSourceRow(entry) {
+    const row = document.createElement("tr");
+    row.className = "history-detail-row history-loot-detail-row";
+    const cell = document.createElement("td");
+    cell.colSpan = 3;
+    const heading = document.createElement("strong");
+    heading.textContent = "Pokémon sources";
+    const table = document.createElement("table");
+    table.className = "history-loot-sources-table";
+    const head = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    for (const label of ["Pokémon", "Qty", "Drops"]) {
+      const th = document.createElement("th");
+      th.textContent = label;
+      headRow.appendChild(th);
+    }
+    head.appendChild(headRow);
+    const body = document.createElement("tbody");
+    for (const source of entry.sources) {
+      const sourceRow = document.createElement("tr");
+      for (const value of [speciesLabel({ speciesName: source.speciesName }), formatNumber(source.qty), formatNumber(source.drops)]) {
+        const td = document.createElement("td");
+        td.textContent = value;
+        sourceRow.appendChild(td);
+      }
+      body.appendChild(sourceRow);
+    }
+    table.append(head, body);
+    cell.append(heading, table);
+    row.appendChild(cell);
+    return row;
+  }
+
+  function presentLootItemCell(cell, itemId, catalog) {
+    const metadata = catalog?.get?.(itemId);
+    const name = typeof metadata?.name === "string" && metadata.name.trim()
+      ? metadata.name.trim()
+      : itemId;
+    const rarityKey = lootItemRarity(metadata);
+    const rarity = RARITIES.find(([key]) => key === rarityKey);
+    const itemName = document.createElement("span");
+    itemName.className = `history-loot-item-name ${rarity ? rarityClass(rarityKey) : ""}`.trim();
+    itemName.textContent = name;
+    itemName.title = itemId;
+    const details = document.createElement("small");
+    details.textContent = `${name === itemId ? "" : `${itemId} · `}${rarity ? `Rarity: ${rarity[1]}` : "Rarity unknown"}`;
+    cell.replaceChildren(itemName, details);
+  }
+
+  function refreshLootCatalog() {
+    if (activeSubview !== "loot") return;
+    const catalog = getLootItemCatalog();
+    const signature = lootItemCatalogSignature(cachedLootSummary?.items || [], catalog);
+    if (signature === currentLootCatalogSignature) return;
+    if (!lootRarityFilter.isAll()) {
+      renderLoot({ preserveScroll: true, reuseSummary: true, catalog });
+      return;
+    }
+    for (const row of shadow.querySelectorAll("#history-loot-body .history-loot-row")) {
+      presentLootItemCell(row.cells[0], row.dataset.itemId, catalog);
+    }
+    currentLootCatalogSignature = signature;
+  }
+
+  function renderLoot({ preserveScroll = false, reuseSummary = false, catalog = getLootItemCatalog() } = {}) {
+    const summary = reuseSummary && cachedLootSummary
+      ? cachedLootSummary
+      : aggregateLootHistory(bundles, {
+          sessionId: selectedLootSessionId,
+          matchesEncounter
+        });
+    cachedLootSummary = summary;
+    const { totals, items, matchedSessions, matchedEncounters, lootedEncounters } = summary;
+    currentLootCatalogSignature = lootItemCatalogSignature(items, catalog);
+    const visibleItems = items.filter((entry) =>
+      lootRarityFilter.matches(lootItemRarity(catalog?.get?.(entry.itemId)))
+    );
+    const scopeLabel = nextBefore !== null ? " · more sessions available" : "";
+    const itemCount = lootRarityFilter.isAll()
+      ? `${items.length} item types`
+      : `${visibleItems.length}/${items.length} item types`;
+    setStatus(`${itemCount} · ${matchedSessions}/${bundles.length} sessions matched${scopeLabel}`);
+    shadow.getElementById("history-loot-coverage").textContent =
+      `${formatNumber(matchedEncounters)} matched encounters · ${formatNumber(lootedEncounters)} loot rewards`;
+
+    for (const [id, value] of [
+      ["history-loot-gold", totals.directGold],
+      ["history-loot-value", totals.lootSellValue],
+      ["history-loot-autosell", totals.autoSellValue],
+      ["history-loot-total", totals.total]
+    ]) {
+      const node = shadow.getElementById(id);
+      node.textContent = formatCompact(value);
+      node.title = formatNumber(value);
+    }
+
+    const body = shadow.getElementById("history-loot-body");
+    const scrollContainer = shadow.querySelector(".history-loot-wrap");
+    const previousScrollTop = preserveScroll ? scrollContainer?.scrollTop : null;
+    const fragment = document.createDocumentFragment();
+
+    for (const entry of visibleItems) {
+      const row = document.createElement("tr");
+      row.className = "history-loot-row";
+      row.dataset.itemId = entry.itemId;
+      row.tabIndex = 0;
+      row.setAttribute("aria-expanded", String(expandedLoot.has(entry.itemId)));
+      row.title = `${entry.itemId} · click for Pokémon sources`;
+
+      const itemCell = document.createElement("td");
+      presentLootItemCell(itemCell, entry.itemId, catalog);
+      row.appendChild(itemCell);
+      for (const value of [entry.qty, entry.drops]) {
+        const cell = document.createElement("td");
+        cell.textContent = formatNumber(value);
+        row.appendChild(cell);
+      }
+
+      const toggle = () => {
+        if (expandedLoot.has(entry.itemId)) expandedLoot.delete(entry.itemId);
+        else expandedLoot.add(entry.itemId);
+        rerenderKeepingFocus(row, () => renderLoot({ preserveScroll: true, reuseSummary: true }),
+          ".history-loot-row", "itemId", entry.itemId);
+      };
+      row.addEventListener("click", toggle);
+      row.addEventListener("keydown", (event) => {
+        if (!["Enter", " "].includes(event.key)) return;
+        event.preventDefault();
+        toggle();
+      });
+      fragment.appendChild(row);
+      if (expandedLoot.has(entry.itemId)) fragment.appendChild(createLootSourceRow(entry));
+    }
+
+    if (visibleItems.length === 0) {
+      const empty = document.createElement("tr");
+      empty.className = "history-loot-empty";
+      const cell = document.createElement("td");
+      cell.colSpan = 3;
+      cell.textContent = lootRarityFilter.isAll()
+        ? "No item drops recorded in the selected encounters."
+        : "No item drops match this item rarity in the selected encounters.";
+      empty.appendChild(cell);
+      fragment.appendChild(empty);
+    }
+    body.replaceChildren(fragment);
+    if (preserveScroll && scrollContainer && previousScrollTop !== null) {
+      scrollContainer.scrollTop = previousScrollTop;
+    }
+  }
+
   function renderAttempts() {
     const attempts = filteredAttempts();
     const visible = attempts.slice(0, attemptRenderCount);
@@ -743,6 +1113,7 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     for (const encounter of visible) {
       const row = document.createElement("tr");
       row.className = encounter.isShiny ? "encounter-row-shiny history-attempt-row" : "history-attempt-row";
+      row.dataset.encounterId = encounter.encounterId;
       row.tabIndex = 0;
       row.setAttribute("aria-expanded", String(expandedAttempts.has(encounter.encounterId)));
       const result = encounter.captureResult === "success" ? "Cap." : "Fled";
@@ -767,7 +1138,7 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
       const toggle = () => {
         if (expandedAttempts.has(encounter.encounterId)) expandedAttempts.delete(encounter.encounterId);
         else expandedAttempts.add(encounter.encounterId);
-        renderAttempts();
+        rerenderKeepingFocus(row, renderAttempts, ".history-attempt-row", "encounterId", encounter.encounterId);
       };
       row.addEventListener("click", toggle);
       row.addEventListener("keydown", (event) => {
@@ -795,5 +1166,5 @@ export function createHistoryView(shadow, { loadSessions, loadSessionEncounters 
     body.replaceChildren(fragment);
   }
 
-  return { refresh };
+  return { refresh, ensureLoaded, invalidate, loadMore, refreshLootCatalog };
 }

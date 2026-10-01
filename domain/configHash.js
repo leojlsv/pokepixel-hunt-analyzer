@@ -2,8 +2,8 @@
  * config_id derivation (docs/ARCHITECTURE.md §5):
  * "a deterministic SHA-256 hash of canonical configuration".
  *
- * Uses the Web Crypto API (`crypto.subtle`), available natively both in the
- * MV3 service worker and in Node (>= 19) — no extra dependency.
+ * Uses the Web Crypto API (`crypto.subtle`), available natively in the
+ * supported browser runtime and in Node (>= 19) — no extra dependency.
  */
 
 import { stableStringify } from "./canonicalJson.js";
