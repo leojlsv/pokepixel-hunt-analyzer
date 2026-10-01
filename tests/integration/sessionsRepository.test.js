@@ -316,6 +316,26 @@ test("endManual locks the session; getOrStartCurrent does not replace it", async
   assert.equal(touched.status, "ended"); // still frozen, no-op
 });
 
+test("End Hunt then Resume keeps the same authoritative session but clears endedAtMs", async () => {
+  const db = await setup();
+  const clock = fakeClock(1000);
+  const repo = createSessionsRepository(db, { now: clock.now });
+  const first = await repo.getOrStartCurrent();
+  clock.advance(3000);
+  const ended = await repo.endManual();
+  assert.equal(ended.status, "ended");
+  assert.equal(ended.endedAtMs, 4000);
+  clock.advance(5000);
+  const resumed = await repo.resumeManual();
+  assert.equal(resumed.sessionId, first.sessionId);
+  assert.equal(resumed.status, "running");
+  assert.equal(resumed.endedAtMs, null);
+  assert.equal(resumed.accumulatedActiveMs, 3000);
+  assert.equal(resumed.locked, false);
+  const persisted = await repo.getCurrentReadOnly();
+  assert.equal(persisted.endedAtMs, null);
+});
+
 test("endManual with no session yet creates one already ended and locked", async () => {
   const db = await setup();
   const repo = createSessionsRepository(db, { now: () => 1000 });

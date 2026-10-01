@@ -66,7 +66,10 @@ test("public summary exposes only bounded current analytics state", () => {
     available: true,
     leadershipActive: true,
     status: "running",
+    sessionGeneration: null,
+    activityKind: "hunt",
     startedAtMs: 100,
+    endedAtMs: null,
     activeMs: 120000,
     seen: 42,
     seenPerHour: 1260,
@@ -112,6 +115,7 @@ test("public summary exposes only bounded current analytics state", () => {
     },
     latestCaptureChance: 0.033936651583710405,
     currentTarget: null,
+    currentSessionSpecies: null,
     attemptHistory: [],
     specialHistory: [],
     lootHistory: [],
@@ -120,6 +124,64 @@ test("public summary exposes only bounded current analytics state", () => {
   assert.equal(Object.isFrozen(summary), true);
   assert.equal("sessionId" in summary, false);
   assert.equal("encounters" in summary, false);
+});
+
+test("public CURRENT-session species follows latestSpeciesEncounter without promoting terminal rows to live", () => {
+  const older = { encounterId: "previous", speciesId: "eevee", speciesName: "eevee", startedAtMs: 300, captureAtMs: 350, captureResult: "failed" };
+  const latest = { encounterId: "current", speciesId: "mr_mime", speciesName: "mr mime", startedAtMs: 100, captureAtMs: 700, captureResult: "success", zoneId: "zone-secret", secret: "must-not-cross" };
+  const currentState = { sessionId: "current-hunt", metrics: { status: "paused", activityKind: "hunt" }, encounters: [latest, older] };
+  const summary = createPublicSummary({ currentState, now: 800 });
+  assert.deepEqual(summary.currentSessionSpecies, { speciesId: "mr_mime", species: "Mr Mime" });
+  assert.equal(summary.currentTarget, null, "past encounter remains distinct from canonical live target");
+  assert.equal(Object.isFrozen(summary.currentSessionSpecies), true);
+  assert.equal("encounterId" in summary.currentSessionSpecies, false);
+  assert.equal("zoneId" in summary.currentSessionSpecies, false);
+  assert.equal(JSON.stringify(summary).includes("must-not-cross"), false);
+  assert.equal(createPublicSummary({ currentState: { ...currentState, metrics: { status: "running", activityKind: "expedition" } } }).currentSessionSpecies, null,
+    "expedition running shows EXPEDITION in CURRENT, not a Hunt species");
+  assert.equal(createPublicSummary({ currentState: { ...currentState, encounters: [] } }).currentSessionSpecies, null,
+    "a new session without encounters cannot inherit the previous session's last species");
+  assert.deepEqual(createPublicSummary({ currentState: { ...currentState, currentSessionSpecies: older } }).currentSessionSpecies,
+    { speciesId: "eevee", species: "Eevee" }, "runtime can reuse its cached session projection on timer-only refreshes");
+  assert.equal(createPublicSummary({ currentState: { ...currentState, currentSessionSpecies: null } }).currentSessionSpecies, null,
+    "an explicitly empty cache never reads the old encounter rows to resurrect a species");
+  assert.equal(createPublicSummary({}).currentSessionSpecies, null);
+});
+
+test("public CURRENT boundary carries opaque session generation and lifecycle timestamps, never local or server IDs", () => {
+  const id = "private-local-session-uuid";
+  const first = createPublicSummary({ currentState: {
+    sessionId: id, sessionGeneration: 7, endedAtMs: null,
+    metrics: { status: "running", activityKind: "hunt", startedAtMs: 1200 },
+  }, now: 2000 });
+  assert.equal(first.sessionGeneration, 7);
+  assert.equal(first.activityKind, "hunt");
+  assert.equal(first.startedAtMs, 1200);
+  assert.equal(first.endedAtMs, null);
+  assert.equal("sessionId" in first, false);
+  assert.equal("activityInstanceId" in first, false);
+  assert.equal(JSON.stringify(first).includes(id), false);
+
+  const ended = createPublicSummary({ currentState: {
+    sessionId: id, sessionGeneration: 7, endedAtMs: 3000,
+    metrics: { status: "waiting", activityKind: "hunt", startedAtMs: 1200 },
+  }, now: 3000 });
+  assert.equal(ended.sessionGeneration, first.sessionGeneration, "ending does not rotate the same session");
+  assert.equal(ended.status, "waiting");
+  assert.equal(ended.endedAtMs, 3000);
+
+  const expedition = createPublicSummary({ currentState: {
+    sessionId: "another-local-uuid", sessionGeneration: 8,
+    metrics: { status: "running", activityKind: "expedition", startedAtMs: 3500 },
+    cardPresentation: { currentTarget: { speciesId: "pikachu", species: "Pikachu", level: 20 } },
+  }, now: 4000 });
+  assert.equal(expedition.sessionGeneration, 8);
+  assert.equal(expedition.activityKind, "expedition");
+  assert.equal(expedition.currentTarget, null, "CURRENT displays EXPEDITION, not a live Hunt target");
+  assert.equal(expedition.currentSessionSpecies, null);
+  assert.equal("sessionId" in expedition, false);
+  assert.equal(createPublicSummary({ currentState: { metrics: { status: "running" }, sessionGeneration: 1.5 } }).sessionGeneration, null,
+    "a malformed generation is never exported");
 });
 
 test("public summary fails closed before Current state is hydrated", () => {

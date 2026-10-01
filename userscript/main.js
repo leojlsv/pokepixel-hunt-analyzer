@@ -36,6 +36,7 @@ import {
   latestCaptureAttemptFromRows,
   updateLatestCaptureAttempt
 } from "./latest-capture-attempt.js";
+import { latestSpeciesEncounter } from "./hunt-view-model.js";
 import {
   cardPresentationSnapshot,
   createCardPresentationCache,
@@ -82,10 +83,15 @@ const readLootItemCatalog = createLootItemCatalogReader({
 let updateQueue = Promise.resolve();
 let eventRefreshTimer = null;
 let cachedSessionId = null;
+// Presentation-only identity: no raw local UUID crosses the public boundary.
+let lastProjectedSessionId = null;
+let publicSessionGeneration = 0;
 let cachedEncounters = [];
 let cachedEncounterIndexes = new Map();
 let cachedAggregateMetrics = null;
 let cachedLatestCaptureAttempt = null;
+let cachedCurrentSessionSpecies = null;
+let cachedCurrentSessionSpeciesSnapshotVersion = -1;
 let cachedCardPresentation = createCardPresentationCache();
 let liveActiveEncounterKeys = new Set();
 let encounterDataRevision = 0;
@@ -130,6 +136,8 @@ function invalidateEncounterCache() {
   cachedEncounterIndexes = new Map();
   cachedAggregateMetrics = null;
   cachedLatestCaptureAttempt = null;
+  cachedCurrentSessionSpecies = null;
+  cachedCurrentSessionSpeciesSnapshotVersion = -1;
   cachedCardPresentation = createCardPresentationCache();
   liveActiveEncounterKeys = new Set();
   cachedEncounterRevision = -1;
@@ -317,6 +325,10 @@ async function performCurrentLoad() {
   const now = Date.now();
   const session = await sessionsRepository.getCurrentReadOnly();
   const sessionId = session?.sessionId ?? null;
+  if (lastProjectedSessionId !== sessionId) {
+    lastProjectedSessionId = sessionId;
+    publicSessionGeneration += 1;
+  }
   const sessionChanged = cachedSessionId !== sessionId;
   const revisionAtStart = encounterDataRevision;
   const listRevisionAtStart = encounterListRevision;
@@ -358,13 +370,23 @@ async function performCurrentLoad() {
     });
   }
 
+  // Match CURRENT's headline invalidation: terminal/list/session changes,
+  // not every loot-only metric patch or the 1s timer.
+  if (cachedCurrentSessionSpeciesSnapshotVersion !== encounterListSnapshotVersion) {
+    cachedCurrentSessionSpecies = latestSpeciesEncounter(cachedEncounters);
+    cachedCurrentSessionSpeciesSnapshotVersion = encounterListSnapshotVersion;
+  }
+
   const metrics = refreshSessionMetrics(cachedAggregateMetrics, session, now);
   const currentState = {
     sessionId,
+    sessionGeneration: sessionId == null ? null : publicSessionGeneration,
+    endedAtMs: Number.isFinite(session?.endedAtMs) ? session.endedAtMs : null,
     encounterSnapshotVersion: encounterListSnapshotVersion,
     lootDataRevision: cachedEncounterRevision,
     metrics,
     encounters: cachedEncounters,
+    currentSessionSpecies: cachedCurrentSessionSpecies,
     latestCaptureAttempt: cachedLatestCaptureAttempt,
     cardPresentation: cardPresentationSnapshot(cachedCardPresentation)
   };

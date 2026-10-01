@@ -110,6 +110,20 @@ itself remains explicit rather than inferred:
   dropped-item `{ itemId, qty }` pairs from HuntSim rewards, without inferred item metadata;
 - the public summary intentionally excludes `sessionId`, encounter rows, raw frames,
   repositories, credentials and mutation/action APIs.
+- the public summary carries `sessionGeneration`, `activityKind`, `startedAtMs` and
+  `endedAtMs` for consumers that need the authoritative CURRENT lifecycle.
+  `sessionGeneration` is a monotonic **runtime-local** ordinal incremented when
+  the selected local session changes; it does not represent the local UUID,
+  the server session ID or an Expedition run ID, and it resets after a userscript
+  runtime restart. Pausing, resuming and finishing a session preserve its
+  generation; starting the next Hunt or Expedition rotates it. `endedAtMs`
+  is set while the current session is ended and cleared if an explicit Resume
+  reopens that same session without rotating its generation. Consumers must
+  not infer end events or reconstruct boundaries from clock/zone/map data.
+- `currentSessionSpecies` mirrors only the most recent species in CURRENT's
+  selected session; it is historical presentation data, not `currentTarget`.
+  While an Expedition is running, both the public species and target are
+  suppressed in favor of CURRENT's `EXPEDITION` heading.
 
 Consumers must treat this public summary as presentation data. They must not bypass
 it by reading Analyzer IndexedDB, re-parsing WebSocket frames or duplicating domain

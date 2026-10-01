@@ -171,6 +171,18 @@ test("endSession folds running time and marks the session ended", () => {
   assert.equal(activeMs(ended, 999999), 3000);
 });
 
+test("resuming an ended session clears its former terminal timestamp without changing session identity", () => {
+  const first = createSession({ sessionId: "s1", now: 1000 });
+  const ended = endSession(first, 4000);
+  const resumed = touchActivity(ended, 10000);
+  assert.equal(resumed.sessionId, first.sessionId);
+  assert.equal(resumed.status, "running");
+  assert.equal(resumed.endedAtMs, null);
+  assert.equal(resumed.activeStartedAtMs, 10000);
+  assert.equal(resumed.accumulatedActiveMs, 3000);
+  assert.equal(activeMs(resumed, 12000), 5000);
+});
+
 test("recoverFromRestart pauses a session left 'running' and does not count browser-closed time", () => {
   // Browser closed at ts=5000 without a clean pause; lastActivityAtMs
   // captures the last moment we know activity happened. Service worker

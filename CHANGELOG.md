@@ -7,7 +7,21 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
-No additional changes after the v1.15.0 release scope have been scheduled.
+- Exposed CURRENT lifecycle as an allowlisted `sessionGeneration` (runtime-local
+  ordinal), `activityKind`, `startedAtMs` and `endedAtMs` projection for Cards,
+  while preserving the privacy of the local `sessionId`, transport IDs and
+  Expedition run ID. Pausing/completing keeps the generation; Hunt/Expedition
+  switches rotate it. Explicit Resume from an ended Hunt clears the former
+  `endedAtMs` on the same session. Running Expeditions suppress the public live Hunt target.
+  Tested in a synthetic embedded runtime across Hunt → Expedition → end → Hunt.
+- Added an allowlisted, read-only `currentSessionSpecies` projection to the
+  existing public summary for coupled Cards consumers. It uses the exact
+  `latestSpeciesEncounter` selector of CURRENT over only the currently selected
+  session, including its last terminal encounter; it never promotes that row to
+  `currentTarget` (which remains strictly live). Running Expeditions suppress
+  the Hunt species as CURRENT displays EXPEDITION. A cached selector updates
+  on encounter-data changes, not each 1-second clock refresh. No game action,
+  WebSocket changes, schema migration, public raw rows, or release publication.
 
 ## [1.15.0]
 
