@@ -1,6 +1,6 @@
 # HuntSim protocol compatibility
 
-Status: v1.9.0 release-ready compatibility layer. Validated against the HuntSim DEV protocol; merge/release is intentionally gated on the game update reaching production.
+Status: HuntSim compatibility first prepared for v1.9.0. The v1.15.0 candidate additionally recognizes Expedition run boundaries and routes late correlated HuntSim results into the originating session. Existing offline protocol/reconnect regressions pass; a smoke test of the exact production bundle remains a release gate, not a substitute for these tests.
 
 ## Why an adapter exists
 
