@@ -7,9 +7,9 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
-No additional changes after the v1.15.0 release candidate have been scheduled.
+No additional changes after the v1.15.0 release scope have been scheduled.
 
-## [1.15.0] - Release candidate (not published)
+## [1.15.0]
 
 ### Current and History Loot
 - Added a collapsible **Current > Loot** view and **History > Loot** tab with direct Gold, Loot Value, realized Pokémon auto-sell and Total; item quantities, number of drops and expandable Pokémon sources use persisted encounter data. Loot views intentionally show no per-drop timestamps.
@@ -45,8 +45,8 @@ No additional changes after the v1.15.0 release candidate have been scheduled.
 - Added offline M1.1 continuous-table prototypes, reference-capture tooling, sharing-density evidence and a review gate. These prototypes are not integrated into the production userscript and still require product-owner visual approval.
 
 ### Validation
-- The previous integration checkpoint passed 467 automated tests and dependency/preview checks. The v1.15.0 candidate subsequently passed **536/536 automated tests**, including the 4,000+ event fixture, Expedition transitions, cached Bag lookup, exact-timestamp pagination, loading races, retry and keyboard focus; production userscript build and release metadata verification passed.
-- **Release gate:** these automated results do not constitute a new manual smoke test on the exact v1.15.0 production bundle, CI on the final release PR, or verification of a published GitHub Release. Those steps remain required before the Discord announcement is posted.
+- The previous integration checkpoint passed 467 automated tests and dependency/preview checks. The v1.15.0 release preparation subsequently passed **536/536 automated tests**, including the 4,000+ event fixture, Expedition transitions, cached Bag lookup, exact-timestamp pagination, loading races, retry and keyboard focus; production userscript build and release metadata verification passed.
+- **Release gate:** automated results alone do not constitute a manual smoke test on the exact production bundle, green CI on the final release PR, or verification of a published GitHub Release. Those checks must be recorded separately before announcing availability.
 
 ## [1.14.0] - 2026-09-07
 
