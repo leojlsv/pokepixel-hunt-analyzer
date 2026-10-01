@@ -825,7 +825,7 @@ const CLOSED_HUD_STYLE = `
   .pha-hud-inventory-status.ready { color:#70dfaa; }
 `;
 
-export function createClosedHud({ pageWindow } = {}) {
+export function createClosedHud({ pageWindow, onInventoryChange = () => {} } = {}) {
   let shadow = null;
   let launcher = null;
   let grid = null;
@@ -851,6 +851,7 @@ export function createClosedHud({ pageWindow } = {}) {
       inventorySnapshot = snapshot;
       syncSettings();
       renderLastState();
+      onInventoryChange(snapshot);
     }
   });
 

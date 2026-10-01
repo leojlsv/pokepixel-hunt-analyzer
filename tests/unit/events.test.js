@@ -10,6 +10,10 @@ test("EVENT_TYPES lists the canonical inbound events", () => {
       "capture.failed",
       "capture.success",
       "combat.started",
+      "expedition.run_started",
+      "expedition.run_updated",
+      "expedition.run_live",
+      "expedition.run_finished",
       "hunt.analyzer_reset",
       "hunt.kill_closed",
       "hunt.stopped",
@@ -20,6 +24,28 @@ test("EVENT_TYPES lists the canonical inbound events", () => {
 
 test("unrecognized event type returns null", () => {
   assert.equal(normalizeEvent("some.other.event", { x: 1 }), null);
+});
+
+test("Expedition events normalize only validated run identities, never lobby waiting", () => {
+  assert.equal(normalizeEvent("expedition.run_started", {
+    lobby: { id: "waiting-run", status: "waiting" }
+  }), null);
+  assert.deepEqual(normalizeEvent("expedition.run_started", {
+    lobby: { id: "run-1", status: "running" }, map_id: 261
+  }), { runId: "run-1" });
+  assert.deepEqual(normalizeEvent("expedition.run_updated", {
+    id: "run-1", status: "running"
+  }), { runId: "run-1" });
+  assert.deepEqual(normalizeEvent("expedition.run_live", {
+    run_id: "run-1", remaining_seconds: 0, members: [{ away: true }]
+  }), { runId: "run-1" });
+  assert.deepEqual(normalizeEvent("expedition.run_finished", {
+    run_id: "run-1", reason: "time_up"
+  }), { runId: "run-1" });
+  assert.equal(normalizeEvent("expedition.run_live", { run_id: null }), null);
+  assert.equal(normalizeEvent("expedition.run_finished", { run_id: 123 }), null);
+  assert.equal(normalizeEvent("expedition.run_finished", { run_id: "  " }), null);
+  assert.equal(normalizeEvent("expedition.run_updated", { id: "run-1", status: "completed" }), null);
 });
 
 test("missing or non-object data returns null", () => {

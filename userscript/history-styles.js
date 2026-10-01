@@ -95,14 +95,45 @@ export const HISTORY_STYLES = String.raw`
 .history-toolbar {
   min-height: 20px;
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   justify-content: flex-end;
   align-items: center;
 }
 
+.history-toolbar > .section-badge {
+  flex: 1 1 120px;
+  min-width: 0;
+}
+.history-toolbar > .section-badge:focus {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
 .history-load-more {
   margin: 0;
 }
+
+.history-refresh {
+  margin: 0;
+}
+.history-refresh-dirty {
+  border-color: var(--gold-soft);
+  color: var(--gold);
+}
+
+.history-load-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  color: var(--text);
+  font-size: 10px;
+}
+.history-load-error[hidden] { display: none; }
+.history-load-error .history-more-button { margin: 0 0 0 auto; }
 
 .history-table-wrap {
   max-height: 430px;
@@ -367,6 +398,145 @@ export const HISTORY_STYLES = String.raw`
 .history-attempts-table td:nth-child(5),
 .history-attempts-table th:nth-child(6),
 .history-attempts-table td:nth-child(6) { text-align: right; }
+
+/* History > Loot groups observed items; monetary totals belong to encounters,
+ * never to individual items, because the protocol does not price each drop. */
+.history-loot-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.history-loot-panel[hidden] { display: none; }
+
+.history-loot-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.history-loot-scope > label,
+.history-loot-scope .history-loot-scope-field > span {
+  color: var(--gold);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.history-loot-scope-field {
+  display: flex;
+  flex: 1 1 155px;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  max-width: 190px;
+}
+
+.history-loot-scope .rarity-multiselect {
+  width: 100%;
+}
+
+.history-loot-scope #history-loot-coverage {
+  flex: 1 1 100%;
+}
+
+.history-loot-scope select {
+  width: 100%;
+  min-width: 0;
+  height: 27px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 10px;
+}
+
+.history-loot-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.history-loot-summary article {
+  min-width: 0;
+  padding: 7px 5px;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  text-align: center;
+}
+
+.history-loot-summary span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.history-loot-summary strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-loot-summary article:last-child strong { color: var(--gold); }
+
+.history-loot-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.3;
+}
+
+.history-loot-item-col { width: 57%; }
+.history-loot-qty-col { width: 24%; }
+.history-loot-drops-col { width: 19%; }
+.history-loot-table th:nth-child(n+2),
+.history-loot-table > tbody > tr.history-loot-row > td:nth-child(n+2) { text-align: right; }
+
+.history-loot-row { cursor: pointer; }
+.history-loot-row[aria-expanded="true"] > td { background: var(--bg-elevated); }
+.history-loot-row:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.history-loot-row > td:first-child { min-width: 0; }
+.history-loot-item-name {
+  display: block;
+  overflow: hidden;
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-loot-row small {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 8px;
+  text-overflow: ellipsis;
+}
+.history-loot-detail-row > td { padding: 7px; }
+.history-loot-detail-row strong {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--gold);
+  font-size: 9px;
+}
+.history-loot-sources-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.history-loot-sources-table th,
+.history-loot-sources-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 9px;
+}
+.history-loot-sources-table th:first-child { width: 57%; }
+.history-loot-sources-table th:nth-child(n+2),
+.history-loot-sources-table td:nth-child(n+2) { text-align: right; }
+.history-loot-empty td { padding: 16px 8px; color: var(--muted); text-align: center; white-space: normal; }
 
 /* Current > Failed: reserve enough room for a full 100.000% chance. */
 .failed-chance-col { width: 18%; }

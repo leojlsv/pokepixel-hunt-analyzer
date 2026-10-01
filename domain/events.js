@@ -21,7 +21,11 @@ export const EVENT_TYPES = Object.freeze([
   "capture.success",
   "hunt.stopped",
   "hunt.analyzer_reset",
-  "hunt.kill_closed"
+  "hunt.kill_closed",
+  "expedition.run_started",
+  "expedition.run_updated",
+  "expedition.run_live",
+  "expedition.run_finished"
 ]);
 
 const LOOT_ITEM_LIMIT = 32;
@@ -190,6 +194,33 @@ function normalizeSignalEvent() {
   return {};
 }
 
+function expeditionId(value) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return normalized.length > 0 && normalized.length <= 128 ? normalized : null;
+}
+
+function normalizeExpeditionStarted(data) {
+  if (data?.lobby?.status !== "running") return null;
+  const runId = expeditionId(data.lobby.id);
+  return runId ? { runId } : null;
+}
+
+function normalizeExpeditionUpdated(data) {
+  if (data?.status !== "running") return null;
+  const runId = expeditionId(data.id);
+  return runId ? { runId } : null;
+}
+
+function normalizeExpeditionLive(data) {
+  const runId = expeditionId(data?.run_id);
+  return runId ? { runId } : null;
+}
+
+function normalizeExpeditionFinished(data) {
+  const runId = expeditionId(data?.run_id);
+  return runId ? { runId } : null;
+}
+
 function normalizeKillClosed(data) {
   return {
     wild_monster_id: str(data.wild_monster_id)
@@ -203,7 +234,11 @@ const NORMALIZERS = Object.freeze({
   "capture.success": normalizeCaptureSuccess,
   "hunt.stopped": normalizeSignalEvent,
   "hunt.analyzer_reset": normalizeSignalEvent,
-  "hunt.kill_closed": normalizeKillClosed
+  "hunt.kill_closed": normalizeKillClosed,
+  "expedition.run_started": normalizeExpeditionStarted,
+  "expedition.run_updated": normalizeExpeditionUpdated,
+  "expedition.run_live": normalizeExpeditionLive,
+  "expedition.run_finished": normalizeExpeditionFinished
 });
 
 /**

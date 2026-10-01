@@ -45,6 +45,26 @@ function createCurrentRarityFilterMarkup(prefix) {
       </div>`;
 }
 
+function createLootRarityFilterMarkup(prefix) {
+  const options = [...RARITIES, ["none", "No rarity"]].map(([key, label]) => `
+            <label class="rarity-check-option">
+              <input type="checkbox" data-rarity-value="${key}" checked>
+              <span class="${key === "none" ? "" : `rarity-${key}`}">${label}</span>
+            </label>`).join("");
+
+  return `
+          <details id="${prefix}-rarity" class="rarity-multiselect loot-rarity-multiselect">
+            <summary><span id="${prefix}-rarity-label">All (*)</span></summary>
+            <div class="rarity-check-menu">
+              <label class="rarity-check-option rarity-check-all">
+                <input type="checkbox" data-rarity-all checked>
+                <span>All (*)</span>
+              </label>
+              ${options}
+            </div>
+          </details>`;
+}
+
 function createHudRarityMarkup() {
   return RARITIES.map(([key, label], index) => {
     const separator = index < RARITIES.length - 1
@@ -112,6 +132,7 @@ function createHistoryMarkup() {
         <button class="tab active" data-history-view="hunts" type="button">Hunts</button>
         <button class="tab" data-history-view="pokemon" type="button">Pokémon</button>
         <button class="tab" data-history-view="attempts" type="button">Attempts</button>
+        <button class="tab" data-history-view="loot" type="button">Loot</button>
       </nav>
 
       <div class="history-filter-block">
@@ -126,7 +147,7 @@ function createHistoryMarkup() {
             </select>
           </label>
           <label>Pokémon<select id="history-species"><option value="*">All (*)</option></select></label>
-          <label>Rarity<select id="history-rarity">${createRarityOptionsMarkup()}</select></label>
+          <label><span id="history-rarity-label">Rarity</span><select id="history-rarity">${createRarityOptionsMarkup()}</select></label>
           <label>Result
             <select id="history-result">
               <option value="*">All (*)</option>
@@ -150,8 +171,13 @@ function createHistoryMarkup() {
       </div>
 
       <div class="history-toolbar">
-        <span id="history-count" class="section-badge">0 Hunts</span>
+        <span id="history-count" class="section-badge" tabindex="-1">0 Hunts</span>
+        <button id="history-refresh" class="history-more-button history-refresh" type="button" title="Reload History from saved sessions">Refresh</button>
         <button id="history-load-more" class="history-more-button history-load-more" type="button" hidden>Load More</button>
+      </div>
+      <div id="history-load-error" class="history-load-error" role="alert" hidden>
+        <span id="history-load-error-message"></span>
+        <button id="history-retry" class="history-more-button" type="button">Retry</button>
       </div>
 
       <section data-history-panel="hunts">
@@ -192,6 +218,33 @@ function createHistoryMarkup() {
               <th>At</th><th>Pokémon</th><th>Result</th><th>Ball</th><th>Chance</th><th>IV</th>
             </tr></thead>
             <tbody id="history-attempts-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section data-history-panel="loot" class="history-loot-panel" hidden>
+        <div class="history-loot-scope">
+          <label class="history-loot-scope-field" for="history-loot-session">Session
+            <select id="history-loot-session"><option value="*">All loaded sessions</option></select>
+          </label>
+          <div class="history-loot-scope-field">
+            <span>Item Rarity</span>
+            ${createLootRarityFilterMarkup("history-loot")}
+          </div>
+          <span id="history-loot-coverage">Loaded sessions only</span>
+        </div>
+        <div class="history-loot-summary" aria-label="Reward breakdown for matched encounters">
+          <article><span>Direct Gold</span><strong id="history-loot-gold">0</strong></article>
+          <article><span>Loot Value</span><strong id="history-loot-value">0</strong></article>
+          <article><span>Auto-sell</span><strong id="history-loot-autosell">0</strong></article>
+          <article><span>Total</span><strong id="history-loot-total">0</strong></article>
+        </div>
+        <p class="history-loot-help">Item Rarity filters the item list only. Financial totals cover matching encounters across all item rarities because individual drop prices are unavailable. Period and Pokémon/capture filters apply to both.</p>
+        <div class="table-wrap history-table-wrap history-loot-wrap">
+          <table class="history-loot-table">
+            <colgroup><col class="history-loot-item-col"><col class="history-loot-qty-col"><col class="history-loot-drops-col"></colgroup>
+            <thead><tr><th>Item</th><th>Qty</th><th>Drops</th></tr></thead>
+            <tbody id="history-loot-body"></tbody>
           </table>
         </div>
       </section>
@@ -273,7 +326,7 @@ export function createUiMarkup() {
         background:#22231f;
         box-shadow:0 6px 18px rgba(0,0,0,.38);
       }
-      .filters .rarity-check-option {
+      .rarity-check-menu .rarity-check-option {
         min-width:0;
         min-height:24px;
         padding:3px 5px;
@@ -288,8 +341,8 @@ export function createUiMarkup() {
         text-transform:none;
         cursor:pointer;
       }
-      .filters .rarity-check-option:hover { background:#30312c; }
-      .filters .rarity-check-option input {
+      .rarity-check-menu .rarity-check-option:hover { background:#30312c; }
+      .rarity-check-menu .rarity-check-option input {
         width:12px;
         min-width:12px;
         height:12px;
@@ -297,7 +350,7 @@ export function createUiMarkup() {
         padding:0;
         accent-color:#c0ad72;
       }
-      .filters .rarity-check-all {
+      .rarity-check-menu .rarity-check-all {
         margin-bottom:3px;
         padding-bottom:5px;
         border-bottom:1px solid #383934;
@@ -391,6 +444,37 @@ export function createUiMarkup() {
 
         ${createEncounterSectionMarkup("captured", "Captured")}
         ${createEncounterSectionMarkup("failed", "Failed")}
+
+        <section id="loot-section" class="section current-loot-section">
+          <div class="section-head">
+            <h3>Loot</h3>
+            <div class="section-meta">
+              <span id="current-loot-count" class="section-badge">0 items</span>
+              <button class="collapse-button" data-collapse="loot" type="button" title="Collapse">▾</button>
+            </div>
+          </div>
+          <div class="current-loot-summary" aria-label="Current session reward breakdown">
+            <article><span>Direct Gold</span><strong id="current-loot-gold">0</strong></article>
+            <article><span>Loot Value</span><strong id="current-loot-value">0</strong></article>
+            <article><span>Auto-sell</span><strong id="current-loot-autosell">0</strong></article>
+            <article><span>Total</span><strong id="current-loot-total">0</strong></article>
+          </div>
+          <div class="current-loot-controls">
+            <div class="current-loot-filter-field">
+              <span>Item Rarity</span>
+              ${createLootRarityFilterMarkup("current-loot")}
+            </div>
+            <span id="current-loot-coverage">0 loot rewards · current session</span>
+          </div>
+          <div class="table-wrap current-loot-wrap">
+            <table class="current-loot-table">
+              <colgroup><col class="current-loot-item-col"><col class="current-loot-qty-col"><col class="current-loot-drops-col"></colgroup>
+              <thead><tr><th>Item</th><th>Qty</th><th>Drops</th></tr></thead>
+              <tbody id="current-loot-body"></tbody>
+            </table>
+          </div>
+        </section>
+
       </section>
 
       ${createHistoryMarkup()}

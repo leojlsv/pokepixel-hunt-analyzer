@@ -36,6 +36,7 @@ const LAYOUT_RECONCILE_SELECTOR = [
   "[data-hud-item]",
   "#view-current .encounter-section select",
   "#view-history .history-filter-grid select",
+  "#history-loot-session",
   ".catch-gallery-rarity-filter"
 ].join(",");
 const NAV_ITEMS = Object.freeze([
@@ -985,7 +986,7 @@ export function createClosedHud(options = {}) {
   }
 
   function syncHistoryFilterProxies() {
-    for (const select of shadow?.querySelectorAll("#view-history .history-filter-grid select") || []) {
+    for (const select of shadow?.querySelectorAll("#view-history .history-filter-grid select, #history-loot-session") || []) {
       const proxy = SELECT_PROXY_BY_ELEMENT.get(select);
       const summary = proxy?.querySelector(".pha-history-select-summary");
       if (!summary) continue;
@@ -997,7 +998,7 @@ export function createClosedHud(options = {}) {
   }
 
   function installHistoryFilterProxies() {
-    for (const select of shadow?.querySelectorAll("#view-history .history-filter-grid select") || []) {
+    for (const select of shadow?.querySelectorAll("#view-history .history-filter-grid select, #history-loot-session") || []) {
       if (SELECT_PROXY_BY_ELEMENT.has(select)) continue;
       const parent = select.parentElement;
       const anchor = select.previousSibling;

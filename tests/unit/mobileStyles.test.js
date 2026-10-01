@@ -56,15 +56,15 @@ test("mobile encounter filters are touch-sized, two-column, and rarity floats be
   );
   assert.match(
     MOBILE_STYLES,
-    /\.encounter-section \.rarity-multiselect summary \{\s*\n\s*min-height: 44px;/
+    /\.rarity-multiselect summary \{\s*\n\s*min-height: 44px;/
   );
   assert.match(
     MOBILE_STYLES,
-    /\.encounter-section \.rarity-check-menu \{[\s\S]*position: absolute;[\s\S]*z-index: 40;[\s\S]*top: calc\(100% \+ 4px\);/
+    /\.rarity-check-menu \{[\s\S]*position: absolute;[\s\S]*z-index: 40;[\s\S]*top: calc\(100% \+ 4px\);/
   );
   assert.match(
     MOBILE_STYLES,
-    /\.encounter-section \.rarity-check-menu \{[\s\S]*max-height: min\(34dvh, 196px\);/
+    /\.rarity-check-menu \{[\s\S]*max-height: min\(34dvh, 196px\);/
   );
   assert.doesNotMatch(
     MOBILE_STYLES,
@@ -72,7 +72,7 @@ test("mobile encounter filters are touch-sized, two-column, and rarity floats be
   );
   assert.match(
     MOBILE_STYLES,
-    /\.encounter-section \.rarity-check-option \{\s*\n\s*min-height: 44px;/
+    /\.rarity-check-menu \.rarity-check-option \{\s*\n\s*min-height: 44px;/
   );
 });
 

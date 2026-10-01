@@ -49,7 +49,12 @@ Browser/runtime boundary.
 - `tab-leadership.js` — localStorage lease that elects one ACTIVE tab.
 - `ui.js` / `ui-markup.js` — panel lifecycle, navigation and static Analyzer markup.
 - `current-view.js` — Current Hunt rendering.
-- `history-view.js` / `history-styles.js` — lazy History rendering and presentation.
+- `current-loot-view.js` — Current-only Loot projection over the existing session's already-cached encounter rows. It reuses `aggregateLootHistory` and recomputes only on `lootDataRevision` changes, independently of the Captured/Failed list version and the 1-second timer. Optional inventory metadata drives item-name/rarity presentation; native rarity filtering is independent from Pokémon filters and cannot allocate per-item values out of encounter-level currency totals. An inventory refresh reclassifies visible entries without refetching all encounters.
+- `loot-item-catalog.js` — read-only, bounded native item metadata resolver. Normalizes known item rarity values, including masculine/feminine Portuguese labels (`raro`/`rara`, `lendário`/`lendária`, etc., with/without accents); an observed real `getInventory()` item returned `map_fragment` with `rarity: "raro"` although the Bag used `rarity-rare`. Uses the Inventory API as primary authority, then explicitly identified item definitions and slots in the native Bag. The slots may belong to a **detached cached scene** from `PokeIdle.ReactiveWindows.cached()` or the current `SceneManager._scene`: querying only the live document misses these after the Bag closes. Scene access reads only existing `_panel.body` / `_items` and does not open windows or invoke gameplay. Slot rarity requires matching item ID or an *unambiguous* full accessible name; Pokémon slots, conflicting classes/definitions/IDs and throwing/disposed native objects fail closed. Slot evidence is indexed once per catalog refresh, and the reader throttles native scene scans to 2.5 seconds during ordinary Current redraws; a new Inventory snapshot refreshes immediately. Observed names/rarities are cached in-memory for the session to cover later sold drops; catalog-signature comparison reclassifies Current and History filters without a new loot event or full encounter aggregation. Rarity is never inferred from a `legendary_` item ID prefix. Native `_items` may omit stable IDs: only identity-confirmed entries can fill gaps in the API snapshot.
+- `inventory-state.js` — supports Inventory API arrays in `data`, `items` or `inventory`, as well as nested `item.id/name/type/rarity`, while preserving the existing capsule/potion inventory tracking.
+- `history-view.js` / `history-styles.js` — lazy History rendering and presentation. A serialized refresh/load-more loop discards outdated responses after a changed period or invalidated data version, and failed loads retain the previously committed session bundles with an explicit Retry control. Navigation reuses loaded pages until Current's session/status/encounter revision changes or the local day rolls over for relative date filters; deletion invalidates explicitly. While History is visible, a stale cache is indicated by Refresh • without throwing away already paged rows. Keyboard expansion restores focus to the replacement row across Hunts, Pokémon, Attempts and Loot; hidden Retry/Load More controls transfer focus to a persistent status element.
+- `loot-history-model.js` — pure aggregate of already-loaded persisted encounter rewards by item ID and Pokémon source. It applies History's session and encounter filters, counts each item only once per encounter for Drops, and keeps encounter-level financial totals separate from item quantities. The Loot-only Item Rarity filter runs against authoritative inventory metadata *after* aggregation, with seven recognized rarities and a `none` fallback for absent/unrecognized metadata; inventory refresh reclassifies visible items without rescanning loaded encounters. Filtering by item rarity cannot change the encounter-level monetary totals because the protocol supplies no individual item prices. History's 20-session pagination bounds this aggregate to loaded sessions, and the UI says so. No timestamp is presented in the Loot tab.
+- `loot-rarity-filter.js` — shared Current/History Loot item-rarity checkbox controller. Reuses Captured/Failed's All/None/partial-selection presentation, adds the independent `none` option, preserves separate Current/History selections in versioned localStorage, and treats corrupted or unavailable storage as All. Filters are applied after item aggregation, so toggling multiple rarities leaves monetary totals unchanged. Mobile uses the same touch-sized checkbox menu without a single-select proxy.
 - `history-delete.js` — History DELETE control and destructive-action guard UI.
 - `closed-hud.js` — Closed HUD catalog, configuration normalization, aggregation, inventory-aware display models and base rendering.
 - `closed-hud-runtime.js` — small runtime/presentation compatibility layer around the Closed HUD, including early-paint guarding and compact supply-symbol presentation.
@@ -176,6 +181,8 @@ Small key/value state such as the current-session pointer and diagnostics counte
 ### `sessions`
 
 One local Hunt session per `sessionId`. Stores lifecycle/timing state plus session-level values such as potion costs.
+Expedition sessions use the same store, identified by `activityKind: "expedition"`
+and `activityInstanceId: run_id`. Old rows without these fields remain Hunts.
 
 Index:
 
@@ -254,6 +261,15 @@ Important rules:
 - potion-only `loot.received` events update session expenses and do not create encounters;
 - legacy `capture.success` never overwrites a complete combat-started individual snapshot; HuntSim successful captures may enrich missing fields from authoritative terminal `creature` data, but `creature.level` is never used as target level;
 - duplicate HuntSim projections (`hunt.kill_reward`, `hunt.rewards`, capture projections in `hunt.events`) must not enter analytics twice.
+- `expedition.run_started`, `run_updated` and `run_live` open or recover one
+  local session per run ID; `expedition.run_finished` ends only that run.
+  `remaining_seconds: 0` and `away: true` are not terminal indicators.
+- the `meta` store remembers the most recently finished Expedition run ID.
+  A delayed live tick cannot resurrect that run. New-session transitions
+  retain the existing write gate and atomic pointer switch.
+- the protocol adapter preserves a bounded previous-run correlation window
+  for late HuntSim rewards and captures, discarding cross-activity payloads
+  whose origin cannot be established.
 
 ### Tampermonkey page-window boundary
 
@@ -279,6 +295,8 @@ Time while the browser is closed is not counted as active Hunt time.
 `domain/sessionMetrics.js` owns Current aggregate metrics. UI modules format/render those values and may derive presentation-only combinations from already-loaded Current state. The Closed HUD must not create a parallel analytics persistence model.
 
 Current refresh uses revision-aware session caching. History and Catch Gallery perform explicit/lazy persistence reads and do not join Current's one-second refresh loop.
+
+History pagination uses the `startedAtMs` index with primary-key `sessionId` as a deterministic tie-breaker. `loadHistoryPage` returns a continuation `{ startedAtMs, sessionId }`; `sessionsRepository.getPage({before, beforeSessionId})` includes strictly older pairs while retaining the legacy `before`-only exclusive date-range behavior. No IndexedDB migration is required. History Load More never commits stale rows after a period change and does not discard already loaded pages on failed reads.
 
 ## 8. Closed HUD
 

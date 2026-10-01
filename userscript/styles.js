@@ -628,6 +628,122 @@ tbody tr:last-child td { border-bottom: 0; }
 .rarity-section td { font-size: 12px; }
 .shiny-count { color: var(--gold); font-weight: 800; }
 
+.current-loot-section {
+  overflow: visible;
+}
+.current-loot-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+  padding: 8px 8px 4px;
+}
+.current-loot-summary article {
+  min-width: 0;
+  padding: 6px 4px;
+  border: 1px solid var(--border-soft);
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  text-align: center;
+}
+.current-loot-summary article span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  white-space: nowrap;
+}
+.current-loot-summary article strong {
+  display: block;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.current-loot-summary article:last-child strong { color: var(--gold); }
+.current-loot-controls {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  padding: 5px 8px 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.current-loot-filter-field {
+  display: flex;
+  flex: 1 1 155px;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  max-width: 190px;
+}
+.current-loot-filter-field > span {
+  color: var(--gold);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.current-loot-controls .rarity-multiselect {
+  width: 100%;
+}
+.current-loot-controls > span {
+  flex: 1 1 150px;
+  padding-bottom: 6px;
+  color: var(--muted);
+  font-size: 9px;
+  text-align: right;
+}
+.current-loot-wrap { max-height: 190px; }
+.current-loot-table { table-layout: fixed; }
+.current-loot-item-col { width: 57%; }
+.current-loot-qty-col { width: 24%; }
+.current-loot-drops-col { width: 19%; }
+.current-loot-table th, .current-loot-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.current-loot-table th:nth-child(n+2),
+.current-loot-table > tbody > tr.current-loot-row > td:nth-child(n+2) { text-align: right; }
+.current-loot-row { cursor: pointer; }
+.current-loot-row[aria-expanded="true"] > td { background: var(--bg-elevated); }
+.current-loot-row:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+.current-loot-item-name {
+  display: block;
+  overflow: hidden;
+  font-weight: 400;
+  text-overflow: ellipsis;
+}
+.current-loot-row small {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 8px;
+  text-overflow: ellipsis;
+}
+.current-loot-detail-row > td {
+  padding: 7px;
+  background: var(--bg-elevated);
+  white-space: normal;
+}
+.current-loot-detail-row > td > strong {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--gold);
+  font-size: 9px;
+}
+.current-loot-sources-table { table-layout: fixed; }
+.current-loot-sources-table th,
+.current-loot-sources-table td { padding: 4px 6px; font-size: 9px; }
+.current-loot-sources-table th:first-child { width: 57%; }
+.current-loot-sources-table th:nth-child(n+2),
+.current-loot-sources-table td:nth-child(n+2) { text-align: right; }
+.current-loot-empty td {
+  padding: 14px 8px;
+  color: var(--muted);
+  text-align: center;
+  white-space: normal;
+}
 .encounter-section .table-wrap { max-height: 168px; }
 #captured-section .table-wrap { overflow-x: hidden; }
 .encounter-section th,

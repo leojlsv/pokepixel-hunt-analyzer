@@ -7,6 +7,7 @@ import { createRepository } from "../../data/repository.js";
 import { createConfigsRepository } from "../../data/configsRepository.js";
 import { buildCanonicalConfig } from "../../domain/config.js";
 import { createSessionsRepository } from "../../data/sessionsRepository.js";
+import { loadHistoryPage } from "../../userscript/history-view.js";
 
 async function setup() {
   return openDatabase({ indexedDBFactory: new IDBFactory() });
@@ -402,6 +403,62 @@ test("getPage respects limit and supports next-page via `before`", async () => {
     before: firstPage[firstPage.length - 1].startedAtMs
   });
   assert.deepEqual(nextPage.map((s) => s.sessionId), ["s1"]);
+});
+
+test("getPage visits equal-timestamp Hunts exactly once across page boundaries", async () => {
+  const db = await setup();
+  await seedSessions(db, [
+    { sessionId: "earlier", startedAtMs: 999 },
+    { sessionId: "hunt-a", startedAtMs: 1000 },
+    { sessionId: "hunt-b", startedAtMs: 1000 },
+    { sessionId: "hunt-c", startedAtMs: 1000 },
+    { sessionId: "hunt-d", startedAtMs: 1000 },
+    { sessionId: "later", startedAtMs: 1001 }
+  ]);
+  const repo = createSessionsRepository(db, { IDBKeyRange });
+  const ids = [];
+  let before = Infinity;
+  let beforeSessionId = null;
+  while (true) {
+    const page = await repo.getPage({ limit: 2, before, beforeSessionId });
+    if (page.length === 0) break;
+    ids.push(...page.map(({ sessionId }) => sessionId));
+    const last = page[page.length - 1];
+    before = last.startedAtMs;
+    beforeSessionId = last.sessionId;
+  }
+  assert.deepEqual(ids, ["later", "hunt-d", "hunt-c", "hunt-b", "hunt-a", "earlier"]);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.deepEqual(
+    (await repo.getPage({ before: 1000 })).map(({ sessionId }) => sessionId),
+    ["earlier"], "date-range query without cursor retains exclusive before behavior"
+  );
+});
+
+test("History's real 20-session pages retain every tied startedAtMs across Load More", async () => {
+  const db = await setup();
+  await seedSessions(db, [
+    ...Array.from({ length: 25 }, (_, i) => ({ sessionId: `same-${String(i).padStart(2, "0")}`, startedAtMs: 10_000 })),
+    { sessionId: "newest", startedAtMs: 10_001 },
+    { sessionId: "oldest", startedAtMs: 9_999 }
+  ]);
+  const repository = createSessionsRepository(db, { IDBKeyRange });
+  const collected = [];
+  let before = Infinity;
+  while (true) {
+    const page = await loadHistoryPage({
+      loadSessions: (options) => repository.getPage(options),
+      loadSessionEncounters: async () => [],
+      before
+    });
+    collected.push(...page.bundles.map(({ session }) => session.sessionId));
+    if (!page.nextBefore) break;
+    before = page.nextBefore;
+  }
+  assert.equal(collected.length, 27);
+  assert.equal(new Set(collected).size, 27);
+  assert.equal(collected[0], "newest");
+  assert.equal(collected.at(-1), "oldest");
 });
 
 test("getPage filters by date range with after/before", async () => {

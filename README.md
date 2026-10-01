@@ -30,6 +30,7 @@ Acompanha a Hunt atual em tempo real:
 - Profit e Expenses;
 - Seen, Captured, Failed e Capture Rate;
 - distribuição por raridade e Shiny;
+- **Loot** colapsável da sessão atual, com Direct Gold, Loot Value, Auto-sell e Total; itens agrupados por quantidade e número de encontros com drop, com fontes Pokémon expansíveis e filtro independente **Item Rarity** de múltipla escolha (sete raridades e No rarity), sem timestamp;
 - listas de Captured e Failed;
 - Captured com filtros por Rarity, Shiny, Quality e IV;
 - Captured/Failed permitem combinar múltiplas Rarities no mesmo filtro, com `All (*)` selecionando todas; cada lista mantém sua própria seleção mesmo após recarregar a página ou trocar de Hunt;
@@ -40,9 +41,16 @@ Acompanha a Hunt atual em tempo real:
 - Captured mostra o breakdown de IVs em `HP · Atk · sAtk · Def · sDef · SpD`;
 - detalhes de Captured incluem Capsule, timestamp e Chance quando disponível.
 
+O Current separa automaticamente Hunts e Expedições em sessões locais distintas:
+`expedition.run_started` inicia uma Expedição; `expedition.run_live` recupera
+uma execução em andamento e `expedition.run_finished` a encerra (incluindo
+saída voluntária). Durante a execução, o cabeçalho mostra **EXPEDITION**.
+As tabelas preservam o nome real de cada Pokémon e as Hunts posteriores
+recebem suas próprias estatísticas.
+
 Desde a v1.12.1, o caminho de tracking/refresh preserva explicitamente a ordem dos frames WebSocket e reflete encontros persistidos imediatamente após transições de Hunt, mantendo `loot.received` como fonte autoritativa de XP.
 
-O Current usa cache de snapshots e agregados reutilizáveis para evitar reprocessamento excessivo em Hunts longas.
+O Current usa cache de snapshots e agregados reutilizáveis para evitar reprocessamento excessivo em Hunts longas. O Loot é reagrupado apenas quando muda a sessão ou a revisão dos encontros: recompensas recebidas atualizam a lista mesmo sem uma tentativa de captura terminal, sem recalcular os itens a cada segundo. O filtro de raridade permite combinar opções, marcar All ou desmarcar todas (None) e conserva a seleção entre Hunts e recargas, independentemente das preferências de Captured/Failed e de History Loot. O filtro atua somente sobre itens, não sobre os totais financeiros por encontro; itens sem metadados autoritativos exibem o ID original e raridade desconhecida. Os nomes e raridades são atualizados quando o inventário do jogo é hidratado ou quando a Bag nativa expõe a raridade do item correspondente, inclusive por meio de janelas nativas **já armazenadas em cache, mas desconectadas do documento** após fechar a Bag, sem reprocessar encontros. A API pode informar raridades em português no masculino (por exemplo, `rarity: "raro"` para `map_fragment`), mesmo quando a Bag usa a classe CSS `rarity-rare`; o Analyzer normaliza variantes masculinas/femininas e acentuadas para a mesma classificação, tanto para drops atuais quanto históricos quando o inventário fornece a identidade do item.
 
 ### Mobile
 
@@ -105,15 +113,20 @@ Detalhes: [`docs/HUNTSIM_PROTOCOL_COMPATIBILITY.md`](docs/HUNTSIM_PROTOCOL_COMPA
 
 ### History
 
-Substitui o antigo Compare e organiza o histórico em três visões:
+Substitui o antigo Compare e organiza o histórico em quatro visões:
 
 - **Hunts** — sessões recentes com duração, Seen, Captured e capturas notáveis;
 - **Pokémon** — agregação por Pokémon + nível;
 - **Attempts** — Captured/Fled em ordem cronológica.
+- **Loot** — itens agrupados por ID, quantidade acumulada e número de encontros com drop; cada item expande para mostrar de quais Pokémon veio, sem timestamp por drop.
 
 Filtros disponíveis incluem período, Pokémon, raridade, resultado, Capsule, Element e Shiny.
 
+History mantém as páginas já carregadas ao alternar entre Current e History enquanto a revisão de dados e o período de calendário não mudam. Uma nova Hunt, alteração de encontros, status da sessão, ação manual ou exclusão de Hunt invalida a leitura para a próxima entrada; se History estiver aberto, o botão **Refresh •** indica que há dados novos e permite atualizar sem trocar de aba. Today/Yesterday/7d/30d também atualizam os limites quando muda o dia local. **Load More** acrescenta 20 sessões por vez sem perder aquelas que tenham o mesmo milissegundo de início, mas não mistura resultados de um período anterior. Uma alteração de período durante o carregamento prevalece sobre resultados anteriores; se a leitura falhar, os dados previamente carregados permanecem e o botão **Retry** permite repetir a consulta. Expandir e recolher itens pelo teclado preserva o foco da linha.
+
 Hunts podem ser expandidas para detalhes de XP/h, $/h, Profit, Expenses, Failed e notables. Na v1.14.0, os Notables também exibem Pokémon e Chance, enquanto Attempts mostra Chance diretamente e usa a cor do nome do Pokémon para representar sua raridade, sem uma coluna `Rar.` separada.
+
+Em **Loot**, os cartões Direct Gold / Loot Value / Auto-sell / Total somam os valores dos encontros que atendem aos filtros de Pokémon/captura. O seletor Session permite isolar uma das sessões carregadas, incluindo Expedições. O filtro próprio **Item Rarity** oferece múltipla escolha com All, as sete raridades conhecidas e **No rarity** para itens sem metadados de raridade; a seleção é preservada entre sessões, abas e recargas, independentemente da seleção em Current. A seleção filtra apenas a lista de itens: os totais monetários continuam calculados pelos encontros correspondentes, pois o protocolo não fornece preços individuais para distribuir por raridade. O filtro geral Rarity do History continua sendo de **Pokémon**. Como History busca 20 sessões por página, totais e itens representam **somente as sessões carregadas**; o botão Load More amplia o alcance. Loot Value é a avaliação agregada entregue pelo protocolo, não um preço individual calculado por item. Quando o inventário ativo possui metadados do item, a UI apresenta e atualiza seu nome/raridade, inclusive reclassificando o filtro ativo. A resposta do inventário pode carregar a raridade aninhada em `item`; se faltar, o Analyzer consulta apenas a raridade explícita do slot correspondente da Bag nativa. A informação já observada é conservada em memória durante a sessão, inclusive depois de fechar a Bag. Sem uma correspondência confiável, o ID persistido e a raridade desconhecida permanecem visíveis. Não há inferência de preço, nome ou raridade a partir do ID ou do valor do drop.
 
 #### DELETE Hunt
 

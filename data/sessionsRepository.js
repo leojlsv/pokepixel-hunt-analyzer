@@ -41,6 +41,7 @@ import {
 } from "../domain/sessionTiming.js";
 
 const CURRENT_SESSION_KEY = "currentSessionId";
+const LAST_FINISHED_EXPEDITION_KEY = "lastFinishedExpeditionRunId";
 
 export function createSessionsRepository(
   db,
@@ -109,6 +110,10 @@ export function createSessionsRepository(
 
   /** Automatic resume/touch from combat.started/loot.received/hunt.analyzer_reset. */
   async function touchActivityAutomatic() {
+    // Late loot/terminal events cannot resurrect a completed Expedition or
+    // create an implicit Hunt before an authoritative combat context arrives.
+    const current = await readCurrent();
+    if (current?.activityKind === "expedition" && current.status === "ended") return current;
     const session = await getOrStartCurrent();
     if (session.locked) return session;
 
@@ -224,7 +229,11 @@ export function createSessionsRepository(
    * current and starts a fresh one, regardless of its state. The explicit
    * reset variant persists the new session already paused and locked.
    */
-  async function forceNewSession({ startPaused = false } = {}) {
+  async function forceNewSession({
+    startPaused = false,
+    activityKind = "hunt",
+    activityInstanceId = null
+  } = {}) {
     // The old session's end marker, new session, and current pointer must
     // commit together. A takeover mid-switch aborts all three writes.
     assertDatabaseWriteGate(db);
@@ -263,7 +272,9 @@ export function createSessionsRepository(
           const switchedAt = now();
           const runningSession = createSession({
             sessionId: crypto.randomUUID(),
-            now: switchedAt
+            now: switchedAt,
+            activityKind,
+            activityInstanceId
           });
           nextSession = startPaused
             ? lockSession(pause(runningSession, switchedAt))
@@ -271,6 +282,9 @@ export function createSessionsRepository(
 
           if (current && current.status !== "ended") {
             sessionStore.put(endSession(current, switchedAt));
+          }
+          if (current?.activityKind === "expedition" && current.activityInstanceId) {
+            metaStore.put(current.activityInstanceId, LAST_FINISHED_EXPEDITION_KEY);
           }
           sessionStore.put(nextSession);
           metaStore.put(nextSession.sessionId, CURRENT_SESSION_KEY);
@@ -293,6 +307,68 @@ export function createSessionsRepository(
     });
   }
 
+  /** Session type is independent from the server's Hunt session/zone IDs. */
+  async function beginExpedition(runId) {
+    const current = await readCurrent();
+    if (current?.locked) return current;
+    if (current?.activityKind === "expedition" && current.activityInstanceId === runId) {
+      return current.status === "paused" ? touchActivityAutomatic() : current;
+    }
+    if (await meta.get(LAST_FINISHED_EXPEDITION_KEY) === runId) return current;
+
+    return forceNewSession({ activityKind: "expedition", activityInstanceId: runId });
+  }
+
+  /** End only the matching run; a delayed finish must never end a later Hunt. */
+  async function finishExpedition(runId) {
+    assertDatabaseWriteGate(db);
+    return new Promise((resolve, reject) => {
+      let transaction;
+      let leadershipLost = false;
+      let result = null;
+      try {
+        transaction = db.transaction([STORE_NAMES.SESSIONS, STORE_NAMES.META], "readwrite");
+        const sessionStore = transaction.objectStore(STORE_NAMES.SESSIONS);
+        const metaStore = transaction.objectStore(STORE_NAMES.META);
+        const checkOwnership = () => {
+          if (!abortIfWriteGateLost(db, transaction)) return true;
+          leadershipLost = true;
+          return false;
+        };
+        const pointer = metaStore.get(CURRENT_SESSION_KEY);
+        pointer.onsuccess = () => {
+          if (!checkOwnership()) return;
+          if (!pointer.result) {
+            metaStore.put(runId, LAST_FINISHED_EXPEDITION_KEY);
+            return;
+          }
+          const request = sessionStore.get(pointer.result);
+          request.onsuccess = () => {
+            if (!checkOwnership()) return;
+            const current = request.result;
+            result = current || null;
+            if (current?.activityKind === "expedition" && current.activityInstanceId !== runId) {
+              return; // Another run is already current; ignore stale completion.
+            }
+            metaStore.put(runId, LAST_FINISHED_EXPEDITION_KEY);
+            if (current?.activityKind !== "expedition" || current.activityInstanceId !== runId) return;
+            if (current.status === "ended") return;
+            result = endSession(current, now());
+            sessionStore.put(result);
+          };
+        };
+        transaction.addEventListener("success", () => { checkOwnership(); }, true);
+        transaction.addEventListener("complete", () => resolve(result));
+        transaction.addEventListener("abort", () => reject(
+          leadershipLost ? new WriteLeadershipLostError() : transaction.error ?? new Error("Expedition completion aborted")
+        ));
+      } catch (error) {
+        try { transaction?.abort(); } catch {}
+        reject(error);
+      }
+    });
+  }
+
   /**
    * Read-only accessor for the Analyzer's Current view — unlike
    * getOrStartCurrent(), this NEVER creates a session as a side effect of
@@ -306,17 +382,24 @@ export function createSessionsRepository(
    * Keyset-paginated History query (docs/DEVELOPMENT.md §6 "history and
    * filters") over the `startedAtMs` index (migration v2) — most recent
    * first, up to `limit` rows with `after <= startedAtMs < before`.
-   * Callers page forward by passing the last row's `startedAtMs` as the
-   * next call's `before`; the same `after`/`before` pair also serves as a
-   * plain date-range filter.
+   * A page continuation also supplies `beforeSessionId` to include rows
+   * with the boundary timestamp but strictly lower primary keys. The
+   * startedAtMs index orders ties by sessionId (the store primary key), so
+   * this avoids skipping sessions when several Hunts start in the same ms.
+   * Without beforeSessionId the old exclusive timestamp/date-range contract
+   * remains unchanged.
    */
-  function getPage({ limit = 20, before = Infinity, after = -Infinity } = {}) {
+  function getPage({
+    limit = 20, before = Infinity, after = -Infinity, beforeSessionId = null
+  } = {}) {
     return new Promise((resolve, reject) => {
       const store = db
         .transaction(STORE_NAMES.SESSIONS, "readonly")
         .objectStore(STORE_NAMES.SESSIONS);
 
-      const range = IDBKeyRange.bound(after, before, false, true);
+      const hasCursor = Number.isFinite(before)
+        && typeof beforeSessionId === "string" && beforeSessionId.length > 0;
+      const range = IDBKeyRange.bound(after, before, false, !hasCursor);
       const request = store.index("startedAtMs").openCursor(range, "prev");
       const results = [];
 
@@ -328,6 +411,10 @@ export function createSessionsRepository(
           return;
         }
 
+        if (hasCursor && cursor.key === before && cursor.primaryKey >= beforeSessionId) {
+          cursor.continue();
+          return;
+        }
         results.push(cursor.value);
         cursor.continue();
       };
@@ -389,6 +476,8 @@ export function createSessionsRepository(
     recoverOnStartup,
     adoptServerContext,
     forceNewSession,
+    beginExpedition,
+    finishExpedition,
     getCurrentReadOnly,
     getPage,
     deleteSession

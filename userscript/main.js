@@ -25,6 +25,7 @@ import { createAudioAlerts } from "./audio-alerts-runtime.js";
 import { createCatchGallery } from "./catch-gallery.js";
 import { createHistoryDeleteControl } from "./history-delete.js";
 import { createClosedHud } from "./closed-hud-runtime.js";
+import { createLootItemCatalogReader } from "./loot-item-catalog.js";
 import {
   createPublicSummary,
   installPublicSessionControl,
@@ -73,6 +74,11 @@ let historyDeleteControl;
 let closedHud;
 let ui;
 let pageWindow;
+const readLootItemCatalog = createLootItemCatalogReader({
+  getSnapshot: () => closedHud?.getInventorySnapshot(),
+  getPageDocument: () => pageWindow?.document,
+  getPageWindow: () => pageWindow
+});
 let updateQueue = Promise.resolve();
 let eventRefreshTimer = null;
 let cachedSessionId = null;
@@ -356,6 +362,7 @@ async function performCurrentLoad() {
   const currentState = {
     sessionId,
     encounterSnapshotVersion: encounterListSnapshotVersion,
+    lootDataRevision: cachedEncounterRevision,
     metrics,
     encounters: cachedEncounters,
     latestCaptureAttempt: cachedLatestCaptureAttempt,
@@ -428,6 +435,8 @@ async function buildDiagnosticsSnapshot() {
           sessionId: session.sessionId,
           status: session.status,
           locked: Boolean(session.locked),
+          activityKind: session.activityKind ?? "hunt",
+          activityInstanceId: session.activityInstanceId ?? null,
           serverSessionId: session.serverSessionId ?? null,
           zoneId: session.zoneId ?? null,
           startedAtMs: session.startedAtMs ?? null,
@@ -486,6 +495,7 @@ async function handleSessionAction(action) {
       if (!result) return;
 
       await loadCurrent();
+      ui?.markHistoryDirty();
       historyDeleteControl?.refresh();
       succeeded = true;
     })
@@ -525,6 +535,7 @@ async function handleHistorySessionDelete(sessionId) {
       encountersRepository
     });
 
+    ui?.markHistoryDirty();
     catchGallery?.markDirty();
     if (deletingCurrent) {
       invalidateEncounterCache();
@@ -548,9 +559,13 @@ function mountUiWhenReady() {
       onSessionAction: (action) => void handleSessionAction(action),
       onLoadHistorySessions: (options) => sessionsRepository.getPage(options),
       onLoadHistorySessionEncounters: (sessionId) =>
-        encountersRepository.getBySessionId(sessionId)
+        encountersRepository.getBySessionId(sessionId),
+      getLootItemCatalog: readLootItemCatalog
     });
-    closedHud = createClosedHud({ pageWindow });
+    closedHud = createClosedHud({
+      pageWindow,
+      onInventoryChange: () => ui?.refreshLootCatalog()
+    });
     closedHud.mount();
     audioAlerts?.mountControls();
     catchGallery?.mountControls();

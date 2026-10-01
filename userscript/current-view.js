@@ -21,6 +21,7 @@ import {
   readCurrentRarityPreferences,
   saveCurrentRarityPreference
 } from "./current-rarity-preferences.js";
+import { createCurrentLootView } from "./current-loot-view.js";
 
 const RARE_PLUS_KEYS = new Set(["rare", "epic", "legendary", "mythical"]);
 const RARITY_LABELS = new Map(RARITIES);
@@ -118,15 +119,17 @@ function encounterChanged(previous, next) {
     previous.nature !== next.nature;
 }
 
-export function createCurrentView(shadow) {
+export function createCurrentView(shadow, { getLootItemCatalog = () => null } = {}) {
   let currentSessionId;
   let currentHuntStartedAtMs = null;
   let lastEncounterSnapshotVersion = -1;
+  let lastTitleMode = null;
   const savedRarities = readCurrentRarityPreferences();
   const lists = {
     captured: createListState("captured"),
     failed: createListState("failed")
   };
+  const lootView = createCurrentLootView(shadow, { getLootItemCatalog });
 
   bindListControls("captured");
   bindListControls("failed");
@@ -225,7 +228,8 @@ export function createCurrentView(shadow) {
     metrics,
     encounters = [],
     sessionId = null,
-    encounterSnapshotVersion = 0
+    encounterSnapshotVersion = 0,
+    lootDataRevision = encounterSnapshotVersion
   }) {
     const sessionChanged = currentSessionId !== sessionId;
     const encounterSnapshotChanged =
@@ -236,13 +240,18 @@ export function createCurrentView(shadow) {
 
     renderMetrics(metrics);
     renderRarities(metrics);
+    lootView.render({ sessionId, lootDataRevision, encounters });
 
+    const titleMode = metrics?.activityKind === "expedition" && metrics?.status === "running"
+      ? "expedition" : "hunt";
+    if (encounterSnapshotChanged || titleMode !== lastTitleMode) {
+      const heading = shadow.querySelector(".status-row > span");
+      const latestTarget = titleMode === "expedition" ? null : latestSpeciesEncounter(encounters);
+      heading.textContent = titleMode === "expedition"
+        ? "EXPEDITION" : latestTarget ? speciesLabel(latestTarget) : "Hunt";
+      lastTitleMode = titleMode;
+    }
     if (!encounterSnapshotChanged) return;
-
-    const latestTarget = latestSpeciesEncounter(encounters);
-    shadow.querySelector(".status-row > span").textContent = latestTarget
-      ? speciesLabel(latestTarget)
-      : "Hunt";
 
     const grouped = { captured: [], failed: [] };
     for (const encounter of encounters) {
@@ -665,5 +674,5 @@ export function createCurrentView(shadow) {
     shadow.getElementById(`${prefix}-count`).textContent = pokemonLabel(lists[prefix].visible.length);
   }
 
-  return { render };
+  return { render, refreshLootCatalog: () => lootView.refreshCatalog() };
 }

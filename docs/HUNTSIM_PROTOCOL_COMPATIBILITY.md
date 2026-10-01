@@ -34,6 +34,9 @@ The domain/persistence model remains unchanged. `userscript/protocol-adapter.js`
 | Capture result | `capture.failed` / `capture.success` | Authoritative terminal event; `hunt.events` capture projections are ignored. |
 | Reward | `loot.received.per_kill[]` | Aggregated reward is split into one canonical loot event per kill; observed `items[]` preserves only bounded `item_id` + `qty`. |
 | No-capture closure | `hunt.capture_queue.rm[]` | Emits internal `hunt.kill_closed` after loot when no terminal capture exists. |
+| Expedition start | `expedition.run_started.lobby.id` | Opens a local Expedition identified by its run ID. |
+| Expedition recovery | `expedition.run_updated.id` / `expedition.run_live.run_id` | Recovers the same session after reconnect. |
+| Expedition end | `expedition.run_finished.run_id` | Ends only the matching run, regardless of end reason. |
 
 The following are intentionally ignored as duplicate projections:
 
@@ -52,6 +55,18 @@ huntsim:<server-session-or-zone>:<kill-seq>
 ```
 
 `hunt.capture_queue.add[].id`, `hunt.events[].cap.id` and `loot.received.per_kill[].seq` were observed to represent the same HuntSim kill sequence.
+
+An Expedition's `run_id` is distinct from its transport's
+`loot.received.session_id`. A switch to/from Expedition rotates the HuntSim
+kill registry; at most two previous registries are retained for the normal
+bounded 60-second correlation window. Late rewards with a recognized older
+transport session are linked to the originating encounter rather than the
+current activity. Unknown cross-activity origins are not guessed.
+
+`node --test tests/integration/expeditionLifecycle.test.js` simulates
+the transitions with sanitized server-event shapes and covers reconnect,
+voluntary exit, expiry, old rewards and the Current title. This is an offline
+test, not a substitute for manual verification in the game.
 
 ## Full frame decoder
 
