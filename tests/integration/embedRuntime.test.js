@@ -161,6 +161,175 @@ test("real embed runtime hydrates the public summary without mounting Analyzer U
   }
 });
 
+test("cold embed login projects only CURRENT's last species from the selected Hunt, not History or a live encounter", async () => {
+  const window = new Window({ url: "https://pokepixel.nietore.com/play/" });
+  const indexedDB = new IDBFactory();
+  const now = Date.now();
+  window[EMBED_MARKER] = { protocol: 1 };
+  window.unsafeWindow = window;
+  window.indexedDB = indexedDB;
+  window.IDBKeyRange = IDBKeyRange;
+  window.setInterval = () => 1;
+  window.clearInterval = () => {};
+
+  const database = await openDatabase({ indexedDBFactory: indexedDB });
+  const sessions = createRepository(database, STORE_NAMES.SESSIONS);
+  const encounters = createRepository(database, STORE_NAMES.ENCOUNTERS);
+  const meta = createRepository(database, STORE_NAMES.META);
+  const seedSession = (sessionId, status) => ({
+    sessionId, status, locked: status !== "running", serverSessionId: sessionId,
+    zoneId: "zone-test", startedAtMs: now - 20_000, endedAtMs: status === "ended" ? now - 10_000 : null,
+    activeStartedAtMs: null, accumulatedActiveMs: 10_000, lastActivityAtMs: now - 1_000,
+    createdAtMs: now - 20_000, updatedAtMs: now - 1_000,
+  });
+  await sessions.put(seedSession("older-hunt", "ended"));
+  await sessions.put(seedSession("current-hunt", "paused"));
+  await encounters.put({
+    encounterId: "old-mewtwo", sessionId: "older-hunt", speciesId: "mewtwo", speciesName: "Mewtwo",
+    startedAtMs: now - 200, captureAtMs: now - 100, captureResult: "success",
+  });
+  await encounters.put({
+    encounterId: "current-typhlosion", sessionId: "current-hunt", speciesId: "typhlosion", speciesName: "typhlosion",
+    startedAtMs: now - 8_000, captureAtMs: now - 7_000, captureResult: "failed",
+  });
+  await meta.put("current-hunt", "currentSessionId");
+  database.close();
+
+  try {
+    window.eval(await buildRuntimeBundle());
+    const api = await waitFor(() => {
+      const candidate = window[PUBLIC_SUMMARY];
+      return candidate?.getSummary?.().available ? candidate : null;
+    });
+    assert.ok(api, "embed must hydrate its selected session on direct login");
+    const summary = api.getSummary();
+    assert.equal(summary.status, "paused");
+    assert.equal(summary.currentTarget, null, "a persisted failed encounter is not active combat");
+    assert.equal(summary.currentSessionSpecies?.speciesId, "typhlosion");
+    assert.equal(summary.currentSessionSpecies?.species, "Typhlosion");
+    assert.ok(Number.isSafeInteger(summary.sessionGeneration) && summary.sessionGeneration > 0);
+    assert.equal(summary.activityKind, "hunt");
+    assert.equal(JSON.stringify(summary).includes("Mewtwo"), false, "older Hunts never join CURRENT's identity or session events");
+    assert.equal("sessionId" in summary, false, "public summary keeps session identifiers private");
+
+    assert.equal((await window[PUBLIC_CONTROL].act("reset")).ok, true);
+    const afterReset = await waitFor(() => {
+      const next = api.getSummary();
+      return next.status === "paused" && next.currentSessionSpecies == null ? next : null;
+    });
+    assert.ok(afterReset, "a new CURRENT session must clear the prior Hunt's last species");
+    assert.ok(afterReset.sessionGeneration > summary.sessionGeneration,
+      "new Hunt rotates the public generation without revealing the local UUID");
+    assert.equal(afterReset.currentTarget, null);
+  } finally {
+    window.dispatchEvent(new window.Event("beforeunload"));
+    window.close();
+  }
+});
+
+test("real embed summary tracks Hunt, Expedition, finish and next Hunt without exporting private identifiers", async () => {
+  const window = new Window({ url: "https://pokepixel.nietore.com/play/" });
+  window[EMBED_MARKER] = { protocol: 1 };
+  window.unsafeWindow = window;
+  window.WebSocket = SyntheticWebSocket;
+  window.indexedDB = new IDBFactory();
+  window.IDBKeyRange = IDBKeyRange;
+  window.setInterval = () => 1;
+  window.clearInterval = () => {};
+
+  try {
+    window.eval(await buildRuntimeBundle());
+    const api = await waitFor(() => {
+      const candidate = window[PUBLIC_SUMMARY];
+      return candidate?.getSummary?.().available && candidate.getSummary().leadershipActive
+        ? candidate : null;
+    });
+    assert.ok(api, "embedded Analyzer must initialize as the local analytics owner");
+    const socket = new window.WebSocket("wss://synthetic.invalid");
+    assert.equal(api.getSummary().sessionGeneration, null, "no Hunt is created merely by opening Cards");
+
+    socket.emitMessage({
+      type: "combat.started", seq: 1, ts: Date.now(),
+      data: {
+        enemy: { id: "old-wild", species_id: "eevee", level: 12, quality: "common", zone_id: "route-1" },
+        session: { id: "private-server-hunt-one", zone_id: "route-1" },
+      },
+    });
+    const hunt = await waitFor(() => {
+      const value = api.getSummary();
+      return value.activityKind === "hunt" && value.status === "running"
+        && value.currentSessionSpecies?.speciesId === "eevee" ? value : null;
+    });
+    assert.ok(hunt, "combat.started creates an ordinary CURRENT Hunt");
+    assert.ok(hunt.sessionGeneration > 0);
+    assert.equal(hunt.endedAtMs, null);
+    assert.equal("sessionId" in hunt, false);
+
+    socket.emitMessage({
+      type: "expedition.run_started", seq: 2, ts: Date.now(),
+      data: { lobby: { id: "private-expedition-run-one", status: "running" }, map_id: 261 },
+    });
+    const expedition = await waitFor(() => {
+      const value = api.getSummary();
+      return value.activityKind === "expedition" && value.status === "running"
+        && value.sessionGeneration > hunt.sessionGeneration ? value : null;
+    });
+    assert.ok(expedition, "Expedition start rotates the authoritative CURRENT session");
+    assert.equal(expedition.currentSessionSpecies, null);
+    assert.equal(expedition.currentTarget, null);
+    assert.equal(expedition.endedAtMs, null);
+    assert.equal("sessionId" in expedition, false);
+    assert.equal(JSON.stringify(expedition).includes("private-expedition-run-one"), false);
+
+    socket.emitMessage({
+      type: "expedition.run_live", seq: 3, ts: Date.now(),
+      data: { run_id: "private-expedition-run-one", remaining_seconds: 1200 },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    assert.equal(api.getSummary().sessionGeneration, expedition.sessionGeneration,
+      "periodic Expedition updates must not create a new session");
+
+    socket.emitMessage({
+      type: "expedition.run_finished", seq: 4, ts: Date.now(),
+      data: { run_id: "private-expedition-run-one", reason: "time_up" },
+    });
+    const ended = await waitFor(() => {
+      const value = api.getSummary();
+      return value.activityKind === "expedition" && value.status === "waiting"
+        && Number.isFinite(value.endedAtMs) ? value : null;
+    });
+    assert.ok(ended, "matching Expedition finish must be represented in the public lifecycle");
+    assert.equal(ended.sessionGeneration, expedition.sessionGeneration,
+      "finishing is not the start of another session");
+
+    socket.emitMessage({
+      type: "combat.started", seq: 5, ts: Date.now(),
+      data: {
+        enemy: { id: "new-wild", species_id: "pikachu", level: 16, quality: "common", zone_id: "route-2" },
+        session: { id: "private-server-hunt-two", zone_id: "route-2" },
+      },
+    });
+    const resumedHunt = await waitFor(() => {
+      const value = api.getSummary();
+      return value.activityKind === "hunt" && value.status === "running"
+        && value.currentSessionSpecies?.speciesId === "pikachu"
+        && value.sessionGeneration > expedition.sessionGeneration ? value : null;
+    });
+    assert.ok(resumedHunt, "first ordinary Hunt combat after Expedition uses a new session");
+    assert.equal(resumedHunt.endedAtMs, null);
+    assert.equal(JSON.stringify(resumedHunt).includes("private-server-hunt-two"), false);
+
+    const control = window[PUBLIC_CONTROL];
+    assert.equal((await control.act("pause")).ok, true);
+    assert.equal(api.getSummary().sessionGeneration, resumedHunt.sessionGeneration);
+    assert.equal((await control.act("resume")).ok, true);
+    assert.equal(api.getSummary().sessionGeneration, resumedHunt.sessionGeneration);
+  } finally {
+    window.dispatchEvent(new window.Event("beforeunload"));
+    window.close();
+  }
+});
+
 test("standby embed startup never applies restart recovery to the active tab's running Hunt", async () => {
   const window = new Window({ url: "https://pokepixel.nietore.com/play/" });
   const bundle = await buildRuntimeBundle();

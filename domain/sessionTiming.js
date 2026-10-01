@@ -104,6 +104,9 @@ export function touchActivity(session, now) {
     return {
       ...session,
       status: "running",
+      // A manual Resume may reopen an ended (locked) Hunt in place. The old
+      // terminal timestamp must not make that running session appear ended.
+      endedAtMs: null,
       activeStartedAtMs: now,
       lastActivityAtMs: now,
       updatedAtMs: now

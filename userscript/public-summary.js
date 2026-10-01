@@ -1,3 +1,6 @@
+import { latestSpeciesEncounter } from "./hunt-view-model.js";
+import { speciesLabel } from "./ui-utils.js";
+
 export const PUBLIC_SUMMARY_PROTOCOL = 1;
 export const PUBLIC_SUMMARY_GLOBAL = "__POKEPIXEL_HUNT_ANALYZER_PUBLIC__";
 export const PUBLIC_CONTROL_GLOBAL = "__POKEPIXEL_HUNT_ANALYZER_CONTROL__";
@@ -120,6 +123,20 @@ function copyCurrentTarget(value) {
   });
 }
 
+function currentSessionSpecies(currentState, metrics) {
+  if (metrics?.activityKind === "expedition" && metrics?.status === "running") return null;
+  const latest = currentState && Object.hasOwn(currentState, "currentSessionSpecies")
+    ? currentState.currentSessionSpecies
+    : latestSpeciesEncounter(currentState?.encounters);
+  if (!latest) return null;
+  const species = boundedText(speciesLabel(latest), 64);
+  if (!species) return null;
+  return Object.freeze({
+    speciesId: boundedText(latest.speciesId, 64),
+    species
+  });
+}
+
 function copyAttemptHistory(value, limit = 32) {
   if (!Array.isArray(value)) return Object.freeze([]);
   const attempts = [];
@@ -218,7 +235,13 @@ export function createPublicSummary({
     available,
     leadershipActive: Boolean(leadershipActive),
     status: normalizedStatus(metrics?.status),
+    // CURRENT-owned generation distinguishes sessions without exporting local IDs.
+    sessionGeneration: Number.isSafeInteger(currentState?.sessionGeneration)
+      && currentState.sessionGeneration >= 0 && currentState.sessionGeneration <= NUMBER_LIMIT
+      ? currentState.sessionGeneration : null,
+    activityKind: metrics?.activityKind === "expedition" ? "expedition" : "hunt",
     startedAtMs: finiteOrNull(metrics?.startedAtMs),
+    endedAtMs: finiteOrNull(currentState?.endedAtMs),
     activeMs: nonNegative(metrics?.activeMs),
     seen: nonNegative(metrics?.seen),
     seenPerHour: finiteOrNull(metrics?.seenPerHour),
@@ -254,9 +277,12 @@ export function createPublicSummary({
     seenMythical: nonNegative(rarities.mythical?.seen),
     rarityCounts: copyRarityCounts(rarities),
     latestCaptureChance: latestAttemptChance,
-    currentTarget: available && normalizedStatus(metrics?.status) === "running"
+    currentTarget: available && normalizedStatus(metrics?.status) === "running" && metrics?.activityKind !== "expedition"
       ? copyCurrentTarget(presentation.currentTarget)
       : null,
+    // The same session-local species selector used by CURRENT's headline.
+    // This is not a live encounter and must not be promoted to currentTarget.
+    currentSessionSpecies: available ? currentSessionSpecies(currentState, metrics) : null,
     attemptHistory,
     specialHistory,
     lootHistory,
@@ -289,6 +315,7 @@ export function installPublicSummaryBridge({
       return {
         ...summary,
         currentTarget: summary.currentTarget ? { ...summary.currentTarget, elements: [...(summary.currentTarget.elements || [])] } : null,
+        currentSessionSpecies: summary.currentSessionSpecies ? { ...summary.currentSessionSpecies } : null,
         attemptHistory: Array.isArray(summary.attemptHistory)
           ? summary.attemptHistory.map(cloneAttempt)
           : [],
