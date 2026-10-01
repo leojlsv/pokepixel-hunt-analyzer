@@ -8,6 +8,7 @@ import {
   resolveUiMode
 } from "./ui-mode.js";
 import { createUiStateStore } from "./ui-state.js";
+import { PALETTE_STYLES, readPalette, selectPalette } from "./palette-theme.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const COLLAPSE_KEY = "pokepixel_hunt_analyzer_collapsed_v1";
@@ -69,9 +70,10 @@ export function createUi({
     host.id = ROOT_ID;
     host.dataset.uiMode = uiMode;
     shadow = host.attachShadow({ mode: "open" });
+    selectPalette(shadow, readPalette());
 
     const style = document.createElement("style");
-    style.textContent = `${STYLES}\n${MOBILE_STYLES}`;
+    style.textContent = `${STYLES}\n${MOBILE_STYLES}\n${PALETTE_STYLES}`;
     const wrapper = document.createElement("div");
     wrapper.innerHTML = createUiMarkup();
     shadow.append(style, wrapper);

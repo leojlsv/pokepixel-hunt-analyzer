@@ -3,12 +3,18 @@ export const MOBILE_STYLES = String.raw`
   height: 18px;
   max-width: 62px;
   padding: 0 2px;
-  border: 1px solid #4b4a43;
+  border: 1px solid var(--border);
   border-radius: 3px;
-  background: #20211e;
-  color: #aaa79c;
-  font-size: 8px;
+  background: var(--hunt-surface-control);
+  color: var(--text);
+  font-size: 12px;
   line-height: 1;
+}
+
+.pha-ui-mode-select option {
+  background: var(--hunt-surface-control);
+  color: var(--text);
+  font-size: 12px;
 }
 
 :host([data-ui-mode="mobile"]) {
@@ -447,7 +453,7 @@ export const MOBILE_STYLES = String.raw`
   height: 44px;
   max-width: 72px;
   padding: 0 4px;
-  font-size: 9px;
+  font-size: 12px;
   touch-action: manipulation;
 }
 

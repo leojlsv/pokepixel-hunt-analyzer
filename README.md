@@ -32,7 +32,7 @@ Acompanha a Hunt atual em tempo real:
 - distribuição por raridade e Shiny;
 - listas de Captured e Failed;
 - Captured com filtros por Rarity, Shiny, Quality e IV;
-- Captured/Failed permitem combinar múltiplas Rarities no mesmo filtro, com `All (*)` selecionando todas;
+- Captured/Failed permitem combinar múltiplas Rarities no mesmo filtro, com `All (*)` selecionando todas; cada lista mantém sua própria seleção mesmo após recarregar a página ou trocar de Hunt;
 - Failed com filtros por Rarity, Shiny e IV e colunas diretas `Pokémon | IV | Pokéball | Chance | Fled at`;
 - Chance usa três casas decimais; valores positivos abaixo de `0.001%` aparecem como `<0.001%` nas tabelas compactas;
 - os resumos de `By Rarity`, `Captured` e `Failed` destacam ocorrências de Shiny;
@@ -188,6 +188,13 @@ O painel pode ser:
 - minimizado;
 - parcialmente transparente pelo controle `α`;
 - recolhido por seção.
+
+Em `Misc > Interface > Paleta`, é possível escolher **Obsidiana** (novo padrão),
+**Ametista Noturna**, **Cobre Vulcânico** ou **Titânio**. A mudança é imediata,
+alcança Desktop, Mobile, HUD e telas do Analyzer e persiste após recarregar a página.
+Preferência ausente ou inválida usa Obsidiana. O tema anterior e Verde Profundo
+não estão disponíveis no seletor. As cores de raridade, Shiny e resultados de
+combate preservam seus significados independentes da paleta.
 
 No Desktop, o header e a navegação principal permanecem visíveis durante a rolagem vertical do painel.
 

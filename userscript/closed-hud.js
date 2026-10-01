@@ -704,17 +704,18 @@ const CLOSED_HUD_STYLE = `
     width:220px !important;
     min-width:220px !important;
     height:52px !important;
+    padding:2px 9px !important;
     grid-template-columns:32px minmax(0,1fr) !important;
   }
   #pha-toggle.pha-custom-hud > .hud-content { display:none !important; }
   .pha-hud-grid {
-    grid-column:2; grid-row:1; min-width:0; height:40px;
+    grid-column:2; grid-row:1; min-width:0; height:44px;
     display:grid; grid-template-columns:repeat(2,minmax(0,1fr));
     grid-template-rows:repeat(2,minmax(0,1fr)); column-gap:7px; row-gap:2px;
     align-self:center;
   }
   .pha-hud-slot {
-    min-width:0; padding:1px 2px; display:flex; flex-direction:column;
+    min-width:0; min-height:0; padding:0 2px; display:flex; flex-direction:column;
     justify-content:center; overflow:hidden; border-left:1px solid #41423c;
     line-height:1; text-align:center;
   }
@@ -722,19 +723,19 @@ const CLOSED_HUD_STYLE = `
   .pha-hud-slot.is-consumed { display:none; }
   .pha-hud-slot.is-empty { opacity:.3; }
   .pha-hud-slot-label {
-    overflow:hidden; color:#8f8c82; font-size:7px; font-weight:700;
+    overflow:hidden; color:#8f8c82; font-size:8px; font-weight:700;
     letter-spacing:.03em; text-align:center; text-overflow:ellipsis;
     text-transform:uppercase; white-space:nowrap;
   }
   .pha-hud-slot-value {
-    margin-top:2px; overflow:hidden; color:#f0eee6; font-size:11px; font-weight:800;
+    margin-top:1px; overflow:hidden; color:#f0eee6; font-size:11px; font-weight:800;
     font-variant-numeric:tabular-nums; text-align:center; text-overflow:clip; white-space:nowrap;
   }
   .pha-hud-slot-value.positive { color:#70dfaa; }
   .pha-hud-slot-value.negative { color:#ef8b82; }
 
   .pha-hud-inventory-line {
-    min-width:0; margin-top:2px; display:flex; align-items:baseline; justify-content:center;
+    min-width:0; margin-top:1px; display:flex; align-items:baseline; justify-content:center;
     gap:5px; overflow:hidden; text-align:center; white-space:nowrap;
     font-variant-numeric:tabular-nums;
   }

@@ -339,6 +339,7 @@ LocalStorage stores presentation/coordination state only, including:
 - panel/HUD position and panel size;
 - active navigation and open/minimized state;
 - section-collapse state and alpha level;
+- Current Captured/Failed rarity selections (`pokepixel_hunt_analyzer_current_rarities_v1`, independent of the active Hunt);
 - Closed HUD configuration (`pokepixel_hunt_analyzer_closed_hud_v1`);
 - per-Hunt Potion inventory baseline/usage support (`pokepixel_hunt_analyzer_potion_usage_v1`);
 - Sound Alert selection/settings and global mute (`pokepixel_hunt_analyzer_audio_muted_v1`);

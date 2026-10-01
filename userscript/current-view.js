@@ -17,6 +17,10 @@ import {
   sortEncounters
 } from "./encounter-list-model.js";
 import { latestSpeciesEncounter } from "./hunt-view-model.js";
+import {
+  readCurrentRarityPreferences,
+  saveCurrentRarityPreference
+} from "./current-rarity-preferences.js";
 
 const RARE_PLUS_KEYS = new Set(["rare", "epic", "legendary", "mythical"]);
 const RARITY_LABELS = new Map(RARITIES);
@@ -118,6 +122,7 @@ export function createCurrentView(shadow) {
   let currentSessionId;
   let currentHuntStartedAtMs = null;
   let lastEncounterSnapshotVersion = -1;
+  const savedRarities = readCurrentRarityPreferences();
   const lists = {
     captured: createListState("captured"),
     failed: createListState("failed")
@@ -132,6 +137,12 @@ export function createCurrentView(shadow) {
     const all = root.querySelector("[data-rarity-all]");
     const options = [...root.querySelectorAll("[data-rarity-value]")];
     const label = shadow.getElementById(`${prefix}-rarity-label`);
+
+    const restored = savedRarities[prefix];
+    if (restored !== null) {
+      const selected = new Set(restored);
+      for (const input of options) input.checked = selected.has(input.dataset.rarityValue);
+    }
 
     const sync = () => {
       const selected = options
@@ -162,6 +173,8 @@ export function createCurrentView(shadow) {
       }
 
       sync();
+      saveCurrentRarityPreference(prefix, state.filters.rarities === null
+        ? null : [...state.filters.rarities]);
       rebuildEncounterList(prefix);
     });
 

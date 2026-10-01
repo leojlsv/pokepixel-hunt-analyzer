@@ -8,6 +8,7 @@ import { createClosedHud } from "../../../userscript/closed-hud-runtime.js";
 import { createAudioAlerts } from "../../../userscript/audio-alerts-runtime.js";
 import { createCatchGallery } from "../../../userscript/catch-gallery.js";
 import { computeSessionMetrics } from "../../../domain/sessionMetrics.js";
+import { applyPalettePreview, normalizePalettePreview, PALETTE_PREVIEWS } from "../palettes/preview-theme.js";
 
 const parameters = new URLSearchParams(window.location.search);
 const mode = parameters.get("mode") === "mobile" ? "mobile" : "desktop";
@@ -15,7 +16,10 @@ const view = ["current", "history", "misc", "hud"].includes(parameters.get("view
   ? parameters.get("view")
   : "current";
 const panelWidth = Number(parameters.get("panel")) === 415 ? 415 : 620;
-const now = Date.now();
+const previewTime = Number(parameters.get("now"));
+const now = Number.isSafeInteger(previewTime) && previewTime > 0 ? previewTime : Date.now();
+const palette = normalizePalettePreview(parameters.get("palette"));
+const requestedColumns = parameters.get("hudColumns");
 const startedAtMs = now - 3 * 60 * 60 * 1000;
 
 const scenario = Object.freeze({
@@ -77,6 +81,20 @@ try {
     desktop: { panel: null, launcher: null },
     mobile: { launcher: null }
   }));
+  // Preview-only fixture: never inherit the user's unrelated HUD column preference.
+  localStorage.setItem("pokepixel_hunt_analyzer_closed_hud_columns_v1",
+    ["0", "1"].includes(requestedColumns) ? requestedColumns : "2");
+  if (parameters.get("hudFixture") === "dense") {
+    localStorage.setItem("pokepixel_hunt_analyzer_closed_hud_v1", JSON.stringify({
+      preset: "custom",
+      slots: [
+        { widget: "pokemonXpPerHour" },
+        { widget: "profitPerHour" },
+        { widget: "rarityTracker", size: 1, rarityKeys: ["weak", "uncommon", "rare"], showFailed: false },
+        { widget: "expenses" }
+      ]
+    }));
+  }
 } catch {
   // The screenshot remains usable if file:// storage is disabled.
 }
@@ -129,7 +147,22 @@ if (view === "hud") shadow?.getElementById("pha-hud-settings-button")?.click();
 
 if (mode === "mobile") {
   const launcher = shadow?.getElementById("pha-toggle");
-  if (launcher) launcher.hidden = true;
+  if (launcher) launcher.hidden = parameters.get("showLauncher") !== "1";
 }
 
+applyPalettePreview(shadow, palette);
+// Keep the synthetic settings control consistent with the previewed palette.
+const previewPaletteSelect = shadow?.getElementById("pha-palette-select");
+if (previewPaletteSelect) previewPaletteSelect.value = palette;
+if (parameters.get("showLauncher") === "1") {
+  // The standalone pre-paint guard may still deliver its initial MutationObserver callback.
+  // Only this synthetic fixture re-shows the minimized widget after that callback.
+  const launcher = shadow?.getElementById("pha-toggle");
+  if (launcher) requestAnimationFrame(() => { launcher.style.visibility = "visible"; });
+}
+if (palette !== "original") {
+  const heading = document.querySelector(".reference-label strong");
+  if (heading) heading.textContent = `Prévia de paleta · ${PALETTE_PREVIEWS[palette].label}`;
+}
+document.body.dataset.previewPalette = palette;
 document.documentElement.dataset.referenceReady = "true";
