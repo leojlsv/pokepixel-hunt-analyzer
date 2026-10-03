@@ -7,6 +7,15 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+- Added a standalone-only, versioned `__POKEPIXEL_HUNT_ANALYZER_UI__` protocol-1
+  bridge for semantic detail navigation from external consumers. The bridge exposes
+  only allowlisted destinations for Current and History; it does not expose Shadow DOM
+  selectors, IndexedDB/session identities or gameplay/session mutations. Embed mode
+  intentionally exposes no UI bridge. History subtabs now use tablist/tab/tabpanel
+  semantics with roving keyboard navigation so programmatic detail entry lands on an
+  accessible, stable target. Existing public summary and session-control protocol 1
+  contracts remain unchanged.
+
 **v1.15.1 preparation note:** The `v1.15.0` tag and GitHub Release refer to
 the earlier `main` commit `09ba8de`; the following CURRENT/embedded-consumer
 changes were prepared after that release. This changelog entry alone does not
@@ -51,6 +60,7 @@ and the guarded `publish/v1.15.1` workflow from a merged, validated `main`.
 
 ### Coupled Workspace and Better UI boundary
 - Added an explicit protocol-v1 embed marker, a cloned and bounded read-only Current Hunt summary, and allowlisted Pause/Resume/Reset controls for standalone and embedded consumers. The embedded runtime keeps the Analyzer pipeline and IndexedDB authoritative without mounting its standalone UI, audio, gallery or History controls.
+- Added a separate standalone-only `__POKEPIXEL_HUNT_ANALYZER_UI__` protocol-v1 navigation bridge for semantic Current/History destinations. Better UI can open Analyzer detail views without querying Shadow DOM or receiving session/encounter identifiers; embed mode intentionally exposes no UI bridge. History subtabs now use tablist/roving-keyboard semantics so programmatic detail navigation has a stable focus target.
 - The Current presentation contract exposes a canonical active target, latest capture chance, bounded normal and Epic/Legendary/Mythical/Shiny histories, and captured-only IV/gender/nature details. A bounded scalar total IV (0–186) is also available for failed terminal captures.
 - Loot history exposes up to 32 recent rewards with authoritative item identifiers and quantities, realized direct gold, loot-sell and auto-sell components, and their calculated total; it does not infer unavailable item names, rarity or prices.
 - Added bounded, memoized presentation caches and independently bounded public snapshots (up to 32 normal, special and loot entries each), while keeping complete Hunt history in IndexedDB.

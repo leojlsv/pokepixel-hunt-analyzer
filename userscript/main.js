@@ -32,6 +32,7 @@ import {
   installPublicSummaryBridge,
   isEmbedMode
 } from "./public-summary.js";
+import { installPublicUiBridge } from "./public-ui.js";
 import {
   latestCaptureAttemptFromRows,
   updateLatestCaptureAttempt
@@ -114,6 +115,7 @@ let embedded = false;
 let publicSummary = createPublicSummary({ appVersion: APP_VERSION });
 let disposePublicSummaryBridge = null;
 let disposePublicSessionControl = null;
+let disposePublicUiBridge = null;
 let lastPublicSummaryReadAtMs = null;
 let leadershipEpoch = 0;
 let resolveReady;
@@ -577,12 +579,18 @@ function mountUiWhenReady() {
     catchGallery?.dispose();
     historyDeleteControl?.dispose();
     closedHud?.dispose();
+    disposePublicUiBridge?.();
     ui = createUi({
       onSessionAction: (action) => void handleSessionAction(action),
       onLoadHistorySessions: (options) => sessionsRepository.getPage(options),
       onLoadHistorySessionEncounters: (sessionId) =>
         encountersRepository.getBySessionId(sessionId),
       getLootItemCatalog: readLootItemCatalog
+    });
+    disposePublicUiBridge = installPublicUiBridge({
+      pageWindow,
+      appVersion: APP_VERSION,
+      navigate: (destination) => ui?.navigate(destination) || { ok: false, reason: "navigation-unavailable" }
     });
     closedHud = createClosedHud({
       pageWindow,
@@ -683,6 +691,7 @@ window.addEventListener("beforeunload", () => {
   closedHud?.dispose();
   disposePublicSummaryBridge?.();
   disposePublicSessionControl?.();
+  disposePublicUiBridge?.();
   if (eventRefreshTimer !== null) clearTimeout(eventRefreshTimer);
   void pipeline?.flushDiagnostics();
   leadership.release();

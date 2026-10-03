@@ -62,6 +62,8 @@ export function createUi({
   let currentView;
   let historyView;
   let lastHistorySource = null;
+  let externalReturnFocus = null;
+  let navigationEpoch = 0;
 
   mount();
 
@@ -204,6 +206,7 @@ export function createUi({
   }
 
   function setPanelOpen(open) {
+    if (!open) navigationEpoch += 1;
     panel.hidden = !open;
     if (uiMode === "mobile") launcher.hidden = open;
     if (resizeHandle) resizeHandle.hidden = !open;
@@ -212,6 +215,80 @@ export function createUi({
       fitToViewport(panel);
       syncResizeHandle();
     }
+    if (!open && externalReturnFocus) {
+      const target = externalReturnFocus;
+      externalReturnFocus = null;
+      if (target.isConnected && typeof target.focus === "function") {
+        target.focus({ preventScroll: true });
+      }
+    }
+  }
+
+  function focusDestination(selector) {
+    const target = shadow.querySelector(selector);
+    if (!target) return false;
+    if (!target.hasAttribute("tabindex")) target.setAttribute("tabindex", "-1");
+    target.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+    target.focus({ preventScroll: true });
+    return true;
+  }
+
+  function expandSectionForNavigation(key) {
+    if (!key) return;
+    const state = readCollapseState();
+    if (state[key] !== true) return;
+    state[key] = false;
+    writeJson(COLLAPSE_KEY, state);
+    setCollapsed(key, false);
+  }
+
+  async function navigate(destination) {
+    const routes = {
+      current: { view: "current", selector: "#hunt-section", collapseKey: "hunt" },
+      "current-rarity": { view: "current", selector: "#rarity-section .section-head h3", collapseKey: "rarity" },
+      "current-captured": { view: "current", selector: "#captured-section .section-head h3", collapseKey: "captured" },
+      "current-failed": { view: "current", selector: "#failed-section .section-head h3", collapseKey: "failed" },
+      "current-loot": { view: "current", selector: "#loot-section .section-head h3", collapseKey: "loot" },
+      "history-hunts": { view: "history", historyView: "hunts" },
+      "history-pokemon": { view: "history", historyView: "pokemon" },
+      "history-attempts": { view: "history", historyView: "attempts" },
+      "history-loot": { view: "history", historyView: "loot" }
+    };
+    const route = routes[destination];
+    if (!route) return { ok: false, reason: "unsupported-destination" };
+    const requestEpoch = ++navigationEpoch;
+
+    const invoker = document.activeElement;
+    if (invoker && invoker !== document.body && invoker !== document.documentElement && invoker !== host) {
+      externalReturnFocus = invoker;
+    }
+
+    setPanelOpen(true);
+    switchView(route.view);
+    expandSectionForNavigation(route.collapseKey);
+    if (route.historyView) {
+      if (!historyView.setActiveSubview(route.historyView)) {
+        return { ok: false, reason: "navigation-unavailable" };
+      }
+      await historyView.ensureLoaded();
+      if (
+        requestEpoch !== navigationEpoch
+        || panel.hidden
+        || activeView !== route.view
+        || historyView.getActiveSubview() !== route.historyView
+      ) {
+        return { ok: false, reason: "navigation-superseded" };
+      }
+      return focusDestination(`[data-history-view="${route.historyView}"]`)
+        ? { ok: true }
+        : { ok: false, reason: "navigation-unavailable" };
+    }
+    if (requestEpoch !== navigationEpoch || panel.hidden || activeView !== route.view) {
+      return { ok: false, reason: "navigation-superseded" };
+    }
+    return focusDestination(route.selector)
+      ? { ok: true }
+      : { ok: false, reason: "navigation-unavailable" };
   }
 
   function saveUiState(patch) {
@@ -701,7 +778,9 @@ export function createUi({
       currentView?.refreshLootCatalog();
       historyView?.refreshLootCatalog();
     },
+    navigate,
     getActiveView: () => activeView,
+    getHistoryView: () => historyView?.getActiveSubview?.() || "hunts",
     getUiMode: () => uiMode
   };
 }

@@ -23,6 +23,7 @@ import {
 
 const HISTORY_PAGE_SIZE = 20;
 const HISTORY_LOAD_CONCURRENCY = 4;
+const HISTORY_SUBVIEWS = new Set(["hunts", "pokemon", "attempts", "loot"]);
 const ATTEMPT_BATCH_SIZE = 100;
 
 function sameHistoryRange(left, right) {
@@ -260,15 +261,40 @@ export function createHistoryView(shadow, {
 
   bindControls();
 
+  function setActiveSubview(value, { focus = false } = {}) {
+    const next = String(value || "").trim().toLowerCase();
+    if (!HISTORY_SUBVIEWS.has(next)) return false;
+    activeSubview = next;
+    attemptRenderCount = ATTEMPT_BATCH_SIZE;
+    let activeButton = null;
+    for (const candidate of shadow.querySelectorAll("[data-history-view]")) {
+      const selected = candidate.dataset.historyView === activeSubview;
+      candidate.classList.toggle("active", selected);
+      candidate.setAttribute("aria-selected", String(selected));
+      candidate.tabIndex = selected ? 0 : -1;
+      if (selected) activeButton = candidate;
+    }
+    render();
+    if (focus) activeButton?.focus({ preventScroll: true });
+    return true;
+  }
+
   function bindControls() {
     for (const button of shadow.querySelectorAll("[data-history-view]")) {
       button.addEventListener("click", () => {
-        activeSubview = button.dataset.historyView;
-        attemptRenderCount = ATTEMPT_BATCH_SIZE;
-        for (const candidate of shadow.querySelectorAll("[data-history-view]")) {
-          candidate.classList.toggle("active", candidate === button);
-        }
-        render();
+        setActiveSubview(button.dataset.historyView);
+      });
+      button.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        const buttons = [...shadow.querySelectorAll("[data-history-view]")];
+        const current = Math.max(0, buttons.indexOf(event.currentTarget));
+        const nextIndex = event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? buttons.length - 1
+            : (current + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+        event.preventDefault();
+        setActiveSubview(buttons[nextIndex].dataset.historyView, { focus: true });
       });
     }
 
@@ -1166,5 +1192,13 @@ export function createHistoryView(shadow, {
     body.replaceChildren(fragment);
   }
 
-  return { refresh, ensureLoaded, invalidate, loadMore, refreshLootCatalog };
+  return {
+    refresh,
+    ensureLoaded,
+    invalidate,
+    loadMore,
+    refreshLootCatalog,
+    getActiveSubview: () => activeSubview,
+    setActiveSubview
+  };
 }
