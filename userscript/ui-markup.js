@@ -128,11 +128,11 @@ function createEncounterSectionMarkup(prefix, title) {
 function createHistoryMarkup() {
   return `
     <section id="view-history" class="view history-view" hidden>
-      <nav class="history-subtabs" aria-label="History views">
-        <button class="tab active" data-history-view="hunts" type="button">Hunts</button>
-        <button class="tab" data-history-view="pokemon" type="button">Pokémon</button>
-        <button class="tab" data-history-view="attempts" type="button">Attempts</button>
-        <button class="tab" data-history-view="loot" type="button">Loot</button>
+      <nav class="history-subtabs" role="tablist" aria-label="History views">
+        <button id="history-tab-hunts" class="tab active" data-history-view="hunts" type="button" role="tab" aria-selected="true" tabindex="0">Hunts</button>
+        <button id="history-tab-pokemon" class="tab" data-history-view="pokemon" type="button" role="tab" aria-selected="false" tabindex="-1">Pokémon</button>
+        <button id="history-tab-attempts" class="tab" data-history-view="attempts" type="button" role="tab" aria-selected="false" tabindex="-1">Attempts</button>
+        <button id="history-tab-loot" class="tab" data-history-view="loot" type="button" role="tab" aria-selected="false" tabindex="-1">Loot</button>
       </nav>
 
       <div class="history-filter-block">
@@ -180,7 +180,7 @@ function createHistoryMarkup() {
         <button id="history-retry" class="history-more-button" type="button">Retry</button>
       </div>
 
-      <section data-history-panel="hunts">
+      <section data-history-panel="hunts" role="tabpanel" aria-labelledby="history-tab-hunts">
         <div class="table-wrap history-table-wrap">
           <table class="history-hunts-table">
             <colgroup>
@@ -194,7 +194,7 @@ function createHistoryMarkup() {
         </div>
       </section>
 
-      <section data-history-panel="pokemon" hidden>
+      <section data-history-panel="pokemon" role="tabpanel" aria-labelledby="history-tab-pokemon" hidden>
         <div class="table-wrap history-table-wrap">
           <table class="history-pokemon-table">
             <colgroup>
@@ -208,7 +208,7 @@ function createHistoryMarkup() {
         </div>
       </section>
 
-      <section data-history-panel="attempts" hidden>
+      <section data-history-panel="attempts" role="tabpanel" aria-labelledby="history-tab-attempts" hidden>
         <div id="history-attempts-wrap" class="table-wrap history-table-wrap">
           <table class="history-attempts-table">
             <colgroup>
@@ -222,7 +222,7 @@ function createHistoryMarkup() {
         </div>
       </section>
 
-      <section data-history-panel="loot" class="history-loot-panel" hidden>
+      <section data-history-panel="loot" class="history-loot-panel" role="tabpanel" aria-labelledby="history-tab-loot" hidden>
         <div class="history-loot-scope">
           <label class="history-loot-scope-field" for="history-loot-session">Session
             <select id="history-loot-session"><option value="*">All loaded sessions</option></select>

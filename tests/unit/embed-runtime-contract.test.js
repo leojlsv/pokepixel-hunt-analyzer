@@ -64,6 +64,8 @@ test("embed mode deliberately skips UI mount without skipping initial Current hy
 
   assert.match(body, /if\s*\(\s*!embedded\s*\)\s*mountUiWhenReady\(\)/);
   assert.match(body, /if\s*\(\s*document\.documentElement\s*\)\s*await\s+loadCurrent\(\)/);
+  assert.doesNotMatch(body, /installPublicUiBridge/,
+    "the standalone UI navigation bridge must not be installed from embed initialization");
 });
 
 test("public summary and allowlisted session control are installed in embed and standalone runtime", async () => {

@@ -73,9 +73,10 @@ Browser-specific APIs stay in this layer.
 
 ### Better UI public boundary
 
-The Analyzer exposes one bounded page-global contract for PokePixel Better UI Cards in
-both the standalone userscript and the native WebView2 Coupled Workspace. Embed mode
-itself remains explicit rather than inferred:
+The Analyzer exposes bounded, versioned page-global contracts that keep its domain,
+storage and UI internals private. Better UI is a consumer of these contracts; the
+Analyzer does not import Better UI code, read its storage or depend on its DOM. Embed
+mode itself remains explicit rather than inferred:
 
 - the host injects `__POKEPIXEL_HUNT_ANALYZER_EMBED__ = { protocol: 1 }` before the
   Analyzer bundle at document start;
@@ -87,6 +88,12 @@ itself remains explicit rather than inferred:
   read-only `getSummary()` function returning a copy of the bounded Current summary;
 - `__POKEPIXEL_HUNT_ANALYZER_CONTROL__` exposes only `pause`, `resume` and `reset`, and
   those actions still require the Analyzer tab to hold analytics leadership;
+- standalone UI additionally exposes `__POKEPIXEL_HUNT_ANALYZER_UI__` with its own
+  `protocol: 1` and an allowlisted `navigate(destination)` operation. Destinations are
+  semantic (`current`, Current rarity/captured/failed/loot, and History
+  hunts/pokemon/attempts/loot), so consumers never depend on Shadow DOM selectors,
+  internal tab IDs, session IDs or encounter IDs. This bridge is installed only after
+  the standalone UI mounts and is absent in embed mode;
 - standalone keeps the normal Analyzer UI and diagnostics. When a public consumer is
   actively polling the summary, Current hydration also stays fresh while the Analyzer
   panel is on another view; the extra refresh stops after the reader becomes inactive;
@@ -128,6 +135,12 @@ itself remains explicit rather than inferred:
 Consumers must treat this public summary as presentation data. They must not bypass
 it by reading Analyzer IndexedDB, re-parsing WebSocket frames or duplicating domain
 formulas.
+
+The UI bridge is an independent presentation capability. Adding or redesigning an
+Analyzer screen must preserve the semantic destination mapping rather than preserve
+its internal DOM. Additive public fields or destinations stay backward-compatible;
+breaking changes require a new contract protocol while the previous protocol remains
+available through a migration window.
 
 ### `services/`
 
