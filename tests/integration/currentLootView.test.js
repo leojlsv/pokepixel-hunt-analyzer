@@ -6,11 +6,7 @@ import { createCurrentLootView } from "../../userscript/current-loot-view.js";
 import { createCurrentView } from "../../userscript/current-view.js";
 import { createUiMarkup } from "../../userscript/ui-markup.js";
 import { computeSessionMetrics } from "../../domain/sessionMetrics.js";
-import { normalizeInventorySnapshot } from "../../userscript/inventory-state.js";
-import {
-  createLootItemCatalog,
-  createLootItemCatalogReader
-} from "../../userscript/loot-item-catalog.js";
+import { createLootItemCatalog } from "../../userscript/loot-item-catalog.js";
 
 function withShadow() {
   const window = new Window({ url: "https://play.pokepixel.example/" });
@@ -152,18 +148,12 @@ test("Current Loot aggregates only the current session, with rarity filter and n
   }
 });
 
-test("Rare map_fragment enters Current rarity filter when the native Bag opens, without a new loot event", () => {
+test("Rare map_fragment enters Current rarity filter when items.json arrives, without a new loot event", () => {
   const ctx = withShadow();
   try {
     const { window, shadow } = ctx;
-    const snapshot = normalizeInventorySnapshot({
-      inventory: [{ item_id: "map_fragment", name: "Fragmento de Mapa", qty: 2 }]
-    });
-    let observed = new Map();
-    const getLootItemCatalog = () => {
-      observed = createLootItemCatalog(snapshot, window.document, observed);
-      return observed;
-    };
+    let catalog = new Map();
+    const getLootItemCatalog = () => catalog;
     const current = createCurrentLootView(shadow, { getLootItemCatalog });
     const state = {
       sessionId: "expedition-map",
@@ -179,11 +169,10 @@ test("Rare map_fragment enters Current rarity filter when the native Bag opens, 
     assert.equal(shadow.querySelectorAll(".current-loot-row").length, 0);
     assert.equal(shadow.getElementById("current-loot-count").textContent, "0/1 items");
 
-    const bag = window.document.createElement("button");
-    bag.className = "inventory-slot rarity-rare";
-    bag.setAttribute("aria-label", "Fragmento de Mapa, 2 units");
-    window.document.body.appendChild(bag);
-    current.render(state); // Real Current timer, same encounter revision.
+    catalog = createLootItemCatalog([
+      { id: "map_fragment", name: "Fragmento de Mapa", rarity: "raro" }
+    ]);
+    current.refreshCatalog();
 
     assert.equal(shadow.querySelectorAll(".current-loot-row").length, 1);
     assert.equal(shadow.querySelector(".current-loot-row").dataset.itemId, "map_fragment");
@@ -192,25 +181,20 @@ test("Rare map_fragment enters Current rarity filter when the native Bag opens, 
     assert.ok(shadow.querySelector(".current-loot-row .rarity-rare"));
     assert.equal(shadow.getElementById("current-loot-count").textContent, "1/1 items");
 
-    bag.remove();
     current.render(state);
-    assert.equal(shadow.querySelectorAll(".current-loot-row").length, 1,
-      "native observation remains available after closing the Bag");
+    assert.equal(shadow.querySelectorAll(".current-loot-row").length, 1);
     assert.equal(shadow.getElementById("current-loot-total").textContent, "0");
   } finally {
     ctx.dispose();
   }
 });
 
-test("an already-recorded map_fragment becomes Rare after Inventory API returns raro, without Bag or new drop", () => {
+test("an already-recorded map_fragment becomes Rare after items.json is observed", () => {
   const ctx = withShadow();
   try {
     const { window, shadow } = ctx;
-    let snapshot = normalizeInventorySnapshot([], 100);
-    const readCatalog = createLootItemCatalogReader({
-      getSnapshot: () => snapshot,
-      getPageDocument: () => window.document
-    });
+    let catalog = new Map();
+    const readCatalog = () => catalog;
     const current = createCurrentLootView(shadow, { getLootItemCatalog: readCatalog });
     const state = {
       sessionId: "existing-hunt",
@@ -223,38 +207,27 @@ test("an already-recorded map_fragment becomes Rare after Inventory API returns 
     chooseItemRarities(window, rarity, "rare");
     assert.equal(shadow.querySelectorAll(".current-loot-row").length, 0);
 
-    snapshot = normalizeInventorySnapshot({ inventory: [{
-      item_id: "map_fragment", name: "Fragmento de Mapa", rarity: "raro",
-      type: "material", category: "material", qty: 4
-    }] }, 101);
-    current.refreshCatalog(); // OnInventoryChange, same persisted encounter list.
+    catalog = createLootItemCatalog([
+      { id: "map_fragment", name: "Fragmento de Mapa", rarity: "raro" }
+    ]);
+    current.refreshCatalog();
     assert.equal(shadow.querySelectorAll(".current-loot-row").length, 1);
     assert.equal(shadow.querySelector(".current-loot-row").dataset.itemId, "map_fragment");
     assert.match(shadow.querySelector(".current-loot-row").textContent, /Fragmento de Mapa/);
     assert.match(shadow.querySelector(".current-loot-row").textContent, /Rarity: Rare/);
-    assert.equal(window.document.querySelectorAll("button.inventory-slot").length, 0,
-      "no Bag DOM or new loot event needed to classify an existing drop");
+    assert.equal(window.document.querySelectorAll("button.inventory-slot").length, 0);
   } finally {
     ctx.dispose();
   }
 });
 
-test("Current Loot resolves explicit rarity from a detached cached native Bag without reopening it", () => {
+test("Current Loot uses items.json rarity and never infers rarity from the item id", () => {
   const ctx = withShadow();
   try {
     const { window, shadow } = ctx;
-    const snapshot = normalizeInventorySnapshot({ inventory: [
-      { item_id: "map_fragment", name: "Fragmento de Mapa", qty: 2 },
-      { item_id: "legendary_fragment_latios", name: "Fragmento do Baú de Latios", qty: 1 }
-    ] });
-    let nativeCached = [];
-    const pageWindow = { PokeIdle: { ReactiveWindows: { cached: () => nativeCached } } };
-    let observed = new Map();
+    let catalog = new Map();
     const current = createCurrentLootView(shadow, {
-      getLootItemCatalog: () => {
-        observed = createLootItemCatalog(snapshot, window.document, observed, pageWindow);
-        return observed;
-      }
+      getLootItemCatalog: () => catalog
     });
     const state = {
       sessionId: "expedition-cached",
@@ -269,26 +242,17 @@ test("Current Loot resolves explicit rarity from a detached cached native Bag wi
     chooseItemRarities(window, filter, "rare");
     assert.equal(shadow.querySelectorAll(".current-loot-row").length, 0);
 
-    const root = document.createElement("div");
-    root.className = "inventory-window--slots";
-    root.innerHTML = [
-      '<div class="pokeidle-panel__body"><div class="inventory-slot-grid">',
-      '<button class="inventory-slot rarity-rare" data-item-id="map_fragment"></button>',
-      '<button class="inventory-slot rarity-epic" data-item-id="legendary_fragment_latios"></button>',
-      '</div></div>'
-    ].join("");
-    nativeCached = [{
-      _panel: { body: root.querySelector(".pokeidle-panel__body") },
-      _items: []
-    }];
-    assert.equal(window.document.querySelectorAll("button.inventory-slot").length, 0);
-    current.render(state); // Same encounter revision: reclassify from native cache.
+    catalog = createLootItemCatalog([
+      { id: "map_fragment", name: "Fragmento de Mapa", rarity: "raro" },
+      { id: "legendary_fragment_latios", name: "Fragmento do Baú de Latios", rarity: "épico" }
+    ]);
+    current.refreshCatalog();
     assert.deepEqual([...shadow.querySelectorAll(".current-loot-row")].map((row) => row.dataset.itemId),
       ["map_fragment"]);
     assert.match(shadow.querySelector(".current-loot-row").textContent, /Rarity: Rare/);
     chooseItemRarities(window, filter, "epic");
     assert.deepEqual([...shadow.querySelectorAll(".current-loot-row")].map((row) => row.dataset.itemId),
-      ["legendary_fragment_latios"], "test rarity is taken from the native slot, not its ID");
+      ["legendary_fragment_latios"], "rarity is taken from items.json, not its ID");
     chooseItemRarities(window, filter, "legendary");
     assert.equal(shadow.querySelectorAll(".current-loot-row").length, 0,
       "legendary in the item ID never implies the Legendary rarity");
