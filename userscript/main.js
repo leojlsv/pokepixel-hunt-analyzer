@@ -25,7 +25,8 @@ import { createAudioAlerts } from "./audio-alerts-runtime.js";
 import { createCatchGallery } from "./catch-gallery.js";
 import { createHistoryDeleteControl } from "./history-delete.js";
 import { createClosedHud } from "./closed-hud-runtime.js";
-import { createLootItemCatalogReader } from "./loot-item-catalog.js";
+import { createLootItemCatalog } from "./loot-item-catalog.js";
+import { installItemsJsonObserver } from "./items-json-observer.js";
 import {
   createPublicSummary,
   installPublicSessionControl,
@@ -76,11 +77,9 @@ let historyDeleteControl;
 let closedHud;
 let ui;
 let pageWindow;
-const readLootItemCatalog = createLootItemCatalogReader({
-  getSnapshot: () => closedHud?.getInventorySnapshot(),
-  getPageDocument: () => pageWindow?.document,
-  getPageWindow: () => pageWindow
-});
+let lootItemCatalog = new Map();
+const readLootItemCatalog = () => lootItemCatalog;
+let disposeItemsJsonObserver = null;
 let updateQueue = Promise.resolve();
 let eventRefreshTimer = null;
 let cachedSessionId = null;
@@ -592,10 +591,7 @@ function mountUiWhenReady() {
       appVersion: APP_VERSION,
       navigate: (destination) => ui?.navigate(destination) || { ok: false, reason: "navigation-unavailable" }
     });
-    closedHud = createClosedHud({
-      pageWindow,
-      onInventoryChange: () => ui?.refreshLootCatalog()
-    });
+    closedHud = createClosedHud({ pageWindow });
     closedHud.mount();
     audioAlerts?.mountControls();
     catchGallery?.mountControls();
@@ -637,6 +633,13 @@ async function initialize() {
     unsafeWindowObject:
       typeof unsafeWindow !== "undefined" ? unsafeWindow : null,
     windowObject: window
+  });
+  disposeItemsJsonObserver = installItemsJsonObserver({
+    windowObject: pageWindow,
+    onItems: (payload) => {
+      lootItemCatalog = createLootItemCatalog(payload);
+      ui?.refreshLootCatalog();
+    }
   });
   embedded = isEmbedMode(pageWindow);
   disposePublicSummaryBridge = installPublicSummaryBridge({
@@ -692,6 +695,7 @@ window.addEventListener("beforeunload", () => {
   disposePublicSummaryBridge?.();
   disposePublicSessionControl?.();
   disposePublicUiBridge?.();
+  disposeItemsJsonObserver?.();
   if (eventRefreshTimer !== null) clearTimeout(eventRefreshTimer);
   void pipeline?.flushDiagnostics();
   leadership.release();

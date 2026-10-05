@@ -44,9 +44,8 @@ export function createCurrentLootView(shadow, { getLootItemCatalog = () => null 
   } = {}) {
     const changedSession = sessionId !== nextSessionId;
     if (!changedSession && dataRevision === lootDataRevision) {
-      // Native Bag rarity can become available after the Inventory API
-      // snapshot. Check metadata on the existing Current refresh without
-      // revisiting or re-aggregating encounter records.
+      // items.json may finish loading after this view. Check metadata on the
+      // existing Current refresh without re-aggregating encounter records.
       if (!shadow.getElementById("view-current")?.hidden && summary.items.length > 0) {
         refreshCatalog();
       }

@@ -7,6 +7,13 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+- Prepared the next patch candidate as `1.15.3`, based on the published `1.15.2`
+  Better UI integration baseline. Loot item name/rarity metadata now comes only from the
+  game's already-received `items.json`; the Analyzer passively observes the page's
+  Fetch/XHR response without issuing another request. Inventory/Backpack DOM and cached
+  Bag scenes are no longer fallback rarity sources. The public summary, control and
+  standalone UI bridges remain protocol 1 and unchanged.
+
 - Added a standalone-only, versioned `__POKEPIXEL_HUNT_ANALYZER_UI__` protocol-1
   bridge for semantic detail navigation from external consumers. The bridge exposes
   only allowlisted destinations for Current and History; it does not expose Shadow DOM

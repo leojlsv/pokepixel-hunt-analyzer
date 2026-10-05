@@ -4,7 +4,6 @@ import { Window } from "happy-dom";
 
 import { createUiMarkup } from "../../userscript/ui-markup.js";
 import { createHistoryView } from "../../userscript/history-view.js";
-import { normalizeInventorySnapshot } from "../../userscript/inventory-state.js";
 import { createLootItemCatalog } from "../../userscript/loot-item-catalog.js";
 
 function chooseItemRarities(window, filter, ...values) {
@@ -170,7 +169,7 @@ test("History > Loot shows gold-only rewards and an explicit empty item state", 
   }
 });
 
-test("History > Loot reclassifies a previously unknown map_fragment as Rare from the native Bag", async () => {
+test("History > Loot reclassifies a previously unknown map_fragment as Rare from items.json", async () => {
   const previousDocument = globalThis.document;
   const window = new Window({ url: "https://play.pokepixel.example/" });
   globalThis.document = window.document;
@@ -181,9 +180,6 @@ test("History > Loot reclassifies a previously unknown map_fragment as Rare from
     shadow.innerHTML = createUiMarkup();
     document.body.appendChild(host);
 
-    const snapshot = normalizeInventorySnapshot({
-      items: [{ item_id: "map_fragment", name: "Fragmento de Mapa", qty: 5 }]
-    });
     let catalog = new Map();
     const view = createHistoryView(shadow, {
       loadSessions: async () => [{ sessionId: "expedition", status: "ended", startedAtMs: Date.now() }],
@@ -191,10 +187,7 @@ test("History > Loot reclassifies a previously unknown map_fragment as Rare from
         encounterId: "map-loot", lootAtMs: 1200, gold: 2,
         speciesId: "pikachu", lootItems: [{ itemId: "map_fragment", qty: 5 }]
       }],
-      getLootItemCatalog: () => {
-        catalog = createLootItemCatalog(snapshot, window.document, catalog);
-        return catalog;
-      }
+      getLootItemCatalog: () => catalog
     });
     await view.refresh();
     shadow.querySelector('[data-history-view="loot"]').click();
@@ -202,23 +195,21 @@ test("History > Loot reclassifies a previously unknown map_fragment as Rare from
     chooseItemRarities(window, rarity, "rare");
     assert.equal(shadow.querySelectorAll(".history-loot-row").length, 0);
 
-    const slot = document.createElement("button");
-    slot.className = "inventory-slot rarity-rare";
-    slot.dataset.itemId = "map_fragment";
-    document.body.appendChild(slot);
+    catalog = createLootItemCatalog([
+      { id: "map_fragment", name: "Fragmento de Mapa", rarity: "raro" }
+    ]);
     view.refreshLootCatalog();
     assert.equal(shadow.querySelectorAll(".history-loot-row").length, 1);
     assert.equal(shadow.querySelector(".history-loot-row").dataset.itemId, "map_fragment");
     assert.match(shadow.querySelector(".history-loot-row").textContent, /Rarity: Rare/);
     assert.equal(shadow.getElementById("history-loot-gold").textContent, "2");
-    slot.remove();
   } finally {
     globalThis.document = previousDocument;
     window.close();
   }
 });
 
-test("History > Loot classifies historical map_fragment with API rarity raro and no Bag slot", async () => {
+test("History > Loot classifies historical map_fragment with items.json rarity raro", async () => {
   const previousDocument = globalThis.document;
   const window = new Window({ url: "https://play.pokepixel.example/" });
   globalThis.document = window.document;
@@ -228,10 +219,9 @@ test("History > Loot classifies historical map_fragment with API rarity raro and
     shadow.innerHTML = createUiMarkup();
     document.body.appendChild(host);
 
-    const snapshot = normalizeInventorySnapshot({ inventory: [{
-      item_id: "map_fragment", name: "Fragmento de Mapa", rarity: "raro",
-      type: "material", category: "material", qty: 2
-    }] });
+    const catalog = createLootItemCatalog([
+      { id: "map_fragment", name: "Fragmento de Mapa", rarity: "raro" }
+    ]);
     const view = createHistoryView(shadow, {
       loadSessions: async () => [{ sessionId: "archived-expedition", status: "ended", startedAtMs: Date.now() }],
       loadSessionEncounters: async () => [{
@@ -239,7 +229,7 @@ test("History > Loot classifies historical map_fragment with API rarity raro and
         speciesId: "pikachu", gold: 3,
         lootItems: [{ itemId: "map_fragment", qty: 2 }]
       }],
-      getLootItemCatalog: () => createLootItemCatalog(snapshot)
+      getLootItemCatalog: () => catalog
     });
     await view.refresh();
     shadow.querySelector('[data-history-view="loot"]').click();
