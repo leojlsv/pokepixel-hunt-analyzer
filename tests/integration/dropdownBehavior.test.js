@@ -135,6 +135,9 @@ async function mountAnalyzer(modeOverride, {
           ]
         })
       },
+      Auth: {
+        isAuthenticated: () => true
+      },
       Bus: {
         on: () => {},
         off: () => {}

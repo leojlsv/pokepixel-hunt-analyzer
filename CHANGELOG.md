@@ -7,6 +7,25 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.15.4] - 2026-10-07
+
+### Authentication-aware Inventory bootstrap
+- The Closed HUD no longer calls the game's authenticated Inventory API before
+  `PokeIdle.Auth.isAuthenticated()` is true. Cold logins now wait for the native
+  `auth.loggedIn` event, which is emitted after the game installs the new access
+  token, while already-authenticated reloads still prime Inventory immediately.
+- Existing Inventory/capture/loot reconciliation remains event-driven after login;
+  the change does not read, persist or expose authentication tokens.
+
+### Validation
+- Added regression coverage proving zero Analyzer Inventory reads before native
+  authentication and one successful initial read after login, plus the existing
+  authenticated-start path.
+- Full automated suite passes 546/546 tests; dependency audit, production build
+  and userscript release-invariant verification pass.
+
+## [1.15.3] - 2026-10-05
+
 - Prepared the next patch candidate as `1.15.3`, based on the published `1.15.2`
   Better UI integration baseline. Loot item name/rarity metadata now comes only from the
   game's already-received `items.json`; the Analyzer passively observes the page's
