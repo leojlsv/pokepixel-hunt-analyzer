@@ -10,6 +10,7 @@ const INVENTORY_EVENTS = Object.freeze([
   "capture.failed",
   "loot.received"
 ]);
+const AUTH_LOGGED_IN_EVENT = "auth.loggedIn";
 
 function itemQuantity(item) {
   const value = Number(item?.qty ?? item?.quantity ?? 0);
@@ -105,6 +106,7 @@ export function createInventoryState({
     updatedAtMs: null
   };
   let api = null;
+  let auth = null;
   let bus = null;
   let disposed = false;
   let attached = false;
@@ -119,8 +121,16 @@ export function createInventoryState({
     onChange(snapshot);
   }
 
+  function isAuthenticated() {
+    try {
+      return auth?.isAuthenticated?.() === true;
+    } catch {
+      return false;
+    }
+  }
+
   async function refresh() {
-    if (disposed || !api?.getInventory) return snapshot;
+    if (disposed || !api?.getInventory || !isAuthenticated()) return snapshot;
     if (refreshPromise) return refreshPromise;
 
     refreshPromise = Promise.resolve()
@@ -157,6 +167,11 @@ export function createInventoryState({
   }
 
   function onBusEvent(eventName, payload) {
+    if (eventName === AUTH_LOGGED_IN_EVENT) {
+      void refresh();
+      return;
+    }
+
     const data = payloadData(payload);
 
     if (eventName === "capture.success" || eventName === "capture.failed") {
@@ -201,24 +216,28 @@ export function createInventoryState({
     if (disposed || attached) return;
     const pokeIdle = pageWindow?.PokeIdle;
     const nextApi = pokeIdle?.Api;
+    const nextAuth = pokeIdle?.Auth;
     const nextBus = pokeIdle?.Bus;
 
-    if (!nextApi || typeof nextApi.getInventory !== "function" || !nextBus || typeof nextBus.on !== "function") {
+    if (!nextApi || typeof nextApi.getInventory !== "function"
+      || !nextAuth || typeof nextAuth.isAuthenticated !== "function"
+      || !nextBus || typeof nextBus.on !== "function") {
       retryTimer = setTimeout(tryAttach, retryIntervalMs);
       return;
     }
 
     api = nextApi;
+    auth = nextAuth;
     bus = nextBus;
     attached = true;
 
-    for (const eventName of INVENTORY_EVENTS) {
+    for (const eventName of [...INVENTORY_EVENTS, AUTH_LOGGED_IN_EVENT]) {
       const handler = (payload) => onBusEvent(eventName, payload);
       handlers.set(eventName, handler);
       bus.on(eventName, handler, busContext);
     }
 
-    void refresh();
+    if (isAuthenticated()) void refresh();
   }
 
   function start() {
@@ -234,6 +253,8 @@ export function createInventoryState({
     refreshTimer = null;
     refreshDueAt = 0;
     detachBus();
+    auth = null;
+    api = null;
   }
 
   return {

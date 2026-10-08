@@ -10,9 +10,14 @@ import {
   normalizeClosedHudConfig
 } from "../../userscript/closed-hud.js";
 import {
+  createInventoryState,
   normalizeInventorySnapshot,
   decrementInventoryItem
 } from "../../userscript/inventory-state.js";
+
+function nextTask() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
 
 test("closed HUD default preset uses a two-slot Rarity Tracker", () => {
   const config = closedHudConfigForPreset("default");
@@ -268,6 +273,80 @@ test("local capture reconciliation decrements remaining ball until next inventor
   assert.notEqual(next, snapshot);
   assert.equal(next.byId.get("capsule_ultra").qty, 9);
   assert.equal(snapshot.byId.get("capsule_ultra").qty, 10);
+});
+
+test("inventory state waits for native authentication before its first API read", async () => {
+  let authenticated = false;
+  let inventoryReads = 0;
+  const listeners = new Map();
+  const bus = {
+    on(eventName, handler) {
+      listeners.set(eventName, handler);
+    },
+    off(eventName) {
+      listeners.delete(eventName);
+    }
+  };
+  const state = createInventoryState({
+    pageWindow: {
+      PokeIdle: {
+        Api: {
+          getInventory: async () => {
+            inventoryReads += 1;
+            return [{ item_id: "capsule_ultra", name: "Ultra Ball", type: "capsule", qty: 7 }];
+          }
+        },
+        Auth: {
+          isAuthenticated: () => authenticated
+        },
+        Bus: bus
+      }
+    }
+  });
+
+  state.start();
+  await nextTask();
+  assert.equal(inventoryReads, 0, "Analyzer must not read Inventory before the game is authenticated");
+  assert.equal(state.getSnapshot().ready, false);
+
+  authenticated = true;
+  listeners.get("auth.loggedIn")?.({});
+  await nextTask();
+
+  assert.equal(inventoryReads, 1);
+  assert.equal(state.getSnapshot().ready, true);
+  assert.equal(state.getSnapshot().byId.get("capsule_ultra").qty, 7);
+  state.dispose();
+});
+
+test("inventory state still primes immediately when native auth is already ready", async () => {
+  let inventoryReads = 0;
+  const state = createInventoryState({
+    pageWindow: {
+      PokeIdle: {
+        Api: {
+          getInventory: async () => {
+            inventoryReads += 1;
+            return [];
+          }
+        },
+        Auth: {
+          isAuthenticated: () => true
+        },
+        Bus: {
+          on() {},
+          off() {}
+        }
+      }
+    }
+  });
+
+  state.start();
+  await nextTask();
+
+  assert.equal(inventoryReads, 1);
+  assert.equal(state.getSnapshot().ready, true);
+  state.dispose();
 });
 
 test("Ball Tracker never rounds authoritative remaining inventory", () => {
