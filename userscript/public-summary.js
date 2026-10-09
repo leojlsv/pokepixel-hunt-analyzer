@@ -332,6 +332,21 @@ export function installPublicSummaryBridge({
           ? summary.epicAttempts.map(cloneAttempt)
           : []
       };
+    },
+    getLootSession() {
+      const summary = getSummary();
+      if (!summary || typeof summary !== "object") return null;
+      return {
+        protocol: PUBLIC_SUMMARY_PROTOCOL,
+        appVersion: String(appVersion || ""),
+        capturedAtMs: summary.capturedAtMs,
+        available: summary.available === true,
+        status: normalizedStatus(summary.status),
+        sessionGeneration: boundedInteger(summary.sessionGeneration, NUMBER_LIMIT),
+        activityKind: summary.activityKind === "expedition" ? "expedition" : "hunt",
+        startedAtMs: finiteOrNull(summary.startedAtMs),
+        lootHistory: copyLootHistory(summary.lootHistory).map(cloneLoot)
+      };
     }
   });
 

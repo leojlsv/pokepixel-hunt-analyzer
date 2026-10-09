@@ -7,6 +7,29 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+### Runtime performance / Better UI bridge — candidate 1.15.6
+- The protocol-1 public summary bridge now exposes an additive `getLootSession()`
+  reader containing only session identity/freshness plus bounded Loot history. Unlike
+  `getSummary()`, the lightweight reader does not mark the full Current summary as an
+  active consumer, so Better UI Game mode no longer keeps the complete Current refresh
+  loop alive merely to preserve Loot Story totals.
+- The 1-second Current refresh now runs only while standalone Current is actually visible
+  or a recent full `getSummary()` reader still needs live Current metrics. Embed mode by
+  itself no longer forces the ticker; protocol events continue to request authoritative
+  refreshes immediately.
+- Hidden/History Current DOM rendering is deferred until Current becomes visible again.
+  The Closed HUD keeps its live Time and per-hour metrics through a presentation-only
+  clock tick instead of forcing an IndexedDB Current reload.
+- Closed HUD encounter-derived Ball/IV aggregates are cached by Current revision instead
+  of rescanning the full Hunt every clock tick, and unchanged widget presentations retain
+  their existing DOM instead of rebuilding all four slots with `replaceChildren()`.
+- Compatibility is preserved: full `getSummary()` semantics and reader activation remain
+  unchanged, public protocol stays at version 1, and event-driven Current/Closed HUD
+  reconciliation remains authoritative.
+- **The exact `1.15.6` candidate, paired with Better UI `0.2.194`, was validated and
+  approved in-game by the Product Owner on 2026-10-09; commit, push, merge and release
+  were explicitly authorized.**
+
 ## [1.15.5] - 2026-10-09
 
 ### API pressure and observer lifecycle hardening

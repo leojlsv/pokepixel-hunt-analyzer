@@ -67,6 +67,36 @@ test("semantic navigation opens the Analyzer, selects detail views, and restores
   }
 });
 
+test("Current rendering is deferred while hidden or in History, then hydrated on reveal", async () => {
+  const window = new Window({ url: "https://play.pokepixel.example/" });
+  installBrowserGlobals(window);
+  window.matchMedia = () => ({ matches: false });
+  window.localStorage.setItem("pokepixel_hunt_analyzer_ui_v2", JSON.stringify({
+    shared: { view: "current", open: false, modeOverride: "desktop" },
+    desktop: { panel: null, launcher: null }, mobile: { launcher: null }
+  }));
+  const { createUi } = await import("../../userscript/ui.js");
+  const ui = createUi({ onSessionAction:()=>{}, onLoadHistorySessions:async()=>[], onLoadHistorySessionEncounters:async()=>[] });
+  const shadow = document.getElementById("pokepixel-hunt-analyzer-root").shadowRoot;
+  const heading = shadow.querySelector(".status-row > span");
+  const rarities = Object.fromEntries(["weak","common","uncommon","rare","epic","legendary","mythical"].map(key=>[key,{seen:0,captured:0,failed:0,shinySeen:0,shinyCaptured:0,shinyFailed:0}]));
+  const state = activityKind => ({ sessionId:"session", encounterSnapshotVersion:1, metrics:{status:"running", activityKind, rarities, gold:0,expenses:0}, encounters:[] });
+  try {
+    const before = heading.textContent;
+    ui.renderCurrent(state("expedition"));
+    assert.equal(heading.textContent, before, "hidden Current must retain its previous DOM");
+    assert.equal(ui.needsCurrentTicker(), false);
+    await ui.navigate("current-captured");
+    assert.equal(heading.textContent, "EXPEDITION", "opening Current flushes the cached snapshot");
+    assert.equal(ui.needsCurrentTicker(), true);
+    await ui.navigate("history-attempts");
+    ui.renderCurrent({ ...state("hunt"), encounterSnapshotVersion:2 });
+    assert.equal(heading.textContent, "EXPEDITION", "History leaves Current DOM alone");
+    await ui.navigate("current-captured");
+    assert.equal(heading.textContent, "Hunt", "returning to Current refreshes immediately");
+  } finally { window.happyDOM.abort(); }
+});
+
 test("History subtabs expose roving tab semantics for keyboard navigation", async () => {
   const window = new Window({ url: "https://play.pokepixel.example/" });
   installBrowserGlobals(window);

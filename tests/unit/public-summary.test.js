@@ -601,6 +601,30 @@ test("public bridge publishes a read-only snapshot provider and cleans up owners
   assert.equal(pageWindow[PUBLIC_SUMMARY_GLOBAL], undefined);
 });
 
+test("loot-only bridge reads bounded isolated loot without triggering full-summary refresh", () => {
+  const pageWindow = {};
+  let reads = 0;
+  const source = {
+    protocol: 1, appVersion: "test", capturedAtMs: 123, available: true,
+    status: "running", sessionGeneration: 3, activityKind: "hunt", startedAtMs: 100,
+    lootHistory: [{ atMs: 120, species: "Eevee", items: [{ itemId: "stone", qty: 2 }] }]
+  };
+  for (const name of ["attemptHistory", "specialHistory", "currentTarget", "rarityCounts", "epicAttempts"])
+    Object.defineProperty(source, name, { get() { throw Error(`unexpected ${name}`); } });
+  const dispose = installPublicSummaryBridge({ pageWindow, getSummary: () => source, onRead: () => { reads++; } });
+  const api = pageWindow[PUBLIC_SUMMARY_GLOBAL];
+  const first = api.getLootSession();
+  assert.equal(reads, 0);
+  assert.deepEqual(Object.keys(first), ["protocol", "appVersion", "capturedAtMs", "available", "status", "sessionGeneration", "activityKind", "startedAtMs", "lootHistory"]);
+  assert.equal(first.lootHistory[0].items[0].qty, 2);
+  first.lootHistory[0].items[0].qty = 999;
+  first.lootHistory.push({});
+  assert.equal(api.getLootSession().lootHistory[0].items[0].qty, 2);
+  assert.equal(source.lootHistory[0].items[0].qty, 2);
+  assert.equal(reads, 0);
+  dispose();
+});
+
 test("paused public summary suppresses a stale current target while preserving history", () => {
   const summary = createPublicSummary({
     now: 50,
