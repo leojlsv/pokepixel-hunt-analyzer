@@ -4,6 +4,7 @@ import { Window } from "happy-dom";
 
 const UI_STATE_KEY = "pokepixel_hunt_analyzer_ui_v2";
 import { computeSessionMetrics } from "../../domain/sessionMetrics.js";
+import { formatDuration } from "../../userscript/ui-utils.js";
 
 function installBrowserGlobals(window) {
   class TestMutationObserver {
@@ -324,4 +325,40 @@ test("disposing the analyzer releases listeners from every shared select proxy",
 
   assert.equal(summary.textContent, originalLabel);
   window.happyDOM.abort();
+});
+
+test("Closed HUD ticks preserve encounter scan and unchanged slot DOM", async () => {
+  const { window, shadow, closedHud } = await mountAnalyzer("desktop");
+  const now = Date.now();
+  let visits = 0;
+  const encounters = new Proxy([{ ivTotal:180, captureResult:"success", capsuleItemId:"capsule_basic", supplyCost:1 }], {
+    get(target, key) { if (key === Symbol.iterator) { visits++; return target[Symbol.iterator].bind(target); } return Reflect.get(target,key); }
+  });
+  const metrics = computeSessionMetrics({ session:{ sessionId:"long",status:"running",startedAtMs:now-3600000,activeStartedAtMs:now-3600000 }, encounters:[] });
+  metrics.seen=120; metrics.activeMs=3600000; metrics.status="running";
+  const state = { sessionId:"long",measuredAtMs:now-60_000,lootDataRevision:7,metrics,encounters };
+  try {
+    const timeWidget = shadow.querySelector('[data-hud-widget="2"]');
+    timeWidget.value="huntTime";
+    timeWidget.dispatchEvent(new window.Event("change",{bubbles:true}));
+    closedHud.render(state);
+    const slots = [...shadow.querySelectorAll('[data-hud-slot]')];
+    const baselineVisits=visits;
+    const initialTime=slots[2].textContent, initialRate=slots[1].textContent;
+    closedHud.tick(now);
+    assert.notEqual(slots[2].textContent,initialTime,"running Hunt Time advances without a Current load");
+    assert.notEqual(slots[1].textContent,initialRate,"running Seen/h recalculates");
+    assert.match(slots[2].textContent,new RegExp(formatDuration(3_660_000)),"tick elapsed time anchors to the authoritative metric measurement, not render completion");
+    closedHud.tick(now+1000);
+    const before = slots.map(slot=>slot.firstChild);
+    closedHud.tick(now+1000);
+    assert.equal(visits,baselineVisits,"ticks must reuse encounter-derived snapshot");
+    assert.ok(slots.every((slot,i)=>slot.firstChild===before[i]),"unchanged slot presentations retain nodes");
+    const derivedBefore=state.metrics.activeMs;
+    assert.equal(derivedBefore,3600000,"ticks must not mutate authoritative metrics");
+    closedHud.render({...state,metrics:{...metrics,status:"paused"}});
+    const paused=slots.map(slot=>slot.textContent);
+    closedHud.tick(now+10000);
+    assert.deepEqual(slots.map(slot=>slot.textContent),paused,"paused ticks do not advance");
+  } finally { closedHud.dispose();window.happyDOM.abort(); }
 });

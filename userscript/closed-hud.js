@@ -283,7 +283,7 @@ function ballStatsRow(map, itemId) {
   return map?.get(itemId) || { used: 0, success: 0, failed: 0, cost: 0 };
 }
 
-export function deriveClosedHudState({ metrics = {}, encounters = [] } = {}) {
+export function deriveClosedHudState({ metrics = {}, encounters = [] } = {}, encounterDerived = null) {
   const rarities = metrics.rarities || {};
   const shinyBucket = metrics.shiny || {};
   const raritySeen = {};
@@ -310,7 +310,7 @@ export function deriveClosedHudState({ metrics = {}, encounters = [] } = {}) {
   const ballStats = new Map();
   let highestIv = null;
 
-  for (const encounter of encounters || []) {
+  for (const encounter of encounterDerived ? [] : encounters || []) {
     const ivTotal = finiteOrNull(encounter?.ivTotal);
     if (ivTotal !== null) highestIv = highestIv === null ? ivTotal : Math.max(highestIv, ivTotal);
 
@@ -333,7 +333,8 @@ export function deriveClosedHudState({ metrics = {}, encounters = [] } = {}) {
   const expenses = numeric(metrics.expenses);
   const profit = dollar - expenses;
   const profitPerHour = activeMs > 0 ? profit * 3_600_000 / activeMs : null;
-  const totalBallsUsed = [...ballStats.values()].reduce((sum, row) => sum + row.used, 0);
+  const resolvedBallStats = encounterDerived?.ballStats || ballStats;
+  const totalBallsUsed = encounterDerived?.totalBallsUsed ?? [...resolvedBallStats.values()].reduce((sum, row) => sum + row.used, 0);
 
   return {
     seen: numeric(metrics.seen),
@@ -357,10 +358,10 @@ export function deriveClosedHudState({ metrics = {}, encounters = [] } = {}) {
     rarePlusFailed,
     shinySeen: shinyBucket.seen == null ? fallbackShinySeen : numeric(shinyBucket.seen),
     shinyCaptured: shinyBucket.captured == null ? fallbackShinyCaptured : numeric(shinyBucket.captured),
-    highestIv,
+    highestIv: encounterDerived ? encounterDerived.highestIv : highestIv,
     totalBallsUsed,
-    ballStats,
-    ballUsage: new Map([...ballStats].map(([itemId, row]) => [itemId, row.used]))
+    ballStats: resolvedBallStats,
+    ballUsage: encounterDerived?.ballUsage || new Map([...resolvedBallStats].map(([itemId, row]) => [itemId, row.used]))
   };
 }
 
@@ -838,6 +839,12 @@ export function createClosedHud({
   let settingsButton = null;
   let style = null;
   let lastState = null;
+  let lastAuthoritativeAtMs = null;
+  let transientState = null;
+  let encounterCacheKey = null;
+  let encounterCache = null;
+  let encounterCacheSource = null;
+  const slotSignatures = new Map();
   let config = readStoredConfig();
   let inventorySnapshot = null;
   let mounted = false;
@@ -868,6 +875,7 @@ export function createClosedHud({
 
   function saveConfig(nextConfig) {
     config = normalizeClosedHudConfig(nextConfig);
+    slotSignatures.clear();
     writeStoredConfig(config);
     syncSettings();
     renderLastState();
@@ -1009,6 +1017,7 @@ export function createClosedHud({
 
   function mount() {
     if (mounted) return;
+    slotSignatures.clear();
     shadow = document.getElementById(ROOT_ID)?.shadowRoot || null;
     if (!shadow) return;
 
@@ -1192,7 +1201,15 @@ export function createClosedHud({
     if (!mounted || !grid || !lastState) return;
     const inventory = activeInventory();
     potionUsage.reconcile(lastState.sessionId, inventory);
-    const derived = deriveClosedHudState(lastState);
+    const state = transientState || lastState;
+    const key = JSON.stringify([lastState.sessionId ?? null, lastState.lootDataRevision ?? lastState.encounterSnapshotVersion ?? null]);
+    if (encounterCacheKey !== key || (lastState.lootDataRevision == null && lastState.encounterSnapshotVersion == null && encounterCacheSource !== lastState.encounters)) {
+      const scan = deriveClosedHudState(lastState);
+      encounterCache = { highestIv:scan.highestIv, ballStats:scan.ballStats, totalBallsUsed:scan.totalBallsUsed, ballUsage:scan.ballUsage };
+      encounterCacheKey = key;
+      encounterCacheSource = lastState.encounters;
+    }
+    const derived = deriveClosedHudState(state, encounterCache);
     derived.potionUsage = potionUsage.getSnapshot().usage;
 
     for (let index = 0; index < 4; index += 1) {
@@ -1202,6 +1219,10 @@ export function createClosedHud({
       const size = slotSize(slot);
       const rowStart = index % 2 === 0;
       const consumed = !rowStart && slot.widget === "empty" && slotSize(config.slots[index - 1]) === 2;
+
+      const slotSignature = JSON.stringify([slot, display, size, consumed]);
+      if (slotSignatures.get(index) === slotSignature) continue;
+      slotSignatures.set(index, slotSignature);
 
       slotElement.className = "pha-hud-slot";
       slotElement.classList.toggle("is-empty", Boolean(display.empty));
@@ -1239,11 +1260,25 @@ export function createClosedHud({
 
   function render(state) {
     lastState = state;
+    transientState = null;
+    lastAuthoritativeAtMs = Number.isFinite(state?.measuredAtMs) ? state.measuredAtMs : Date.now();
     renderLastState();
     if (!hydrated) {
       hydrated = true;
       if (launcher) launcher.style.visibility = "";
     }
+  }
+
+  function tick(now = Date.now()) {
+    if (!lastState || !mounted || lastState.metrics?.status !== "running" || !Number.isFinite(now)) return;
+    const elapsed = Math.max(0, now - (lastAuthoritativeAtMs ?? now));
+    const metrics = lastState.metrics;
+    const activeMs = numeric(metrics.activeMs) + elapsed;
+    const rate = value => activeMs > 0 ? numeric(value) * 3_600_000 / activeMs : null;
+    transientState = { ...lastState, metrics: { ...metrics, activeMs,
+      seenPerHour:rate(metrics.seen), trainerExpPerHour:rate(metrics.trainerExp),
+      pokemonExpPerHour:rate(metrics.pokemonExp), goldPerHour:rate(metrics.gold) } };
+    renderLastState();
   }
 
   function dispose() {
@@ -1266,11 +1301,18 @@ export function createClosedHud({
     settingsButton = null;
     style = null;
     lastState = null;
+    transientState = null;
+    lastAuthoritativeAtMs = null;
+    encounterCacheKey = null;
+    encounterCache = null;
+    encounterCacheSource = null;
+    slotSignatures.clear();
   }
 
   return {
     mount,
     render,
+    tick,
     dispose,
     getConfig: () => normalizeClosedHudConfig(config),
     getInventorySnapshot: () => activeInventory(),

@@ -96,6 +96,16 @@ kill Gold + loot sell value + realized Pokémon auto-sell
 
 Ball metrics are aggregated from current-Hunt encounters by `capsuleItemId`. A terminal `success` or `failed` encounter counts as one Ball use.
 
+The encounter-derived Ball/IV snapshot is cached by the authoritative Current revision.
+The 1-second presentation clock does not rescan the Hunt. While the Hunt is running,
+Closed HUD time and per-hour widgets advance from the last authoritative state locally;
+paused/waiting states do not advance. Protocol/session changes still replace that base
+state through the normal Current reconciliation path.
+
+Closed HUD rendering is presentation-diffed per slot. If a tick produces the same visible
+widget output, the existing slot nodes are retained instead of being rebuilt. This keeps
+the compact HUD live without creating four-slot DOM churn every second.
+
 ## 3. Formatting rules
 
 The Closed HUD is data-first and prioritizes correctness over decorative labels.

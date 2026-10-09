@@ -20,6 +20,7 @@ import {
   resolvePageWindow
 } from "./websocket-observer.js";
 import { createCurrentRefreshGate } from "./current-refresh-gate.js";
+import { needsPeriodicCurrentRefresh } from "./current-refresh-policy.js";
 import { createUi } from "./ui.js";
 import { createAudioAlerts } from "./audio-alerts-runtime.js";
 import { createCatchGallery } from "./catch-gallery.js";
@@ -401,6 +402,7 @@ async function performCurrentLoad() {
   const metrics = refreshSessionMetrics(cachedAggregateMetrics, session, now);
   const currentState = {
     sessionId,
+    measuredAtMs: now,
     sessionGeneration: sessionId == null ? null : publicSessionGeneration,
     endedAtMs: Number.isFinite(session?.endedAtMs) ? session.endedAtMs : null,
     encounterSnapshotVersion: encounterListSnapshotVersion,
@@ -651,9 +653,14 @@ function scheduleLeadershipRefresh() {
 function scheduleRefreshes() {
   if (runtimeDisposed || currentRefreshInterval !== null) return;
   currentRefreshInterval = setInterval(() => {
-    const publicReaderActive = Number.isFinite(lastPublicSummaryReadAtMs)
-      && Date.now() - lastPublicSummaryReadAtMs <= PUBLIC_SUMMARY_READER_GRACE_MS;
-    if (!embedded && ui?.getActiveView() !== "current" && !publicReaderActive) return;
+    const now = Date.now();
+    if (!embedded) closedHud?.tick(now);
+    if (!needsPeriodicCurrentRefresh({
+      currentVisible: ui?.needsCurrentTicker?.() === true,
+      lastFullReadAtMs: lastPublicSummaryReadAtMs,
+      now,
+      graceMs: PUBLIC_SUMMARY_READER_GRACE_MS
+    })) return;
     loadCurrent().catch((error) => {
       console.error("PokePixel Hunt Analyzer (Current refresh):", error);
     });

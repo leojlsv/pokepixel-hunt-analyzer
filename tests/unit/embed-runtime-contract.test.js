@@ -48,13 +48,14 @@ test("embed Current hydration depends on repositories, not on the optional Analy
   assert.match(body, /ui\?\.renderCurrent/);
 });
 
-test("Current refresh stays active for embed or a recent standalone public-summary reader", async () => {
+test("Current ticker depends on visible Current or a recent full public-summary reader", async () => {
   const source = await mainSource();
   const body = functionBody(source, "scheduleRefreshes");
 
-  assert.match(body, /publicReaderActive/);
+  assert.match(body, /needsPeriodicCurrentRefresh/);
   assert.match(body, /lastPublicSummaryReadAtMs/);
-  assert.match(body, /if\s*\(\s*!embedded\s*&&\s*ui\?\.getActiveView\(\)\s*!==\s*"current"\s*&&\s*!publicReaderActive\s*\)\s*return/);
+  assert.match(body, /ui\?\.needsCurrentTicker\?\.\(\)/);
+  assert.match(body, /if\s*\(!embedded\)\s*closedHud\?\.tick\(now\)/);
   assert.match(body, /loadCurrent\(\)/);
 });
 

@@ -62,6 +62,8 @@ export function createUi({
   let currentView;
   let historyView;
   let lastHistorySource = null;
+  let latestCurrentState = null;
+  let currentRenderPending = false;
   let externalReturnFocus = null;
   let navigationEpoch = 0;
 
@@ -167,12 +169,19 @@ export function createUi({
       tab.classList.toggle("active", tab.dataset.view === activeView);
     }
     saveUiState({ view: activeView });
+    flushVisibleCurrent();
 
     if (activeView === "history") {
       historyView.ensureLoaded().catch((error) => {
         console.error("PokePixel Hunt Analyzer (History):", error);
       });
     }
+  }
+
+  function flushVisibleCurrent() {
+    if (activeView !== "current" || panel.hidden || !currentRenderPending) return;
+    currentView.render(latestCurrentState);
+    currentRenderPending = false;
   }
 
   function renderCurrent(state) {
@@ -193,7 +202,9 @@ export function createUi({
       historyView.invalidate();
     }
     lastHistorySource = source;
-    currentView.render(state);
+    latestCurrentState = state;
+    currentRenderPending = true;
+    flushVisibleCurrent();
     if (activeView === "history") historyView.refreshLootCatalog();
   }
 
@@ -208,6 +219,7 @@ export function createUi({
   function setPanelOpen(open) {
     if (!open) navigationEpoch += 1;
     panel.hidden = !open;
+    if (open) flushVisibleCurrent();
     if (uiMode === "mobile") launcher.hidden = open;
     if (resizeHandle) resizeHandle.hidden = !open;
     saveUiState({ open });
@@ -780,6 +792,7 @@ export function createUi({
     },
     navigate,
     getActiveView: () => activeView,
+    needsCurrentTicker: () => activeView === "current" && !panel.hidden,
     getHistoryView: () => historyView?.getActiveSubview?.() || "hunts",
     getUiMode: () => uiMode
   };

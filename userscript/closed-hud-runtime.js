@@ -1189,6 +1189,7 @@ export function createClosedHud(options = {}) {
   return {
     mount,
     render,
+    tick: (now) => hud.tick(now),
     dispose,
     getConfig: () => hud.getConfig(),
     getInventorySnapshot: () => hud.getInventorySnapshot(),

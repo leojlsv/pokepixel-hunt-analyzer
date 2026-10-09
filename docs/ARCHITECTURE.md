@@ -85,8 +85,12 @@ mode itself remains explicit rather than inferred:
   identical to the standalone Analyzer and remain authoritative;
 - panel/HUD, audio controls, Catch Gallery, History controls and the broad diagnostics
   page global are not mounted in embed mode;
-- `__POKEPIXEL_HUNT_ANALYZER_PUBLIC__` exposes only `protocol`, `appVersion` and a
-  read-only `getSummary()` function returning a copy of the bounded Current summary;
+- `__POKEPIXEL_HUNT_ANALYZER_PUBLIC__` exposes `protocol`, `appVersion`, the existing
+  read-only `getSummary()` function returning a copy of the bounded Current summary, and
+  additive `getLootSession()`. The lightweight reader returns only source freshness,
+  Current session identity/activity and bounded Loot rows; it does not traverse
+  Attempt/Special/target/rarity projections and does not activate the full-summary reader
+  grace window;
 - `__POKEPIXEL_HUNT_ANALYZER_CONTROL__` exposes only `pause`, `resume` and `reset`, and
   those actions still require the Analyzer tab to hold analytics leadership;
 - standalone UI additionally exposes `__POKEPIXEL_HUNT_ANALYZER_UI__` with its own
@@ -95,9 +99,11 @@ mode itself remains explicit rather than inferred:
   hunts/pokemon/attempts/loot), so consumers never depend on Shadow DOM selectors,
   internal tab IDs, session IDs or encounter IDs. This bridge is installed only after
   the standalone UI mounts and is absent in embed mode;
-- standalone keeps the normal Analyzer UI and diagnostics. When a public consumer is
-  actively polling the summary, Current hydration also stays fresh while the Analyzer
-  panel is on another view; the extra refresh stops after the reader becomes inactive;
+- standalone keeps the normal Analyzer UI and diagnostics. The 1-second authoritative
+  Current refresh runs while Current is actually visible or while a recent full
+  `getSummary()` consumer remains active. A loot-only consumer does not keep that loop
+  alive; protocol events still request authoritative refreshes and the Closed HUD advances
+  clock-derived presentation locally between those refreshes;
 - every available snapshot carries Analyzer-owned `capturedAtMs`, allowing consumers
   to reject a frozen source instead of treating transport heartbeats as data freshness;
 - the bounded presentation summary includes the canonical Current-Hunt `Seen` counts
