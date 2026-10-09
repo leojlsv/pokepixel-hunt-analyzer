@@ -1191,7 +1191,9 @@ export function createClosedHud(options = {}) {
     render,
     dispose,
     getConfig: () => hud.getConfig(),
-    getInventorySnapshot: () => hud.getInventorySnapshot()
+    getInventorySnapshot: () => hud.getInventorySnapshot(),
+    getInventoryDiagnostics: () => hud.getInventoryDiagnostics(),
+    refreshInventory: (cause) => hud.refreshInventory(cause)
   };
 }
 

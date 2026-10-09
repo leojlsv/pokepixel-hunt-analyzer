@@ -825,7 +825,12 @@ const CLOSED_HUD_STYLE = `
   .pha-hud-inventory-status.ready { color:#70dfaa; }
 `;
 
-export function createClosedHud({ pageWindow, onInventoryChange = () => {} } = {}) {
+export function createClosedHud({
+  pageWindow,
+  onInventoryChange = () => {},
+  isInventoryActive = () => true,
+  getApiRateLimitUntil = () => 0
+} = {}) {
   let shadow = null;
   let launcher = null;
   let grid = null;
@@ -847,6 +852,8 @@ export function createClosedHud({ pageWindow, onInventoryChange = () => {} } = {
 
   const inventoryState = createInventoryState({
     pageWindow,
+    isActive: isInventoryActive,
+    getExternalRateLimitUntil: getApiRateLimitUntil,
     onChange: (snapshot) => {
       inventorySnapshot = snapshot;
       syncSettings();
@@ -1266,6 +1273,8 @@ export function createClosedHud({ pageWindow, onInventoryChange = () => {} } = {
     render,
     dispose,
     getConfig: () => normalizeClosedHudConfig(config),
-    getInventorySnapshot: () => activeInventory()
+    getInventorySnapshot: () => activeInventory(),
+    getInventoryDiagnostics: () => inventoryState.getDiagnostics(),
+    refreshInventory: (cause = "manual") => inventoryState.refresh(cause)
   };
 }
