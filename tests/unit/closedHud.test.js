@@ -19,6 +19,46 @@ function nextTask() {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+function createFakeClock(startAtMs = 0) {
+  let timestamp = startAtMs;
+  let nextId = 1;
+  const timers = new Map();
+
+  function setTimer(callback, delayMs) {
+    const id = nextId;
+    nextId += 1;
+    timers.set(id, { callback, dueAt: timestamp + Math.max(0, Number(delayMs) || 0) });
+    return id;
+  }
+
+  function clearTimer(id) {
+    timers.delete(id);
+  }
+
+  function advance(ms) {
+    timestamp += ms;
+    let ran;
+    do {
+      ran = false;
+      const due = [...timers.entries()]
+        .filter(([, timer]) => timer.dueAt <= timestamp)
+        .sort((left, right) => left[1].dueAt - right[1].dueAt);
+      for (const [id, timer] of due) {
+        if (!timers.delete(id)) continue;
+        timer.callback();
+        ran = true;
+      }
+    } while (ran);
+  }
+
+  return {
+    now: () => timestamp,
+    setTimer,
+    clearTimer,
+    advance
+  };
+}
+
 test("closed HUD default preset uses a two-slot Rarity Tracker", () => {
   const config = closedHudConfigForPreset("default");
 
@@ -346,6 +386,228 @@ test("inventory state still primes immediately when native auth is already ready
 
   assert.equal(inventoryReads, 1);
   assert.equal(state.getSnapshot().ready, true);
+  state.dispose();
+});
+
+test("inventory state performs network reads only while this tab is ACTIVE", async () => {
+  let active = false;
+  let inventoryReads = 0;
+  const state = createInventoryState({
+    pageWindow: {
+      PokeIdle: {
+        Api: { getInventory: async () => { inventoryReads += 1; return []; } },
+        Auth: { isAuthenticated: () => true },
+        Bus: { on() {}, off() {} }
+      }
+    },
+    isActive: () => active
+  });
+
+  state.start();
+  await nextTask();
+  assert.equal(inventoryReads, 0);
+  assert.equal(state.getDiagnostics().inactiveSuppressed, 1);
+
+  active = true;
+  await state.refresh("leadership");
+  assert.equal(inventoryReads, 1);
+  assert.equal(state.getDiagnostics().requestsSucceeded, 1);
+  state.dispose();
+});
+
+test("inventory request gate caps repeated refreshes to the minimum cadence", async () => {
+  const clock = createFakeClock();
+  let inventoryReads = 0;
+  const listeners = new Map();
+  const state = createInventoryState({
+    pageWindow: {
+      PokeIdle: {
+        Api: { getInventory: async () => { inventoryReads += 1; return []; } },
+        Auth: { isAuthenticated: () => true },
+        Bus: {
+          on(name, handler) { listeners.set(name, handler); },
+          off(name) { listeners.delete(name); }
+        }
+      }
+    },
+    minimumRequestIntervalMs: 5_000,
+    now: clock.now,
+    setTimer: clock.setTimer,
+    clearTimer: clock.clearTimer
+  });
+
+  state.start();
+  await nextTask();
+  assert.equal(inventoryReads, 1);
+
+  for (let index = 0; index < 20; index += 1) {
+    listeners.get("inventory.updated")?.({});
+    clock.advance(100);
+  }
+  await nextTask();
+  assert.equal(inventoryReads, 1, "event burst must not bypass the five-second request floor");
+
+  clock.advance(3_000);
+  await nextTask();
+  assert.equal(inventoryReads, 2);
+  const diagnostics = state.getDiagnostics();
+  assert.ok(diagnostics.coalescedEvents > 0);
+  assert.equal(diagnostics.requestsStarted, 2);
+  state.dispose();
+});
+
+test("inventory 429 honors backoff and retries once the cooldown expires", async () => {
+  const clock = createFakeClock();
+  let inventoryReads = 0;
+  const state = createInventoryState({
+    pageWindow: {
+      PokeIdle: {
+        Api: {
+          getInventory: async () => {
+            inventoryReads += 1;
+            if (inventoryReads === 1) {
+              throw { response: { status: 429, headers: { "retry-after": "2" } } };
+            }
+            return [];
+          }
+        },
+        Auth: { isAuthenticated: () => true },
+        Bus: { on() {}, off() {} }
+      }
+    },
+    minimumRequestIntervalMs: 0,
+    rateLimitBackoffMs: 1_000,
+    maximumBackoffMs: 5_000,
+    now: clock.now,
+    setTimer: clock.setTimer,
+    clearTimer: clock.clearTimer
+  });
+
+  state.start();
+  await nextTask();
+  assert.equal(inventoryReads, 1);
+  assert.equal(state.getDiagnostics().rateLimitFailures, 1);
+  assert.equal(state.getDiagnostics().backoffMs, 2_000);
+
+  await state.refresh("manual");
+  assert.equal(inventoryReads, 1, "manual refresh must respect the active 429 cooldown");
+  clock.advance(1_999);
+  await nextTask();
+  assert.equal(inventoryReads, 1);
+  clock.advance(1);
+  await nextTask();
+  assert.equal(inventoryReads, 2);
+  assert.equal(state.getDiagnostics().requestsSucceeded, 1);
+  state.dispose();
+});
+
+test("external page API cooldown delays Inventory even when Inventory itself has not failed", async () => {
+  const clock = createFakeClock();
+  let inventoryReads = 0;
+  let pageRateLimitUntil = 5_000;
+  const state = createInventoryState({
+    pageWindow: {
+      PokeIdle: {
+        Api: { getInventory: async () => { inventoryReads += 1; return []; } },
+        Auth: { isAuthenticated: () => true },
+        Bus: { on() {}, off() {} }
+      }
+    },
+    getExternalRateLimitUntil: () => pageRateLimitUntil,
+    minimumRequestIntervalMs: 0,
+    now: clock.now,
+    setTimer: clock.setTimer,
+    clearTimer: clock.clearTimer
+  });
+
+  state.start();
+  await nextTask();
+  assert.equal(inventoryReads, 0);
+  assert.equal(state.getDiagnostics().deferredRequests, 1);
+  clock.advance(5_000);
+  pageRateLimitUntil = 0;
+  await nextTask();
+  assert.equal(inventoryReads, 1);
+  state.dispose();
+});
+
+test("authorization failure pauses Inventory until the native logged-in event", async () => {
+  let inventoryReads = 0;
+  const listeners = new Map();
+  const state = createInventoryState({
+    pageWindow: {
+      PokeIdle: {
+        Api: {
+          getInventory: async () => {
+            inventoryReads += 1;
+            if (inventoryReads === 1) throw { response: { status: 401 } };
+            return [];
+          }
+        },
+        Auth: { isAuthenticated: () => true },
+        Bus: {
+          on(name, handler) { listeners.set(name, handler); },
+          off(name) { listeners.delete(name); }
+        }
+      }
+    },
+    minimumRequestIntervalMs: 0
+  });
+
+  state.start();
+  await nextTask();
+  assert.equal(inventoryReads, 1);
+  assert.equal(state.getDiagnostics().authBlocked, true);
+
+  listeners.get("inventory.updated")?.({});
+  await nextTask();
+  assert.equal(inventoryReads, 1);
+
+  listeners.get("auth.loggedIn")?.({});
+  await nextTask();
+  assert.equal(inventoryReads, 2);
+  assert.equal(state.getDiagnostics().authBlocked, false);
+  state.dispose();
+});
+
+test("stale rejection from the previous auth generation cannot block the new login", async () => {
+  let rejectFirst;
+  let inventoryReads = 0;
+  const listeners = new Map();
+  const state = createInventoryState({
+    pageWindow: {
+      PokeIdle: {
+        Api: {
+          getInventory: () => {
+            inventoryReads += 1;
+            if (inventoryReads === 1) {
+              return new Promise((_, reject) => { rejectFirst = reject; });
+            }
+            return Promise.resolve([]);
+          }
+        },
+        Auth: { isAuthenticated: () => true },
+        Bus: {
+          on(name, handler) { listeners.set(name, handler); },
+          off(name) { listeners.delete(name); }
+        }
+      }
+    },
+    minimumRequestIntervalMs: 0
+  });
+
+  state.start();
+  await nextTask();
+  assert.equal(inventoryReads, 1);
+
+  listeners.get("auth.loggedIn")?.({});
+  rejectFirst({ response: { status: 401 } });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+
+  assert.equal(state.getDiagnostics().authBlocked, false);
+  assert.equal(state.getDiagnostics().authFailures, 0);
+  assert.equal(state.getDiagnostics().staleResponsesDiscarded, 1);
+  assert.equal(inventoryReads, 2, "the fresh login must still perform its own Inventory reconciliation");
   state.dispose();
 });
 

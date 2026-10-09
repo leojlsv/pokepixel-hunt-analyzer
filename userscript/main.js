@@ -53,6 +53,7 @@ const PUBLIC_SUMMARY_READER_GRACE_MS = 3_000;
 const EVENT_REFRESH_DELAY_MS = 75;
 const STANDBY_RECONCILE_MS = 10_000;
 const CATCH_GALLERY_LOAD_LIMIT = 500;
+const PAGE_API_RATE_LIMIT_FALLBACK_MS = 30_000;
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const CATCH_GALLERY_SECTION_ID = "catch-gallery";
 const CATCH_GALLERY_BETA_STYLE_ID = "pha-catch-gallery-beta-style";
@@ -117,6 +118,12 @@ let disposePublicSessionControl = null;
 let disposePublicUiBridge = null;
 let lastPublicSummaryReadAtMs = null;
 let leadershipEpoch = 0;
+let leadershipRefreshInterval = null;
+let currentRefreshInterval = null;
+let runtimeDisposed = false;
+let pageApiRateLimitCount = 0;
+let pageApiRateLimitedUntilMs = 0;
+let lastPageApiRateLimitAtMs = null;
 let resolveReady;
 const ready = new Promise((resolve) => {
   resolveReady = resolve;
@@ -231,6 +238,7 @@ const leadership = createTabLeadership({
     leadershipEpoch += 1;
     ui?.setActive(isActive);
     markEncounterListDirty();
+    if (isActive) void closedHud?.refreshInventory("leadership");
   }
 });
 
@@ -241,6 +249,18 @@ function stillOwnsLeadership(epoch) {
 function finiteOrNull(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function notePageApiRateLimit({ retryAfterMs = null } = {}) {
+  const now = Date.now();
+  const requestedDelay = Number(retryAfterMs);
+  const delayMs = Math.max(
+    PAGE_API_RATE_LIMIT_FALLBACK_MS,
+    Number.isFinite(requestedDelay) && requestedDelay >= 0 ? requestedDelay : 0
+  );
+  pageApiRateLimitCount += 1;
+  lastPageApiRateLimitAtMs = now;
+  pageApiRateLimitedUntilMs = Math.max(pageApiRateLimitedUntilMs, now + delayMs);
 }
 
 function requestCurrentRefresh() {
@@ -449,6 +469,12 @@ async function buildDiagnosticsSnapshot() {
         encounterCount: cachedEncounters.length,
         lastEncounterSyncAt
       },
+      apiRateLimit: {
+        observed429: pageApiRateLimitCount,
+        lastObservedAtMs: lastPageApiRateLimitAtMs,
+        limitedUntilMs: pageApiRateLimitedUntilMs || null
+      },
+      inventory: closedHud?.getInventoryDiagnostics?.() ?? null,
       currentRender: lastCurrentRender
         ? { atMs: lastCurrentRenderAtMs, ...lastCurrentRender }
         : null
@@ -591,7 +617,11 @@ function mountUiWhenReady() {
       appVersion: APP_VERSION,
       navigate: (destination) => ui?.navigate(destination) || { ok: false, reason: "navigation-unavailable" }
     });
-    closedHud = createClosedHud({ pageWindow });
+    closedHud = createClosedHud({
+      pageWindow,
+      isInventoryActive: () => leadership.isActive(),
+      getApiRateLimitUntil: () => pageApiRateLimitedUntilMs
+    });
     closedHud.mount();
     audioAlerts?.mountControls();
     catchGallery?.mountControls();
@@ -614,11 +644,13 @@ function mountUiWhenReady() {
 }
 
 function scheduleLeadershipRefresh() {
-  setInterval(() => leadership.refresh(), TAB_LOCK_REFRESH_MS);
+  if (runtimeDisposed || leadershipRefreshInterval !== null) return;
+  leadershipRefreshInterval = setInterval(() => leadership.refresh(), TAB_LOCK_REFRESH_MS);
 }
 
 function scheduleRefreshes() {
-  setInterval(() => {
+  if (runtimeDisposed || currentRefreshInterval !== null) return;
+  currentRefreshInterval = setInterval(() => {
     const publicReaderActive = Number.isFinite(lastPublicSummaryReadAtMs)
       && Date.now() - lastPublicSummaryReadAtMs <= PUBLIC_SUMMARY_READER_GRACE_MS;
     if (!embedded && ui?.getActiveView() !== "current" && !publicReaderActive) return;
@@ -639,7 +671,8 @@ async function initialize() {
     onItems: (payload) => {
       lootItemCatalog = createLootItemCatalog(payload);
       ui?.refreshLootCatalog();
-    }
+    },
+    onRateLimited: notePageApiRateLimit
   });
   embedded = isEmbedMode(pageWindow);
   disposePublicSummaryBridge = installPublicSummaryBridge({
@@ -688,7 +721,10 @@ async function initialize() {
   scheduleRefreshes();
 }
 
-window.addEventListener("beforeunload", () => {
+function disposeRuntime() {
+  if (runtimeDisposed) return;
+  runtimeDisposed = true;
+  resolveReady?.();
   catchGallery?.dispose();
   historyDeleteControl?.dispose();
   closedHud?.dispose();
@@ -697,10 +733,24 @@ window.addEventListener("beforeunload", () => {
   disposePublicUiBridge?.();
   disposeItemsJsonObserver?.();
   if (eventRefreshTimer !== null) clearTimeout(eventRefreshTimer);
+  if (leadershipRefreshInterval !== null) clearInterval(leadershipRefreshInterval);
+  if (currentRefreshInterval !== null) clearInterval(currentRefreshInterval);
+  eventRefreshTimer = null;
+  leadershipRefreshInterval = null;
+  currentRefreshInterval = null;
+  try {
+    if (pageWindow?.[DIAGNOSTICS_GLOBAL] === buildDiagnosticsSnapshot) {
+      delete pageWindow[DIAGNOSTICS_GLOBAL];
+    }
+  } catch {
+  }
   void pipeline?.flushDiagnostics();
   leadership.release();
-});
+}
+
+window.addEventListener("beforeunload", disposeRuntime, { once: true });
 
 initialize().catch((error) => {
+  disposeRuntime();
   console.error("PokePixel Hunt Analyzer userscript:", error);
 });

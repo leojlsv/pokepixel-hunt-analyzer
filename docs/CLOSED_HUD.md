@@ -149,6 +149,24 @@ Legacy `shinySeen` and `shinyCaptured` configuration values normalize to `shinyT
 
 Inventory values come from the page-owned PokePixel Inventory API through `userscript/inventory-state.js`.
 
+Only the Analyzer tab that currently owns ACTIVE leadership may call that API.
+STANDBY tabs keep their local display state but do not add authenticated Inventory
+traffic; a promoted tab performs one bounded reconciliation when it becomes ACTIVE.
+
+Inventory reads are rate-limited independently from event debounce:
+
+- request starts are spaced by at least 5 seconds;
+- repeated inventory/capture/loot signals coalesce behind the same pending refresh;
+- an Inventory `429` honors `Retry-After` and otherwise backs off for at least 30 seconds;
+- a same-origin PokePixel `/api/...` `429` observed from the game's own request also
+  delays Inventory reads, preventing the HUD from adding pressure while the page is
+  already server-rate-limited;
+- `401/403` pauses reads until the native `auth.loggedIn` event establishes a fresh
+  authenticated session.
+
+These controls affect only reconciliation timing. Ball usage still decrements locally
+from authoritative capture events, so the tracker does not need a request per capture.
+
 ### Balls
 
 Ball usage is deterministic from persisted current-Hunt encounters, so reload does not require an additional usage counter.

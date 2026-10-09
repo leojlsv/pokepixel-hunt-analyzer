@@ -7,6 +7,39 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.15.5] - 2026-10-09
+
+### API pressure and observer lifecycle hardening
+- Inventory reconciliation is now performed only by the ACTIVE Analyzer tab and
+  is capped to one request start every 5 seconds. Bursty `inventory.updated`,
+  capture and loot events coalesce behind that request gate instead of producing
+  repeated authenticated reads in every open tab.
+- Inventory HTTP failures now use bounded backoff: `429` respects `Retry-After`
+  with a conservative 30-second floor, transient/network failures back off, and
+  `401/403` pauses Inventory until the game's next native `auth.loggedIn` event.
+- Same-origin PokePixel `/api/...` `429` responses observed from the game's own
+  Fetch/XHR traffic also suppress new Analyzer Inventory reads during the cooldown,
+  reducing contribution to a shared server quota even when `/inventory` itself
+  has not failed yet.
+- Inventory diagnostics expose request counts, suppression/defer counters,
+  last sanitized HTTP status, current cooldown and ACTIVE/auth state through the
+  existing local diagnostics bridge. No URL, token, cookie or account identifier
+  is added to diagnostics.
+- The passive `items.json` Fetch/XHR observer is now a shared page singleton with
+  subscriber ownership and idempotent cleanup. Repeated installs no longer stack
+  Analyzer wrappers, and cleanup never overwrites a later third-party wrapper.
+- Runtime refresh interval handles are retained and cleared on teardown or failed
+  initialization instead of relying only on page destruction.
+
+### Validation
+- Added regression coverage for ACTIVE/STANDBY Inventory isolation, minimum request
+  cadence, global API cooldown, `429` retry/backoff, authorization recovery,
+  singleton observer ownership and third-party wrapper preservation.
+- Full automated suite passes 560/560 tests; dependency audit, production build
+  and userscript release-invariant verification pass. A 60-second synthetic burst
+  of 300 `inventory.updated` signals produced 13 reads total (one bootstrap plus
+  the 5-second request cadence), instead of event-rate request amplification.
+
 ## [1.15.4] - 2026-10-07
 
 ### Authentication-aware Inventory bootstrap
