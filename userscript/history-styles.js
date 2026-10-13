@@ -121,6 +121,37 @@ export const HISTORY_STYLES = String.raw`
   border-color: var(--gold-soft);
   color: var(--gold);
 }
+.history-clear-all { color: #e3a7a0; border-color: #805452; }
+.history-clear-all:hover:not(:disabled) { background: #4e2928; }
+.history-clear-all:disabled { cursor: default; opacity: .45; }
+.history-clear-all-status { color: var(--muted); font-size: 10px; }
+.history-clear-all-status[hidden] { display: none; }
+
+/* History actions share one aligned row; override legacy button margins. */
+.history-toolbar { min-height: 24px; }
+.history-toolbar > .section-badge { height: 24px; }
+.history-toolbar > .history-more-button {
+  margin: 0;
+  height: 24px;
+  flex: 0 0 auto;
+}
+/* Red destructive action, including the inactive and mobile states. */
+.history-toolbar > .history-clear-all {
+  border-color: #d76868;
+  background: #63272c;
+  color: #ffe4e4;
+  font-weight: 700;
+}
+.history-toolbar > .history-clear-all:hover:not(:disabled) {
+  border-color: #f08b8b;
+  background: #803238;
+  color: #fff;
+}
+.history-toolbar > .history-clear-all:focus-visible {
+  outline: 2px solid #f08b8b;
+  outline-offset: 2px;
+}
+.history-toolbar > .history-clear-all:disabled { cursor: default; opacity: .65; }
 
 .history-load-error {
   display: flex;

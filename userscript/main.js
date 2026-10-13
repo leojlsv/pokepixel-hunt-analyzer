@@ -1,4 +1,5 @@
 import { openDatabase } from "../data/db.js";
+import { clearAllAnalytics } from "../data/clear-all.js";
 import { registerDatabaseWriteGate } from "../data/write-gate.js";
 import { createSessionsRepository } from "../data/sessionsRepository.js";
 import { createEncountersRepository } from "../data/encountersRepository.js";
@@ -55,6 +56,7 @@ const EVENT_REFRESH_DELAY_MS = 75;
 const STANDBY_RECONCILE_MS = 10_000;
 const CATCH_GALLERY_LOAD_LIMIT = 500;
 const PAGE_API_RATE_LIMIT_FALLBACK_MS = 30_000;
+const LAST_MANUAL_CLEAR_KEY = "pokepixel_hunt_analyzer_last_clear_at_ms_v1";
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const CATCH_GALLERY_SECTION_ID = "catch-gallery";
 const CATCH_GALLERY_BETA_STYLE_ID = "pha-catch-gallery-beta-style";
@@ -73,6 +75,8 @@ const TERMINAL_LIST_EVENTS = new Set([
 let pipeline;
 let sessionsRepository;
 let encountersRepository;
+let analyticsDatabase;
+let lastManualClearAtMs = null;
 let audioAlerts;
 let catchGallery;
 let historyDeleteControl;
@@ -153,6 +157,17 @@ function invalidateEncounterCache() {
   cachedEncounterListRevision = -1;
   lastEncounterSyncAt = 0;
   markEncounterListDirty();
+}
+
+function restoreManualClearFence() {
+  try {
+    const stored = Number(localStorage.getItem(LAST_MANUAL_CLEAR_KEY));
+    if (Number.isFinite(stored) && stored > 0 && stored <= Date.now()) {
+      lastManualClearAtMs = stored;
+    }
+  } catch {
+    // A storage-denied profile can still run; just lacks reload replay fencing.
+  }
 }
 
 function recordEncounterChanges(rows, { listChanged = false } = {}) {
@@ -275,9 +290,17 @@ function requestCurrentRefresh() {
   }, EVENT_REFRESH_DELAY_MS);
 }
 
-function enqueueProtocolEvent(payload, socketId) {
+function enqueueProtocolEvent(payload, socketId, receivedAtMs = Date.now()) {
   if (!payload || typeof payload !== "object") return;
   if (!OBSERVED_EVENT_TYPES.has(payload.type)) return;
+  // Discard frames that arrived before a confirmed manual wipe but finished
+  // asynchronous Blob decoding afterward. Timestamped replays from before the
+  // wipe also stay rejected across reloads; no automatic age filter exists.
+  const eventAtMs = Number(payload.ts);
+  if (lastManualClearAtMs !== null && (
+    receivedAtMs <= lastManualClearAtMs ||
+    (Number.isFinite(eventAtMs) && eventAtMs > 0 && eventAtMs <= lastManualClearAtMs)
+  )) return;
 
   if (!leadership.isActive()) {
     protocolEventsDroppedStandby += 1;
@@ -601,6 +624,43 @@ async function handleHistorySessionDelete(sessionId) {
   return task;
 }
 
+function handleRemoveAllAnalytics() {
+  if (!leadership.isActive()) return Promise.reject(new Error("Somente a instância ACTIVE pode remover os dados"));
+  const queuedLeadershipEpoch = leadershipEpoch;
+  const task = updateQueue.then(async () => {
+    await ready;
+    if (!stillOwnsLeadership(queuedLeadershipEpoch)) {
+      throw new Error("A liderança mudou antes da remoção");
+    }
+    // All queued protocol writes commit before this wipe. Drain diagnostics
+    // so no previously scheduled meta write can recreate cleared counters.
+    await pipeline.flushDiagnostics();
+    if (!stillOwnsLeadership(queuedLeadershipEpoch)) {
+      throw new Error("A liderança mudou antes da remoção");
+    }
+    const removalResult = await clearAllAnalytics(analyticsDatabase);
+    lastManualClearAtMs = Date.now();
+    try { localStorage.setItem(LAST_MANUAL_CLEAR_KEY, String(lastManualClearAtMs)); } catch {}
+    // Replace correlations/dedupe so delayed effects cannot target encounters
+    // that were just deleted from the local IndexedDB database.
+    pipeline = createEventPipeline(analyticsDatabase, { appVersion: APP_VERSION });
+    invalidateEncounterCache();
+    catchGallery?.resetAfterClear();
+    ui?.resetHistoryAfterClear();
+    // Once the delete commits, a view refresh failure must not misreport the
+    // irreversible operation as uncommitted.
+    try {
+      await loadCurrent();
+      await ui?.refreshHistoryIfVisible();
+    } catch (error) {
+      console.error("PokePixel Hunt Analyzer (post-remove refresh):", error);
+    }
+    return removalResult;
+  });
+  updateQueue = task.catch(() => {});
+  return task;
+}
+
 function mountUiWhenReady() {
   const mount = () => {
     catchGallery?.dispose();
@@ -612,7 +672,8 @@ function mountUiWhenReady() {
       onLoadHistorySessions: (options) => sessionsRepository.getPage(options),
       onLoadHistorySessionEncounters: (sessionId) =>
         encountersRepository.getBySessionId(sessionId),
-      getLootItemCatalog: readLootItemCatalog
+      getLootItemCatalog: readLootItemCatalog,
+      onClearAll: handleRemoveAllAnalytics
     });
     disposePublicUiBridge = installPublicUiBridge({
       pageWindow,
@@ -668,6 +729,7 @@ function scheduleRefreshes() {
 }
 
 async function initialize() {
+  restoreManualClearFence();
   pageWindow = resolvePageWindow({
     unsafeWindowObject:
       typeof unsafeWindow !== "undefined" ? unsafeWindow : null,
@@ -701,7 +763,17 @@ async function initialize() {
   scheduleLeadershipRefresh();
   if (!embedded) installDiagnosticsBridge();
 
-  const database = await openDatabase();
+  let database;
+  try {
+    database = await openDatabase();
+  } catch (error) {
+    if (error?.name !== "VersionError") throw error;
+    // QA retention previously upgraded some profiles to v4. Reopen that
+    // existing schema unchanged; never delete/recreate the IndexedDB just to
+    // get v1.15.6 running again.
+    database = await openDatabase({ version: null });
+  }
+  analyticsDatabase = database;
   registerDatabaseWriteGate(database, () => leadership.isActive());
   sessionsRepository = createSessionsRepository(database);
   encountersRepository = createEncountersRepository(database);

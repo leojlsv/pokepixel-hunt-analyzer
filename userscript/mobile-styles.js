@@ -467,6 +467,13 @@ export const MOBILE_STYLES = String.raw`
   background: #3a382f;
 }
 
+:host([data-ui-mode="mobile"]) .history-toolbar > .section-badge { height: 44px; }
+:host([data-ui-mode="mobile"]) .history-toolbar > .history-clear-all:active:not(:disabled) {
+  border-color: #f08b8b;
+  background: #803238;
+  color: #fff;
+}
+
 :host([data-ui-mode="mobile"]) .history-notable-button {
   min-height: 44px;
   height: 44px;

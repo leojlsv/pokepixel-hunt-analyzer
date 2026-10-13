@@ -130,8 +130,9 @@ export function installWebSocketObserver({
       let socketQueue = Promise.resolve();
 
       socket.addEventListener("message", (event) => {
+        const receivedAtMs = now();
         status.messagesReceived += 1;
-        status.lastMessageAtMs = now();
+        status.lastMessageAtMs = receivedAtMs;
         status.lastSocketId = socketId;
         status.queueDepth += 1;
         status.maxQueueDepth = Math.max(status.maxQueueDepth, status.queueDepth);
@@ -177,7 +178,7 @@ export function installWebSocketObserver({
             for (const canonicalPayload of canonicalPayloads) {
               status.canonicalPayloads += 1;
               try {
-                onPayload(canonicalPayload, socketId);
+                onPayload(canonicalPayload, socketId, receivedAtMs);
               } catch (error) {
                 status.callbackErrors += 1;
                 console.error("PokePixel Hunt Analyzer (WebSocket callback):", error);

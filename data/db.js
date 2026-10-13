@@ -24,7 +24,12 @@ export function openDatabase({
   }
 
   return new Promise((resolve, reject) => {
-    const request = indexedDBFactory.open(name, version);
+    // version:null reopens an already-upgraded database without requesting an
+    // unsafe downgrade. Only used as a fallback when v1.15.6 encounters the
+    // schema v4 left behind by an earlier QA candidate.
+    const request = version === null
+      ? indexedDBFactory.open(name)
+      : indexedDBFactory.open(name, version);
 
     request.onupgradeneeded = (event) => {
       // The upgrade transaction is the only way to add an index to an

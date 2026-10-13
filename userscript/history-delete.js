@@ -3,7 +3,7 @@ const HUNTS_BODY_ID = "history-hunts-body";
 const PERIOD_FILTER_ID = "history-period";
 const STYLE_ID = "pha-history-delete-styles";
 
-const DELETE_TITLE = "Delete this Hunt and all of its stored encounters";
+const DELETE_TITLE = "Delete this Hunt and its analytics, preserving Catch Gallery tickets";
 const CURRENT_HUNT_BLOCKED_TITLE = "End the current Hunt before deleting it";
 
 const STYLES = `
@@ -42,7 +42,8 @@ const STYLES = `
 function confirmationText(huntRow) {
   const label = huntRow?.cells?.[0]?.textContent?.trim();
   return [
-    `Delete ${label ? `Hunt ${label}` : "this Hunt"} and all of its stored encounters?`,
+    `Delete ${label ? `Hunt ${label}` : "this Hunt"} and its stored analytics?`,
+    "Catch Gallery tickets (Legendary, Mythical and Shiny) will be preserved.",
     "",
     "This cannot be undone."
   ].join("\n");

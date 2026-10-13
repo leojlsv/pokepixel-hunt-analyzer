@@ -7,6 +7,28 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.15.7] - 2026-10-13
+
+### Manual analytics cleanup and Catch Gallery archive
+- Restored the validated v1.15.6 initialization and Current/History runtime as the
+  release baseline; no automatic 7-day retention or short-Hunt pruning is shipped.
+- Added the owner-confirmed **History → Remover Tudo** action with ACTIVE-only
+  availability, explicit irreversible confirmation and atomic local IndexedDB
+  cleanup. Current, Hunts, encounter analytics, loot, configs and diagnostics
+  are removed only on the user's request; preferences and custom audio remain.
+- Preserve only ticket-eligible Legendary, Mythical and Shiny captures in Catch
+  Gallery as compact standalone rows, with no former session/loot references.
+  The existing per-Hunt DELETE control preserves those tickets as well.
+- Support opening local IndexedDB schema v4 left by earlier QA installations
+  without downgrading or dropping data. Protect against delayed WebSocket frames
+  repopulating analytics after manual removal.
+- Align the History counter/Refresh/Remove All controls. Style the destructive
+  action in red with hover, focus, disabled and mobile interaction states.
+- Owner validated the final History toolbar on 2026-10-13. Regression suite,
+  production build and native Tampermonkey metadata checks pass.
+
+## [1.15.6] - 2026-10-09
+
 ### Runtime performance / Better UI bridge — candidate 1.15.6
 - The protocol-1 public summary bridge now exposes an additive `getLootSession()`
   reader containing only session identity/freshness plus bounded Loot history. Unlike
