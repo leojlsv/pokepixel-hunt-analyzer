@@ -173,8 +173,10 @@ function createHistoryMarkup() {
       <div class="history-toolbar">
         <span id="history-count" class="section-badge" tabindex="-1">0 Hunts</span>
         <button id="history-refresh" class="history-more-button history-refresh" type="button" title="Reload History from saved sessions">Refresh</button>
+        <button id="history-clear-all" class="history-more-button history-clear-all" type="button" title="Remover todos os registros locais do Hunt Analyzer" disabled>Remover Tudo</button>
         <button id="history-load-more" class="history-more-button history-load-more" type="button" hidden>Load More</button>
       </div>
+      <span id="history-clear-all-status" class="history-clear-all-status" role="status" aria-live="polite" hidden></span>
       <div id="history-load-error" class="history-load-error" role="alert" hidden>
         <span id="history-load-error-message"></span>
         <button id="history-retry" class="history-more-button" type="button">Retry</button>

@@ -41,7 +41,8 @@ export function createUi({
   onSessionAction,
   onLoadHistorySessions,
   onLoadHistorySessionEncounters,
-  getLootItemCatalog
+  getLootItemCatalog,
+  onClearAll = null
 }) {
   const uiStateStore = createUiStateStore(localStorage);
   const initialUiState = uiStateStore.read();
@@ -66,6 +67,8 @@ export function createUi({
   let currentRenderPending = false;
   let externalReturnFocus = null;
   let navigationEpoch = 0;
+  let clearAllBusy = false;
+  let clearAllActive = false;
 
   mount();
 
@@ -117,6 +120,44 @@ export function createUi({
     shadow.getElementById("pha-close").addEventListener("click", () => setPanelOpen(false));
     shadow.getElementById("pha-alpha").addEventListener("click", cycleAlpha);
     shadow.getElementById("pha-refcode").addEventListener("click", copyRefCode);
+    const clearButton = shadow.getElementById("history-clear-all");
+    const clearStatus = shadow.getElementById("history-clear-all-status");
+    const setClearStatus = (message) => {
+      clearStatus.textContent = message;
+      clearStatus.hidden = !message;
+    };
+    clearButton.addEventListener("click", async () => {
+      if (clearAllBusy || !clearAllActive || typeof onClearAll !== "function") return;
+      if (!window.confirm([
+        "Remover o histórico analítico do Hunt Analyzer?",
+        "",
+        "Hunts, Current, encontros, loot e métricas serão excluídos.",
+        "Somente o histórico de Legendary, Mythical e Shiny do Catch Gallery será preservado.",
+        "Novos eventos poderão começar um histórico vazio.",
+        "Preferências e áudio personalizado serão preservados.",
+        "",
+        "Esta ação é irreversível."
+      ].join("\n"))) return;
+
+      clearAllBusy = true;
+      clearButton.disabled = true;
+      clearButton.textContent = "REMOVENDO…";
+      setClearStatus("Removendo registros locais…");
+      try {
+        const result = await onClearAll();
+        const preserved = Number(result?.preservedGalleryCount);
+        setClearStatus(Number.isSafeInteger(preserved) && preserved >= 0
+          ? `Histórico analítico removido. Catch Gallery: ${preserved} captura(s) preservada(s).`
+          : "Histórico analítico removido. Catch Gallery preservado.");
+      } catch (error) {
+        console.error("PokePixel Hunt Analyzer (Remove All):", error);
+        setClearStatus(`Não foi possível remover: ${error?.message || "erro desconhecido"}`);
+      } finally {
+        clearAllBusy = false;
+        clearButton.textContent = "Remover Tudo";
+        clearButton.disabled = !clearAllActive || typeof onClearAll !== "function";
+      }
+    });
 
     for (const tab of shadow.querySelectorAll("[data-view]")) {
       tab.addEventListener("click", () => switchView(tab.dataset.view));
@@ -214,6 +255,12 @@ export function createUi({
     badge.className = isActive ? "state active" : "state standby";
     badge.title = `Analyzer ${badge.textContent}`;
     badge.setAttribute("aria-label", badge.title);
+    clearAllActive = isActive === true;
+    const clearButton = shadow.getElementById("history-clear-all");
+    clearButton.disabled = clearAllBusy || !clearAllActive || typeof onClearAll !== "function";
+    clearButton.title = clearAllActive
+      ? "Remover todos os dados analíticos locais (irreversível)"
+      : "Somente a instância ACTIVE pode remover dados";
   }
 
   function setPanelOpen(open) {
@@ -785,6 +832,10 @@ export function createUi({
   return {
     renderCurrent,
     markHistoryDirty: () => historyView.invalidate(),
+    resetHistoryAfterClear: () => historyView.resetAfterClear(),
+    refreshHistoryIfVisible: () => activeView === "history" && !panel.hidden
+      ? historyView.refresh()
+      : Promise.resolve(),
     setActive,
     refreshLootCatalog: () => {
       currentView?.refreshLootCatalog();

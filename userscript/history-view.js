@@ -224,6 +224,7 @@ export function createHistoryView(shadow, {
   let inFlightOperation = null;
   let inFlightDataVersion = null;
   let dataVersion = 0;
+  let resetGeneration = 0;
   let loadedPeriod = null;
   let failedLoad = null;
   let nextBefore = null;
@@ -376,6 +377,7 @@ export function createHistoryView(shadow, {
   }
 
   async function performRefresh() {
+    const generation = resetGeneration;
     pendingRefresh = false;
     const period = filters.period;
     const range = currentRange();
@@ -392,6 +394,7 @@ export function createHistoryView(shadow, {
         loadSessionEncounters,
         range
       });
+      if (generation !== resetGeneration) return;
       // A newer period/refresh request supersedes this response, including
       // when the old request completed successfully after the new selection.
       if (pendingRefresh || !sameHistoryRange(range, currentRange())) {
@@ -414,11 +417,13 @@ export function createHistoryView(shadow, {
       populateLootSessions();
       render();
     } catch (error) {
+      if (generation !== resetGeneration) return;
       if (!pendingRefresh) reportLoadError("refresh", error);
     }
   }
 
   async function performLoadMore() {
+    const generation = resetGeneration;
     const before = nextBefore;
     inFlightPeriod = loadedPeriod;
     inFlightRange = activeRange;
@@ -432,6 +437,7 @@ export function createHistoryView(shadow, {
         range: activeRange,
         before
       });
+      if (generation !== resetGeneration) return;
       if (pendingRefresh || inFlightDataVersion !== dataVersion || !sameHistoryRange(activeRange, currentRange())) {
         pendingRefresh = true;
         return;
@@ -442,6 +448,7 @@ export function createHistoryView(shadow, {
       populateLootSessions();
       render();
     } catch (error) {
+      if (generation !== resetGeneration) return;
       if (inFlightDataVersion !== dataVersion || !sameHistoryRange(activeRange, currentRange())) {
         pendingRefresh = true;
       } else if (!pendingRefresh) {
@@ -457,16 +464,18 @@ export function createHistoryView(shadow, {
     }
     const loadMoreButton = shadow.getElementById("history-load-more");
     const restoreLoadMoreFocus = operation === "more" && shadow.activeElement === loadMoreButton;
+    const generation = resetGeneration;
     loading = true;
     const work = (async () => {
       let action = operation;
-      while (action) {
+      while (action && generation === resetGeneration) {
         if (action === "refresh") await performRefresh();
         else await performLoadMore();
         action = pendingRefresh ? "refresh" : null;
       }
     })();
     loadPromise = work.finally(() => {
+      if (generation !== resetGeneration) return;
       loading = false;
       loadPromise = null;
       inFlightPeriod = null;
@@ -498,6 +507,47 @@ export function createHistoryView(shadow, {
   function invalidate() {
     dataVersion += 1;
     loadedPeriod = null;
+    syncLoadMore();
+  }
+  function resetAfterClear() {
+    // A pending pre-wipe page must never restore removed rows into the UI.
+    resetGeneration += 1;
+    dataVersion += 1;
+    bundles = [];
+    loading = false;
+    loadPromise = null;
+    pendingRefresh = false;
+    inFlightPeriod = null;
+    inFlightRange = null;
+    inFlightOperation = null;
+    inFlightDataVersion = null;
+    loadedPeriod = null;
+    nextBefore = null;
+    failedLoad = null;
+    activeRange = currentRange();
+    cachedLootSummary = null;
+    currentLootCatalogSignature = "";
+    attemptRenderCount = ATTEMPT_BATCH_SIZE;
+    expandedHunts.clear();
+    expandedAttempts.clear();
+    expandedPokemon.clear();
+    expandedLoot.clear();
+    notableSelectionBySession.clear();
+    selectedLootSessionId = "*";
+    for (const key of ["species", "rarity", "result", "capsule", "element", "shiny"]) {
+      filters[key] = "*";
+      const select = shadow.getElementById(`history-${key}`);
+      if (select) select.value = "*";
+    }
+    populateFilters();
+    populateLootSessions();
+    const errorElement = shadow.getElementById("history-load-error");
+    if (errorElement) errorElement.hidden = true;
+    renderHunts();
+    renderPokemon();
+    renderAttempts();
+    renderLoot();
+    render();
     syncLoadMore();
   }
 
@@ -1196,6 +1246,7 @@ export function createHistoryView(shadow, {
     refresh,
     ensureLoaded,
     invalidate,
+    resetAfterClear,
     loadMore,
     refreshLootCatalog,
     getActiveSubview: () => activeSubview,

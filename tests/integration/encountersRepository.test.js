@@ -164,6 +164,36 @@ test("deleteBySessionId removes only that session's encounters", async () => {
   db.close();
 });
 
+test("individual Hunt deletion detaches real Gallery tickets, but removes non-ticket data", async () => {
+  const db = await setup();
+  const repo = createEncountersRepository(db);
+  const captured = {
+    encounterId: "legendary-capture", sessionId: "former-hunt", state: "finalized",
+    captureResult: "success", speciesName: "Lugia", quality: "legendary",
+    qualityMultiplier: 1.92, ivTotal: 180, capturedByName: "Trainer",
+    captureAtMs: 1_800_000_000_000, captureTicketAtMs: 1_800_000_000_000,
+    gold: 10_000, lootItems: [{ itemId: "loot", qty: 3 }]
+  };
+  try {
+    await repo.create(captured);
+    await repo.create({ encounterId: "ordinary", sessionId: "former-hunt", state: "finalized" });
+    await repo.create({ encounterId: "other", sessionId: "another-hunt", state: "started" });
+
+    await repo.deleteBySessionId("former-hunt");
+    assert.deepEqual(await repo.getBySessionId("former-hunt"), []);
+    assert.equal(await repo.get("ordinary"), undefined);
+    assert.deepEqual((await repo.getBySessionId("another-hunt")).map(row => row.encounterId), ["other"]);
+    const archive = await repo.get("legendary-capture");
+    assert.equal(archive.sessionId, undefined);
+    assert.equal(archive.lootItems, undefined);
+    assert.equal(archive.gold, undefined);
+    assert.equal(archive.speciesName, "Lugia");
+    assert.deepEqual((await repo.getRecentCaptureTickets()).map(row => row.encounterId), ["legendary-capture"]);
+    await repo.deleteBySessionId("former-hunt");
+    assert.equal((await repo.getRecentCaptureTickets()).length, 1, "retry cannot remove detached tickets");
+  } finally { db.close(); }
+});
+
 test("deleteBySessionId on a session with no encounters is a safe no-op", async () => {
   const db = await setup();
   const repo = createEncountersRepository(db);

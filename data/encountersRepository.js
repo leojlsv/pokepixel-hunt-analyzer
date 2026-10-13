@@ -10,6 +10,7 @@
 import { createRepository } from "./repository.js";
 import { promisifyRequest } from "./db.js";
 import { STORE_NAMES } from "./migrations.js";
+import { archivedCatchGalleryRow } from "./catch-gallery-archive.js";
 import {
   abortIfWriteGateLost,
   assertDatabaseWriteGate,
@@ -105,8 +106,9 @@ export function createEncountersRepository(db) {
   }
 
   /**
-   * Deletes every encounter belonging to one session (History's delete
-   * control, Fase 4). Callers must run this BEFORE
+   * Deletes every ordinary encounter belonging to one session (History's delete
+   * control), while detaching/retaining eligible Catch Gallery tickets. Call
+   * this BEFORE
    * sessionsRepository.deleteSession(sessionId) — see that module's
    * docstring for why the ordering matters.
    */
@@ -144,8 +146,9 @@ export function createEncountersRepository(db) {
           return;
         }
 
-        const deletion = cursor.delete();
-        deletion.addEventListener("success", () => { checkOwnership(); });
+        const galleryTicket = archivedCatchGalleryRow(cursor.value);
+        const mutation = galleryTicket ? cursor.update(galleryTicket) : cursor.delete();
+        mutation.addEventListener("success", () => { checkOwnership(); });
         cursor.continue();
       };
 

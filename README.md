@@ -247,6 +247,21 @@ pokepixel_hunt_analyzer_assets
 
 Configuração visual do Closed HUD, coordenação de Inventory/Potion e Mute dos Sound Alerts usam apenas estado local do browser. Fechar o navegador ou reiniciar o computador não apaga automaticamente o histórico.
 
+**Limpeza manual (a partir da v1.15.7):** `History → Remover Tudo`
+é a única forma nova de limpeza global de analytics nesta revisão. Exige clique
+e confirmação explícita na instância ACTIVE. Em uma transação elimina Current,
+Hunts, métricas, loot, sessões, configurações analíticas e metadados, preservando
+**somente** os registros completos para geração de Capture Tickets da Catch
+Gallery (Legendary, Mythical e Shiny). Os tickets preservados são compactados
+em registros independentes, sem vínculo com Hunts antigas, e continuam
+acessíveis na galeria após limpeza/reinício. Preferências e Custom Audio também
+permanecem. A operação é irreversível para os demais dados; eventos novos
+podem iniciar outro histórico. **Não existe limpeza automática de sete dias
+ou descarte automático de Hunts inferiores a cinco minutos.** Bancos v4 já
+migrados por builds QA anteriores são abertos sem downgrade nem exclusão automática.
+O botão individual `DELETE` de uma Hunt também preserva seus tickets de Catch
+Gallery e remove somente os demais encounters/dados da Hunt.
+
 ### Permissões do userscript
 
 O userscript usa permissões Tampermonkey para manter duas necessidades separadas:

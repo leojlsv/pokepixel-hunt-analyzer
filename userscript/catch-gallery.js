@@ -154,6 +154,7 @@ export function createCatchGallery({ loadEncounters }) {
   let sortDirection = "desc";
   let dirty = true;
   let refreshPromise = null;
+  let requestGeneration = 0;
   let disposed = false;
 
   function filteredSortedRows() {
@@ -289,26 +290,39 @@ export function createCatchGallery({ loadEncounters }) {
     if (!force && !dirty) return;
     if (refreshPromise) return refreshPromise;
 
-    refreshPromise = Promise.resolve()
+    const generation = requestGeneration;
+    const request = Promise.resolve()
       .then(() => loadEncounters())
       .then((encounters) => {
-        if (disposed) return;
+        if (disposed || generation !== requestGeneration) return;
         rawEncounters = Array.isArray(encounters) ? encounters : [];
         page = 1;
         render();
         dirty = false;
       })
       .catch((error) => {
+        if (disposed || generation !== requestGeneration) return;
         console.error("PokePixel Hunt Analyzer (Catch Gallery load):", error);
         rawEncounters = [];
         page = 1;
         render();
       })
       .finally(() => {
-        refreshPromise = null;
+        if (refreshPromise === request) refreshPromise = null;
       });
+    refreshPromise = request;
+    return request;
+  }
 
-    return refreshPromise;
+  function resetAfterClear() {
+    requestGeneration += 1;
+    refreshPromise = null;
+    rawEncounters = [];
+    page = 1;
+    dirty = true;
+    if (pokemonFilter) pokemonFilter.value = "";
+    if (rarityFilter) rarityFilter.value = "all";
+    if (tbody) render();
   }
 
   function isVisible() {
@@ -442,6 +456,8 @@ export function createCatchGallery({ loadEncounters }) {
   }
 
   function dispose() {
+    requestGeneration += 1;
+    refreshPromise = null;
     disposed = true;
     section?.remove();
     section = null;
@@ -462,6 +478,7 @@ export function createCatchGallery({ loadEncounters }) {
     mountControls,
     refresh,
     markDirty,
+    resetAfterClear,
     dispose
   };
 }
