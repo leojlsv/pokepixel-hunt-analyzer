@@ -573,6 +573,40 @@ export const HISTORY_STYLES = String.raw`
 .failed-chance-col { width: 18%; }
 .failed-time-col { width: 24%; }
 
+/* Four or more decimals need a larger Chance column at 320px. Keep the
+ * original column proportions for the default three-decimal display. */
+:host([data-catch-chance-extended="true"]) .failed-pokemon-col { width: 20%; }
+:host([data-catch-chance-extended="true"]) .failed-iv-col { width: 9%; }
+:host([data-catch-chance-extended="true"]) .failed-ball-col { width: 20%; }
+:host([data-catch-chance-extended="true"]) .failed-chance-col { width: 27%; }
+:host([data-catch-chance-extended="true"]) #failed-section .chance-cell {
+  padding-left: 2px;
+  padding-right: 2px;
+  font-size: 9px;
+}
+
+:host([data-catch-chance-extended="true"]) .history-attempt-pokemon-col { width: 21%; }
+:host([data-catch-chance-extended="true"]) .history-attempt-result-col { width: 10%; }
+:host([data-catch-chance-extended="true"]) .history-attempt-ball-col { width: 18%; }
+:host([data-catch-chance-extended="true"]) .history-attempt-chance-col { width: 27%; }
+:host([data-catch-chance-extended="true"]) .history-attempt-iv-col { width: 8%; }
+:host([data-catch-chance-extended="true"]) .history-attempts-table th:nth-child(5),
+:host([data-catch-chance-extended="true"]) .history-attempts-table td:nth-child(5) {
+  padding-left: 2px;
+  padding-right: 2px;
+  font-size: 9px;
+}
+
+:host([data-catch-chance-extended="true"]) .history-notable-pokemon-col { width: 18%; }
+:host([data-catch-chance-extended="true"]) .history-notable-ball-col { width: 15%; }
+:host([data-catch-chance-extended="true"]) .history-notable-chance-col { width: 30%; }
+:host([data-catch-chance-extended="true"]) .history-notable-iv-col { width: 9%; }
+:host([data-catch-chance-extended="true"]) .history-notable-list th:nth-child(5),
+:host([data-catch-chance-extended="true"]) .history-notable-list td:nth-child(5) {
+  padding-left: 2px;
+  padding-right: 2px;
+}
+
 @container analyzer (max-width: 500px) {
   .history-filter-grid {
     gap: 5px;

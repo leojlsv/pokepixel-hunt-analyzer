@@ -13,6 +13,7 @@ import {
 } from "./hunt-view-model.js";
 import {
   RARITIES,
+  formatCatchChance,
   formatCompact,
   formatNumber,
   formatRate,
@@ -211,6 +212,7 @@ export function createHistoryView(shadow, {
   loadSessions,
   loadSessionEncounters,
   getLootItemCatalog = () => null,
+  getCatchChanceDecimals = () => 3,
   now = Date.now
 }) {
   let bundles = [];
@@ -879,7 +881,7 @@ export function createHistoryView(shadow, {
         `${speciesLabel(encounter)}${encounter.isShiny ? " *" : ""}`,
         encounter.captureResult === "success" ? "Cap." : "Fled",
         encounter.capsuleName || "—",
-        formatRate(encounter.captureChance, 3),
+        formatCatchChance(encounter.captureChance, getCatchChanceDecimals()),
         ivTotal(encounter) ?? "—"
       ];
       values.forEach((value, index) => {
@@ -1198,7 +1200,7 @@ export function createHistoryView(shadow, {
         `${speciesLabel(encounter)}${encounter.isShiny ? " *" : ""}`,
         result,
         encounter.capsuleName || "—",
-        formatRate(encounter.captureChance, 3),
+        formatCatchChance(encounter.captureChance, getCatchChanceDecimals()),
         ivTotal(encounter) ?? "—"
       ];
       values.forEach((value, index) => {
@@ -1231,7 +1233,7 @@ export function createHistoryView(shadow, {
         detailCell.colSpan = 6;
         const parts = [
           `${encounter.captureResult === "success" ? "Captured at" : "Fled at"}: ${formatClock(encounter.captureAtMs)}`,
-          `Chance: ${formatRate(encounter.captureChance, 3)}`
+          `Chance: ${formatCatchChance(encounter.captureChance, getCatchChanceDecimals())}`
         ];
         detailCell.textContent = parts.join(" · ");
         detailRow.appendChild(detailCell);
@@ -1244,6 +1246,7 @@ export function createHistoryView(shadow, {
 
   return {
     refresh,
+    refreshCatchChance: render,
     ensureLoaded,
     invalidate,
     resetAfterClear,

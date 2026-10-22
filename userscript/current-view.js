@@ -1,5 +1,6 @@
 import {
   RARITIES,
+  formatCatchChance,
   formatCompact,
   formatDuration,
   formatNumber,
@@ -119,7 +120,10 @@ function encounterChanged(previous, next) {
     previous.nature !== next.nature;
 }
 
-export function createCurrentView(shadow, { getLootItemCatalog = () => null } = {}) {
+export function createCurrentView(shadow, {
+  getLootItemCatalog = () => null,
+  getCatchChanceDecimals = () => 3
+} = {}) {
   let currentSessionId;
   let currentHuntStartedAtMs = null;
   let lastEncounterSnapshotVersion = -1;
@@ -566,7 +570,7 @@ export function createCurrentView(shadow, { getLootItemCatalog = () => null } = 
 
       const chanceCell = document.createElement("td");
       chanceCell.className = "chance-cell";
-      chanceCell.textContent = formatRate(encounter.captureChance, 3);
+      chanceCell.textContent = formatCatchChance(encounter.captureChance, getCatchChanceDecimals());
 
       const timestampCell = document.createElement("td");
       timestampCell.className = "timestamp-cell";
@@ -632,6 +636,7 @@ export function createCurrentView(shadow, { getLootItemCatalog = () => null } = 
       strong.style.color = "#c0ad72";
       item.append(strong, document.createTextNode(value || "—"));
       content.appendChild(item);
+      return item;
     };
 
     addDetail(
@@ -640,7 +645,8 @@ export function createCurrentView(shadow, { getLootItemCatalog = () => null } = 
     );
     addDetail("Capsule", encounter.capsuleName || "—");
     if (prefix === "captured") {
-      addDetail("Chance", formatRate(encounter.captureChance, 3));
+      addDetail("Chance", formatCatchChance(encounter.captureChance, getCatchChanceDecimals()))
+        .dataset.catchChanceDetail = "true";
     }
 
     cell.appendChild(content);
@@ -674,5 +680,22 @@ export function createCurrentView(shadow, { getLootItemCatalog = () => null } = 
     shadow.getElementById(`${prefix}-count`).textContent = pokemonLabel(lists[prefix].visible.length);
   }
 
-  return { render, refreshLootCatalog: () => lootView.refreshCatalog() };
+  function refreshCatchChance() {
+    for (const [prefix, state] of Object.entries(lists)) {
+      for (const [encounterId, row] of state.rows) {
+        const encounter = state.byId.get(encounterId);
+        if (!encounter) continue;
+        const value = formatCatchChance(encounter.captureChance, getCatchChanceDecimals());
+        if (prefix === "failed") {
+          const cell = row.main.querySelector(".chance-cell");
+          if (cell) cell.textContent = value;
+        } else {
+          const detail = row.detail?.querySelector("[data-catch-chance-detail]");
+          if (detail?.lastChild) detail.lastChild.textContent = value;
+        }
+      }
+    }
+  }
+
+  return { render, refreshCatchChance, refreshLootCatalog: () => lootView.refreshCatalog() };
 }
