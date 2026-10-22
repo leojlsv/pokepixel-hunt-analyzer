@@ -4,7 +4,7 @@ Analytics de Hunt em tempo real para **PokePixel**, direto dentro do jogo.
 
 O PokePixel Hunt Analyzer é um userscript comunitário para **Tampermonkey** que observa passivamente eventos do jogo, organiza Hunts e calcula métricas de eficiência sem automatizar gameplay.
 
-- **Versão do código-fonte:** `v1.15.0`
+- **Versão do código-fonte:** `v1.15.8`
 - **Versão disponível para instalação:** consulte a [última release publicada](https://github.com/leojlsv/pokepixel-hunt-analyzer/releases/latest) (o código-fonte pode estar à frente do lançamento)
 - **Core Analyzer:** estável
 - **Desktop e Mobile:** suportados
@@ -36,7 +36,10 @@ Acompanha a Hunt atual em tempo real:
 - Captured com filtros por Rarity, Shiny, Quality e IV;
 - Captured/Failed permitem combinar múltiplas Rarities no mesmo filtro, com `All (*)` selecionando todas; cada lista mantém sua própria seleção mesmo após recarregar a página ou trocar de Hunt;
 - Failed com filtros por Rarity, Shiny e IV e colunas diretas `Pokémon | IV | Pokéball | Chance | Fled at`;
-- Chance usa três casas decimais; valores positivos abaixo de `0.001%` aparecem como `<0.001%` nas tabelas compactas;
+- A exibição de **Catch Chance %** pode ser configurada em **Misc → Interface**
+  de 0 a 6 casas decimais (padrão: 3), com preferência local persistente;
+  valores positivos menores que a precisão escolhida aparecem como
+  `<0.001%` no padrão de três casas;
 - os resumos de `By Rarity`, `Captured` e `Failed` destacam ocorrências de Shiny;
 - `Fled at` mostra `HH:mm:ss` no dia inicial da Hunt e acrescenta `+Nd` quando a Hunt atravessa um ou mais dias locais; o hover preserva o timestamp completo;
 - Captured mostra o breakdown de IVs em `HP · Atk · sAtk · Def · sDef · SpD`;

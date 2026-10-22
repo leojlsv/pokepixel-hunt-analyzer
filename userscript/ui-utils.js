@@ -56,6 +56,18 @@ export function formatRate(value, fractionDigits = 2) {
   return `${percentage.toFixed(fractionDigits)}%`;
 }
 
+export function formatCatchChance(value, fractionDigits = 3) {
+  if (value == null || !Number.isFinite(value)) return "—";
+
+  const percentage = value * 100;
+  const smallestDisplayUnit = 10 ** -fractionDigits;
+  if (percentage !== 0 && Math.abs(percentage) < smallestDisplayUnit) {
+    const limit = smallestDisplayUnit.toFixed(fractionDigits);
+    return percentage > 0 ? `<${limit}%` : `>-${limit}%`;
+  }
+  return `${percentage.toFixed(fractionDigits)}%`;
+}
+
 export function formatDuration(milliseconds) {
   const seconds = Math.max(0, Math.floor((Number(milliseconds) || 0) / 1_000));
   const hours = Math.floor(seconds / 3_600);

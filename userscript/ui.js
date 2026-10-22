@@ -9,6 +9,7 @@ import {
 } from "./ui-mode.js";
 import { createUiStateStore } from "./ui-state.js";
 import { PALETTE_STYLES, readPalette, selectPalette } from "./palette-theme.js";
+import { readCatchChanceDecimals, saveCatchChanceDecimals } from "./catch-chance-preferences.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const COLLAPSE_KEY = "pokepixel_hunt_analyzer_collapsed_v1";
@@ -46,6 +47,7 @@ export function createUi({
 }) {
   const uiStateStore = createUiStateStore(localStorage);
   const initialUiState = uiStateStore.read();
+  let catchChanceDecimals = readCatchChanceDecimals();
   const uiMode = resolveUiMode({
     override: initialUiState.shared.modeOverride,
     matchMedia: window.matchMedia?.bind(window),
@@ -78,6 +80,7 @@ export function createUi({
     host = document.createElement("div");
     host.id = ROOT_ID;
     host.dataset.uiMode = uiMode;
+    host.dataset.catchChanceExtended = String(catchChanceDecimals >= 4);
     shadow = host.attachShadow({ mode: "open" });
     selectPalette(shadow, readPalette());
 
@@ -94,11 +97,15 @@ export function createUi({
       panel.style.minHeight = `${MIN_PANEL_HEIGHT_PX}px`;
     }
     launcher = shadow.getElementById("pha-toggle");
-    currentView = createCurrentView(shadow, { getLootItemCatalog });
+    currentView = createCurrentView(shadow, {
+      getLootItemCatalog,
+      getCatchChanceDecimals: () => catchChanceDecimals
+    });
     historyView = createHistoryView(shadow, {
       loadSessions: onLoadHistorySessions,
       loadSessionEncounters: onLoadHistorySessionEncounters,
-      getLootItemCatalog
+      getLootItemCatalog,
+      getCatchChanceDecimals: () => catchChanceDecimals
     });
 
     bindUiEvents();
@@ -117,6 +124,14 @@ export function createUi({
   }
 
   function bindUiEvents() {
+    shadow.addEventListener("change", (event) => {
+      if (event.target?.id !== "pha-catch-chance-decimals") return;
+      catchChanceDecimals = saveCatchChanceDecimals(event.target.value);
+      event.target.value = String(catchChanceDecimals);
+      host.dataset.catchChanceExtended = String(catchChanceDecimals >= 4);
+      currentView.refreshCatchChance();
+      historyView.refreshCatchChance();
+    });
     shadow.getElementById("pha-close").addEventListener("click", () => setPanelOpen(false));
     shadow.getElementById("pha-alpha").addEventListener("click", cycleAlpha);
     shadow.getElementById("pha-refcode").addEventListener("click", copyRefCode);

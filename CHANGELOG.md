@@ -7,6 +7,18 @@ The project follows Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.15.8] - 2026-10-22
+
+### Configurable Catch Chance precision
+- Added **Misc → Interface → Catch Chance % decimals** with 0–6 decimal
+  places. The existing three-decimal display remains the default.
+- The local preference persists across reloads and updates Current Failed,
+  Captured details, History Attempts and expanded Hunt notables immediately.
+- Very small non-zero chances display as a less-than threshold at the chosen
+  precision. Capture Rate and other percentage statistics are unchanged.
+- This release only changes display preferences and formatting; no changes to
+  capture calculations, IndexedDB data or WebSocket processing.
+
 ## [1.15.7] - 2026-10-13
 
 ### Manual analytics cleanup and Catch Gallery archive

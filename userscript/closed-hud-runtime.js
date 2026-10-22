@@ -6,6 +6,10 @@ import {
 import { MOBILE_CLOSED_HUD_STYLES } from "./closed-hud-mobile-styles.js";
 import { createSelectProxy } from "./select-proxy.js";
 import { PALETTES, readPalette, selectPalette } from "./palette-theme.js";
+import {
+  MAX_CATCH_CHANCE_DECIMALS,
+  readCatchChanceDecimals
+} from "./catch-chance-preferences.js";
 
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const STYLE_ID = "pha-closed-hud-polish-style";
@@ -191,8 +195,10 @@ const POLISH_STYLE = `
     min-width:72px;
     height:28px;
   }
-  .pha-interface-palette { grid-column:1 / -1; }
-  .pha-interface-palette select {
+  .pha-interface-palette,
+  .pha-interface-chance { grid-column:1 / -1; }
+  .pha-interface-palette select,
+  .pha-interface-chance select {
     min-width:0;
     width:min(210px,65%);
     height:30px;
@@ -263,7 +269,8 @@ const POLISH_STYLE = `
     max-width:92px;
     height:38px;
   }
-  :host([data-ui-mode="mobile"]) .pha-interface-palette select {
+  :host([data-ui-mode="mobile"]) .pha-interface-palette select,
+  :host([data-ui-mode="mobile"]) .pha-interface-chance select {
     width:min(210px,67%);
     height:44px;
     max-width:67%;
@@ -490,8 +497,16 @@ export function createClosedHud(options = {}) {
               ${Object.values(PALETTES).map(({ id, label }) => `<option value="${id}">${label}</option>`).join("")}
             </select>
           </label>
+          <label class="pha-interface-setting pha-interface-chance">
+            <span>Catch Chance % decimals</span>
+            <select id="pha-catch-chance-decimals" aria-label="Catch chance decimal places">
+              ${Array.from({ length: MAX_CATCH_CHANCE_DECIMALS + 1 }, (_, digits) =>
+                `<option value="${digits}">${digits} ${digits === 1 ? "decimal" : "decimals"}</option>`).join("")}
+            </select>
+          </label>
         </div>`;
       alertsView.prepend(section);
+      section.querySelector("#pha-catch-chance-decimals").value = String(readCatchChanceDecimals());
     }
 
     const paletteSelect = section.querySelector("#pha-palette-select");
