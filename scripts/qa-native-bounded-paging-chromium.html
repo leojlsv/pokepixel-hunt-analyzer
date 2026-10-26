@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>CURRENT_PAGING_RUNNING</title></head>
+<body style="margin:0;background:#151715"><pre id="bench-result" hidden>{"status":"running"}</pre>
+<div id="fixture"></div>
+<script type="module">
+/**
+ * TEST ONLY: REAL Current/History modules, real Shadow DOM/CSS and native
+ * Chromium layout/scroll. Entirely in-memory synthetic rows; no game,
+ * IndexedDB, personal profile, extension, or authenticated source.
+ */
+import {createCurrentView} from "../userscript/current-view.js";
+import {createHistoryView} from "../userscript/history-view.js";
+import {createUiMarkup} from "../userscript/ui-markup.js";
+import {STYLES} from "../userscript/styles.js";
+import {MOBILE_STYLES} from "../userscript/mobile-styles.js";
+import {computeSessionMetrics} from "../domain/sessionMetrics.js";
+
+const args = new URLSearchParams(location.search);
+const width = Number(args.get("width"));
+const sourceRows = Number(args.get("rows"));
+const mode = width < 400 ? "mobile" : "desktop";
+const OUT = document.getElementById("bench-result");
+const checks = {}, dimensions = {}, timing = {}, errors = [];
+const expect = (key, condition, details = "") => {
+  checks[key] = Boolean(condition);
+  if (!condition) errors.push(`${key}: ${details}`);
+};
+const settle = () => new Promise(resolve => requestAnimationFrame(() =>
+  requestAnimationFrame(resolve)));
+const format = number => Number(number.toFixed(2));
+const clock = Date.now();
+const startedAtMs = clock - 102 * 3_600_000;
+const hunt = {sessionId:"native-current-paging", status:"running",
+  activityKind:"hunt", startedAtMs, activeStartedAtMs:startedAtMs,
+  accumulatedActiveMs:0, potionsUsed:2, potionsCost:25};
+const encounter = index => ({
+  encounterId: `qa-${String(index).padStart(6,"0")}`,
+  sessionId:hunt.sessionId, captureResult:index % 3 === 0 ? "success" : "failed",
+  state:"finalized", speciesId:"pidgey", speciesName:"Pidgey",
+  quality:index % 7 === 0 ? "legendary" : "common",
+  isShiny:index % 277 === 0,
+  captureAtMs:startedAtMs + Math.floor((index + 1) * 367_200_000 / sourceRows),
+  updatedAtMs:startedAtMs + Math.floor((index + 1) * 367_200_000 / sourceRows),
+  gender:"male", nature:"brave", capsuleName:"Great Ball",
+  captureChance:index%9===0?1:0.98765, ivTotal:60,
+  ivs:{hp:10,atk:10,spa:10,def:10,spd:10,spe:10},
+  level:99, gold:2, trainerExp:1, pokemonExp:3,
+  lootItems:[], qualityMultiplier:1.1
+});
+
+let report = null;
+try {
+  if (![320,390,400,415,620].includes(width) || sourceRows !== 1000) {
+    throw new Error("Invalid synthetic native paging case");
+  }
+  const rows = Array.from({length:sourceRows}, (_,index) => encounter(index));
+  const capturedCount = rows.filter(item => item.captureResult === "success").length;
+  const failedCount = sourceRows - capturedCount;
+  const host = document.getElementById("fixture");
+  host.id = "pokepixel-hunt-analyzer-root";
+  host.dataset.uiMode = mode;
+  let chanceDecimals = 3;
+  host.dataset.catchChanceExtended = "false";
+  const shadow = host.attachShadow({mode:"open"});
+  const style = document.createElement("style");
+  style.textContent = STYLES + "\n" + MOBILE_STYLES;
+  const wrapper = document.createElement("div");
+  wrapper.innerHTML = createUiMarkup();
+  shadow.append(style, wrapper);
+  const get = id => shadow.getElementById(id);
+  const panel = get("pha-panel");
+  panel.hidden = false;
+  Object.assign(panel.style, {position:"fixed", left:"0px", top:"0px",
+    width:`${width}px`, height:"800px", minWidth:"0", minHeight:"0",
+    maxWidth:"none", maxHeight:"none"});
+  const currentSection = get("view-current");
+  const historySection = get("view-history");
+  currentSection.hidden = false;
+  historySection.hidden = true;
+
+  const current = createCurrentView(shadow, {
+    getCatchChanceDecimals: () => chanceDecimals
+  });
+  const now = clock;
+  const metrics = computeSessionMetrics({session:hunt,encounters:rows,now});
+  const beforeHydrate = performance.now();
+  current.render({sessionId:hunt.sessionId,encounters:rows,metrics,
+    encounterSnapshotVersion:1,lootDataRevision:1,
+    currentSessionSpecies:rows.at(-1)});
+  await settle();
+  timing.currentInitialHydrationMs = format(performance.now() - beforeHydrate);
+  const countRows = prefix => get(`${prefix}-body`).querySelectorAll("tr[data-encounter-id]").length;
+  const pageStatus = prefix => get(`${prefix}-page-status`).textContent;
+  const goto = (prefix,rank) => {
+    const input = get(`${prefix}-page-jump`);
+    input.value = String(rank);
+    get(`${prefix}-page-go`).click();
+  };
+  let capturedMax = countRows("captured"), failedMax = countRows("failed");
+  expect("currentMounted100", capturedMax === 100 && failedMax === 100,
+    JSON.stringify({capturedMax,failedMax}));
+  expect("currentExactTotals",
+    get("captured-count").textContent.startsWith(String(capturedCount)) &&
+    get("failed-count").textContent.startsWith(String(failedCount)),
+    `${capturedCount}/${failedCount}`);
+  const pageStartTime = performance.now();
+  goto("captured",201);
+  goto("failed",501);
+  await settle();
+  timing.currentDoubleJumpMs = format(performance.now() - pageStartTime);
+  capturedMax = Math.max(capturedMax,countRows("captured"));
+  failedMax = Math.max(failedMax,countRows("failed"));
+  expect("currentDeepPages",
+    countRows("captured") === 100 && countRows("failed") === 100 &&
+    pageStatus("captured") === `201–300 de ${capturedCount}` &&
+    pageStatus("failed") === `501–600 de ${failedCount}`,
+    `${pageStatus("captured")} / ${pageStatus("failed")}`);
+
+  const capturedBody = get("captured-body");
+  const first = capturedBody.querySelector("tr[data-encounter-id]");
+  const initialId = first?.dataset.encounterId;
+  expect("capturedShowsSixIV", Boolean(first?.cells[4]?.textContent.includes(
+    "(10-10-10-10-10-10)")),first?.cells[4]?.textContent || "missing");
+  first?.focus({preventScroll:true});
+  first?.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}));
+  expect("capturedExpanded",first?.getAttribute("aria-expanded") === "true" &&
+    Boolean(shadow.querySelector(`[data-detail-for="${initialId}"]`)));
+  const header = shadow.querySelector('[data-encounter-sort="captured"][data-sort-key="capturedAt"]');
+  header?.focus({preventScroll:true});
+  header?.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}));
+  await settle();
+  expect("currentKeyboardSort",header?.getAttribute("aria-sort") === "ascending");
+  header?.dispatchEvent(new KeyboardEvent("keydown",{key:"Enter",bubbles:true}));
+  await settle();
+  expect("currentSortRestored",header?.getAttribute("aria-sort") === "descending");
+
+  const captureWrap = capturedBody.closest(".table-wrap");
+  const capturePager = get("captured-page-next").closest(".encounter-page-controls");
+  if (mode === "mobile") {
+    capturePager.scrollIntoView({block:"end"});
+    await settle();
+    const before = currentSection.scrollTop;
+    get("captured-page-next").click();
+    await settle();
+    const viewBox = currentSection.getBoundingClientRect();
+    const tableBox = captureWrap.getBoundingClientRect();
+    expect("mobileCurrentScrollOwner", before > 0 &&
+      currentSection.scrollHeight > currentSection.clientHeight &&
+      tableBox.top >= viewBox.top - 2 && tableBox.top < viewBox.bottom,
+      `before=${before},after=${currentSection.scrollTop},tableTop=${tableBox.top},viewTop=${viewBox.top}`);
+  } else {
+    get("captured-page-next").click();
+    await settle();
+  }
+  capturedMax = Math.max(capturedMax,countRows("captured"));
+  expect("currentNextBounded",countRows("captured") <= 100 &&
+    pageStatus("captured").endsWith(`de ${capturedCount}`));
+
+  // Preserve the newer v1.15.8 user's 0..6 precision preference while
+  // exercising the bounded presentation at native 320/390/415/620 widths.
+  chanceDecimals = 6;
+  host.dataset.catchChanceExtended = "true";
+  current.refreshCatchChance();
+  expect("currentExtendedChancePrecision", [...get("failed-body")
+    .querySelectorAll(".chance-cell")].some(cell =>
+      cell.textContent === "98.765000%"),
+    get("failed-body").querySelector(".chance-cell")?.textContent || "missing");
+
+  function geometry(label, scope, tableIds, prefix) {
+    const view = scope.getBoundingClientRect();
+    const entries = [];
+    for (const id of tableIds) {
+      const body = get(id);
+      const wrap = body.closest(".table-wrap");
+      const table = body.closest("table");
+      const mainRows = [...body.querySelectorAll("tr[data-encounter-id]")];
+      const t = table.getBoundingClientRect(), w = wrap.getBoundingClientRect();
+      const clippedCells = mainRows.flatMap((row,rowIndex)=>
+        [...row.cells].map((cell,index) => ({
+          rowIndex,index,text:cell.textContent.slice(0,80),
+          clientWidth:cell.clientWidth,scrollWidth:cell.scrollWidth,
+          overflow:getComputedStyle(cell).overflow,
+          whiteSpace:getComputedStyle(cell).whiteSpace
+        })).filter(cell=>cell.scrollWidth>cell.clientWidth+1)
+      ).slice(0,10);
+      const overflowElements = [...table.querySelectorAll("thead th,thead th span,tbody tr:first-child td")]
+        .filter(element => element.scrollWidth > element.clientWidth + 1 ||
+          element.getBoundingClientRect().right > w.right + 1)
+        .slice(0,8).map(element => ({tag:element.tagName,
+          text:element.textContent.slice(0,80),clientWidth:element.clientWidth,
+          scrollWidth:element.scrollWidth,
+          right:format(element.getBoundingClientRect().right),wrapRight:format(w.right)}));
+      entries.push({id, wrapWidth:format(w.width), tableWidth:format(t.width),
+        wrapScroll:format(wrap.scrollWidth - wrap.clientWidth),
+        visibleCellOverflow:mainRows.some(row=>[...row.cells].some(cell =>
+          cell.getBoundingClientRect().right > w.right + 1)),
+        textClipped:clippedCells.length>0,clippedCells,overflowElements});
+    }
+    const pagers = [...scope.querySelectorAll(".encounter-page-controls")];
+    const controls = pagers.flatMap(pager =>
+      [...pager.querySelectorAll("button,input")].map(element => ({
+        id:element.id, width:format(element.getBoundingClientRect().width),
+        height:format(element.getBoundingClientRect().height)})));
+    const jumpInputs=pagers.map(pager=>{
+      const input=pager.querySelector("input[type=number]");
+      const computed=getComputedStyle(input);
+      const canvas=document.createElement("canvas");
+      const context=canvas.getContext("2d");
+      context.font=`${computed.fontSize} ${computed.fontFamily}`;
+      const sixDigitsWidth=context.measureText("100000").width;
+      const contentWidth=input.clientWidth-
+        parseFloat(computed.paddingLeft)-parseFloat(computed.paddingRight);
+      return {sixDigitsWidth:format(sixDigitsWidth),contentWidth:format(contentWidth),
+        appearance:computed.appearance};
+    });
+    const pagerGeometry=pagers.map(pager=>{
+      const rect=pager.getBoundingClientRect();
+      const status=pager.querySelector(".encounter-page-status");
+      const originalStatus=status.textContent;
+      status.textContent="91.401–91.500 de 91.800";
+      const longStatusOverflow=status.scrollWidth-status.clientWidth;
+      const totalOverflow=pager.scrollWidth-pager.clientWidth;
+      const statusRect=status.getBoundingClientRect();
+      status.textContent=originalStatus;
+      const boxes=[...pager.children].map(el=>el.getBoundingClientRect());
+      return {height:format(rect.height), longStatusOverflow:format(longStatusOverflow),
+        totalOverflow:format(totalOverflow),
+        allControlsInside:boxes.every(box=>box.left>=rect.left-1 && box.right<=rect.right+1),
+        longStatusInside:statusRect.left>=rect.left-1 && statusRect.right<=rect.right+1};
+    });
+    const result = {viewport:innerWidth, viewWidth:format(view.width),
+      scopeScrollOverflow:format(scope.scrollWidth - scope.clientWidth),
+      documentScrollOverflow:format(document.documentElement.scrollWidth - innerWidth),
+      tables:entries, controls, pagers:pagerGeometry, jumpInputs};
+    dimensions[label] = result;
+    expect(`${prefix}NoHorizontalOverflow`,
+      result.scopeScrollOverflow <= 1 && result.documentScrollOverflow <= 1 &&
+      entries.every(entry => entry.wrapScroll <= 1 &&
+        !entry.visibleCellOverflow && !entry.textClipped),JSON.stringify(result));
+    expect(`${prefix}ControlProportions`,controls.every(item=>mode==="mobile"
+      ? item.width>=43.5 && item.height>=43.5
+      : item.height>=27.5 && item.height<=30 && item.width>=28),
+    JSON.stringify(controls));
+    expect(`${prefix}PagerGeometry`,pagerGeometry.every(pager=>
+      pager.totalOverflow<=1 && pager.longStatusOverflow<=1 &&
+      pager.allControlsInside && pager.longStatusInside &&
+      (mode==="mobile" ? pager.height>=92 && pager.height<=105
+        : pager.height>=32 && pager.height<=39)),JSON.stringify(pagerGeometry));
+    expect(`${prefix}DeepJumpReadable`,jumpInputs.every(input=>
+      input.appearance==="textfield" && input.contentWidth>=input.sixDigitsWidth+2),
+      JSON.stringify(jumpInputs));
+  }
+  geometry("current",currentSection,["captured-body","failed-body"],"current");
+  // Frame screenshot includes the ACTUAL compact pager, not only table rows.
+  capturePager.scrollIntoView({block:"end",inline:"nearest"});
+  await settle();
+  const overlap=(a,b)=>a.left<b.right && b.left<a.right &&
+    a.top<b.bottom && b.top<a.bottom;
+  if (mode==="mobile") {
+    expect("mobileCurrentPagerNotObscured",
+      !overlap(capturePager.getBoundingClientRect(),get("pha-toggle").getBoundingClientRect()),
+      JSON.stringify({pager:capturePager.getBoundingClientRect().toJSON(),
+        hud:get("pha-toggle").getBoundingClientRect().toJSON()}));
+  }
+  let continueWithHistory;
+  const waitForScreenshot = new Promise(resolve => {continueWithHistory = resolve;});
+  window.__continueNativePagingQa = continueWithHistory;
+  OUT.textContent = JSON.stringify({status:"running",phase:"current-ready"});
+  document.title = "CURRENT_PAGING_READY";
+  await waitForScreenshot;
+  delete window.__continueNativePagingQa;
+  document.title = "CURRENT_PAGING_RUNNING";
+
+  currentSection.hidden = true;
+  historySection.hidden = false;
+  const historySession = {...hunt,sessionId:"native-history-paging",status:"ended"};
+  const historyRows = rows.map(item => ({...item,sessionId:historySession.sessionId}));
+  const history = createHistoryView(shadow, {
+    loadSessions:async () => [historySession],
+    loadSessionEncounters:async () => historyRows,
+    getCatchChanceDecimals: () => chanceDecimals,
+    now:() => clock
+  });
+  history.setActiveSubview("attempts");
+  const historyStart = performance.now();
+  await history.ensureLoaded();
+  await settle();
+  timing.historyHydrateMs = format(performance.now() - historyStart);
+  const attemptCount = () => get("history-attempts-body")
+    .querySelectorAll(".history-attempt-row").length;
+  let historyMax = attemptCount();
+  expect("historyInitiallyBounded",historyMax === 100);
+  expect("historyExtendedChancePrecision", [...get("history-attempts-body")
+    .querySelectorAll(".history-attempt-row")].some(row =>
+      row.cells[4]?.textContent === "100.000000%" ||
+      row.cells[4]?.textContent === "98.765000%"));
+  goto("history-attempts",901);
+  await settle();
+  historyMax = Math.max(historyMax,attemptCount());
+  expect("historyDeepPage",attemptCount() === 100 &&
+    pageStatus("history-attempts") === "901–1.000 de 1.000",
+    pageStatus("history-attempts"));
+  const attempt = get("history-attempts-body").querySelector(".history-attempt-row");
+  attempt?.focus({preventScroll:true});
+  attempt?.dispatchEvent(new KeyboardEvent("keydown",{key:" ",bubbles:true}));
+  expect("historyKeyboardExpanded",Boolean(get("history-attempts-body")
+    .querySelector('.history-attempt-row[aria-expanded="true"]')) &&
+    Boolean(get("history-attempts-body").querySelector(".history-detail-row")));
+  const historyWrap = get("history-attempts-wrap");
+  const historyPager = get("history-attempts-page-next").closest(".encounter-page-controls");
+  if (mode === "mobile") {
+    historyWrap.scrollTop = Math.max(0,historyWrap.scrollHeight-historyWrap.clientHeight);
+    const beforeInner = historyWrap.scrollTop;
+    historyPager.scrollIntoView({block:"end"});
+    await settle();
+    const before = historySection.scrollTop;
+    get("history-attempts-page-prev").click();
+    await settle();
+    const viewBox = historySection.getBoundingClientRect();
+    const tableBox = historyWrap.getBoundingClientRect();
+    expect("mobileHistoryScrollOwner", (beforeInner > 0 || before > 0) &&
+      historyWrap.scrollTop === 0 &&
+      tableBox.top >= viewBox.top - 2 && tableBox.top < viewBox.bottom,
+      `viewBefore=${before},innerBefore=${beforeInner},viewAfter=${historySection.scrollTop},innerAfter=${historyWrap.scrollTop},tableTop=${tableBox.top}`);
+  } else {
+    get("history-attempts-page-prev").click();
+    await settle();
+  }
+  historyMax = Math.max(historyMax,attemptCount());
+  expect("historyNavigationBounded",attemptCount() <= 100 &&
+    pageStatus("history-attempts") === "801–900 de 1.000");
+  geometry("history",historySection,["history-attempts-body"],"history");
+  historyPager.scrollIntoView({block:"end",inline:"nearest"});
+  await settle();
+  if (mode==="mobile") {
+    expect("mobileHistoryPagerNotObscured",
+      !overlap(historyPager.getBoundingClientRect(),get("pha-toggle").getBoundingClientRect()),
+      JSON.stringify({pager:historyPager.getBoundingClientRect().toJSON(),
+        hud:get("pha-toggle").getBoundingClientRect().toJSON()}));
+  }
+  let continueHistory;
+  const waitForHistoryScreenshot=new Promise(resolve=>{continueHistory=resolve;});
+  window.__continueNativeHistoryQa=continueHistory;
+  OUT.textContent=JSON.stringify({status:"running",phase:"history-ready"});
+  document.title="CURRENT_PAGING_HISTORY_READY";
+  await waitForHistoryScreenshot;
+  delete window.__continueNativeHistoryQa;
+  document.title="CURRENT_PAGING_RUNNING";
+
+  // This reproduces the screenshot's 10 Captured / 0 Failed state: no
+  // pagination is necessary, and five dead controls must not consume space.
+  historySection.hidden=true;
+  currentSection.hidden=false;
+  const tenCaptured=rows.filter(row=>row.captureResult==="success").slice(0,10);
+  const tinyMetrics=computeSessionMetrics({session:hunt,encounters:tenCaptured,now});
+  current.render({sessionId:hunt.sessionId,encounters:tenCaptured,
+    metrics:tinyMetrics,encounterSnapshotVersion:2,lootDataRevision:2,
+    currentSessionSpecies:tenCaptured.at(-1)});
+  await settle();
+  const capturedPager=get("captured-page-prev").closest(".encounter-page-controls");
+  const failedPager=get("failed-page-prev").closest(".encounter-page-controls");
+  expect("singlePagePagersHidden",capturedPager.hidden && failedPager.hidden &&
+    capturedPager.getBoundingClientRect().height===0 &&
+    failedPager.getBoundingClientRect().height===0);
+  expect("singlePageCountersIntact",countRows("captured")===10 &&
+    countRows("failed")===0 && get("captured-count").textContent==="10 Pokémons" &&
+    get("failed-count").textContent==="0 Pokémons");
+  get("captured-section").scrollIntoView({block:"start",inline:"nearest"});
+  await settle();
+  let continueSingle;
+  const waitForSingleScreenshot=new Promise(resolve=>{continueSingle=resolve;});
+  window.__continueNativeSingleQa=continueSingle;
+  OUT.textContent=JSON.stringify({status:"running",phase:"single-ready"});
+  document.title="CURRENT_PAGING_SINGLE_READY";
+  await waitForSingleScreenshot;
+  delete window.__continueNativeSingleQa;
+  document.title="CURRENT_PAGING_RUNNING";
+  checks.current = ["currentMounted100","currentExactTotals","currentDeepPages",
+    "capturedShowsSixIV","capturedExpanded","currentKeyboardSort",
+    "currentSortRestored","currentNextBounded","currentExtendedChancePrecision",
+    "currentNoHorizontalOverflow","currentControlProportions",
+    "currentPagerGeometry","currentDeepJumpReadable",
+    ...(mode === "mobile" ? ["mobileCurrentScrollOwner",
+      "mobileCurrentPagerNotObscured"] : [])]
+    .every(key => checks[key]);
+  checks.history = ["historyInitiallyBounded","historyDeepPage",
+    "historyExtendedChancePrecision","historyKeyboardExpanded","historyNavigationBounded",
+    "historyNoHorizontalOverflow","historyControlProportions","historyPagerGeometry",
+    "historyDeepJumpReadable",
+    ...(mode === "mobile" ? ["mobileHistoryScrollOwner",
+      "mobileHistoryPagerNotObscured"] : [])]
+    .every(key => checks[key]);
+  checks.singlePage=checks.singlePagePagersHidden && checks.singlePageCountersIntact;
+  report = {status:errors.length ? "error" : "pass",synthetic:true,
+    environment:"native-Chromium-real-CSS-and-scroll",width,mode,
+    sourceRows,logicalHuntHours:102,capturedCount,failedCount,
+    currentCapturedMaxRows:capturedMax,currentFailedMaxRows:failedMax,
+    historyAttemptsMaxRows:historyMax,checks,dimensions,timing,errors,
+    heapUsedJSBytesAtEnd:performance.memory?.usedJSHeapSize ?? null,
+    caveat:"Disposable browser native layout/scroll QA. No authenticated game, Tampermonkey, IndexedDB, source authority, 102-hour uptime, or measured game FPS."};
+} catch (error) {
+  report = {status:"error",width,sourceRows,checks,dimensions,timing,errors,
+    error:{name:error?.name||"Error",message:String(error?.message||error),
+      stack:String(error?.stack||"")}};
+}
+OUT.textContent = JSON.stringify(report);
+document.title = "CURRENT_PAGING_DONE";
+</script></body></html>

@@ -67,6 +67,24 @@ test("touchActivityAutomatic resumes a paused session and pauseAutomatic folds e
   assert.equal(resumed.accumulatedActiveMs, 5000);
 });
 
+test("automatic activity uses the existing current-session read without another IndexedDB lookup", async () => {
+  const db = await setup();
+  const repo = createSessionsRepository(db, { now: fakeClock(1000).now });
+  await repo.getOrStartCurrent();
+  await repo.pauseAutomatic();
+
+  const originalTransaction = db.transaction.bind(db);
+  let transactions = 0;
+  db.transaction = (...args) => {
+    transactions += 1;
+    return originalTransaction(...args);
+  };
+  const resumed = await repo.touchActivityAutomatic();
+  assert.equal(resumed.status, "running");
+  assert.equal(transactions, 3,
+    "one meta read, one session read and one write; no duplicate lookup");
+});
+
 test("recordPotionUsed creates a session if none exists and accumulates across calls", async () => {
   const db = await setup();
   const clock = fakeClock(0);

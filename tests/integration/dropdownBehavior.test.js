@@ -101,7 +101,10 @@ async function chooseDifferentOption(proxy) {
 
   assert.notEqual(select.value, originalValue);
   assert.equal(proxy.open, false);
-  assert.equal(proxy.querySelector("summary").textContent, select.selectedOptions[0].textContent);
+  // HappyDOM can retain a stale selectedOptions snapshot after a <select> is
+  // moved into <details>; the native select.value is the actual change contract.
+  const selectedOption = [...select.options].find(option => option.value === select.value);
+  assert.equal(proxy.querySelector("summary").textContent, selectedOption?.textContent);
   assert.equal(proxy.getRootNode().activeElement, proxy.querySelector("summary"));
 }
 
@@ -300,9 +303,26 @@ test("History navigation preserves loaded pages until Current data changes or us
     await nextTask();
     assert.equal(historyReads, 4, "an automatic session status change also invalidates History");
 
+    ui.renderCurrent({ sessionId: "ongoing", lootDataRevision: 2,
+      metrics: { ...metrics, status: "paused", potionsUsed: 1, potionsCost: 25, expenses: metrics.expenses + 25 },
+      encounters: [] });
+    shadow.querySelector('[data-view="current"]').click();
+    shadow.querySelector('[data-view="history"]').click();
+    await nextTask();
+    assert.equal(historyReads, 5,
+      "a session-only Potion charge invalidates cached History economics without an encounter revision");
+
+    ui.renderCurrent({ sessionId: "ongoing", lootDataRevision: 2,
+      metrics: { ...metrics, status: "paused", potionsUsed: 1, potionsCost: 25, activeMs: 3600000 },
+      encounters: [] });
+    shadow.querySelector('[data-view="current"]').click();
+    shadow.querySelector('[data-view="history"]').click();
+    await nextTask();
+    assert.equal(historyReads, 5, "clock-only changes do not refetch History");
+
     shadow.getElementById("history-refresh").click();
     await nextTask();
-    assert.equal(historyReads, 5, "the user can explicitly request a fresh History read");
+    assert.equal(historyReads, 6, "the user can explicitly request a fresh History read");
   } finally {
     closedHud.dispose();
     window.happyDOM.abort();
@@ -325,6 +345,32 @@ test("disposing the analyzer releases listeners from every shared select proxy",
 
   assert.equal(summary.textContent, originalLabel);
   window.happyDOM.abort();
+});
+
+test("Closed HUD binds the one-column option after creating its native selector", async () => {
+  const { window, shadow, closedHud } = await mountAnalyzer("mobile");
+  try {
+    const selector = shadow.querySelector("[data-hud-zero-mode]");
+    const launcher = shadow.getElementById("pha-toggle");
+    assert.ok(selector, "native Columns selector exists after Closed HUD mount");
+    assert.ok([...selector.options].some(option => option.value === "1"),
+      "one-column option is installed on the actual native selector");
+
+    selector.value = "1";
+    selector.dispatchEvent(new window.Event("change", { bubbles: true }));
+    await nextTask();
+    assert.equal(launcher.dataset.hudColumns, "1");
+    assert.equal(selector.value, "1");
+    assert.equal(window.localStorage.getItem("pokepixel_hunt_analyzer_closed_hud_columns_v1"), "1");
+
+    selector.value = "2";
+    selector.dispatchEvent(new window.Event("change", { bubbles: true }));
+    await nextTask();
+    assert.equal(launcher.dataset.hudColumns, "2", "switching back restores the regular two-column HUD");
+  } finally {
+    closedHud.dispose();
+    window.happyDOM.abort();
+  }
 });
 
 test("Closed HUD ticks preserve encounter scan and unchanged slot DOM", async () => {

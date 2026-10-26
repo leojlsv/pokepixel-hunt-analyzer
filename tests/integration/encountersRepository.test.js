@@ -21,6 +21,18 @@ test("create persists a row and get reads it back", async () => {
   db.close();
 });
 
+test("create rejects an encounter ID collision without replacing the original row", async () => {
+  const db = await setup();
+  try {
+    const repo = createEncountersRepository(db);
+    const first = { encounterId: "same-id", sessionId: "session-a", gold: 15 };
+    await repo.create(first);
+    await assert.rejects(repo.create({ encounterId: "same-id", sessionId: "session-b", gold: 999 }),
+      (error) => error?.name === "ConstraintError");
+    assert.deepEqual(await repo.get("same-id"), first);
+  } finally { db.close(); }
+});
+
 test("update merges a patch over the existing row", async () => {
   const db = await setup();
   const repo = createEncountersRepository(db);
@@ -34,6 +46,69 @@ test("update merges a patch over the existing row", async () => {
   const found = await repo.get("e1");
   assert.deepEqual(found, updated);
   db.close();
+});
+
+test("updateWithPrevious returns committed before/after images from one transaction", async () => {
+  const db = await setup();
+  try {
+    const repo = createEncountersRepository(db);
+    const before = { encounterId: "e1", sessionId: "hunt", gold: 12, lootAtMs: null };
+    await repo.create(before);
+    const originalTransaction = db.transaction.bind(db);
+    let updates = 0;
+    db.transaction = (...args) => {
+      if (Array.isArray(args[0]) && args[0].includes("encounters") &&
+        args[0].includes("meta") && args[1] === "readwrite") updates += 1;
+      return originalTransaction(...args);
+    };
+    const transition = await repo.updateWithPrevious("e1", { gold: 25, lootAtMs: 100 }, {
+      finish: (row) => ({ ...row, captureTicketAtMs: row.lootAtMs })
+    });
+    assert.equal(updates, 1, "read and replacement must share one transaction");
+    assert.deepEqual(transition.before, before);
+    assert.deepEqual(transition.after, { ...before, gold: 25, lootAtMs: 100, captureTicketAtMs: 100 });
+    assert.deepEqual(await repo.get("e1"), transition.after);
+    const second = await repo.updateWithPrevious("e1", { gold: 32 });
+    assert.deepEqual(second.before, transition.after);
+    assert.equal(second.after.gold, 32);
+  } finally { db.close(); }
+});
+
+test("concurrent committed encounter corrections do not lose independent patches", async () => {
+  const db = await setup();
+  try {
+    const repo = createEncountersRepository(db);
+    const original = { encounterId: "same", sessionId: "hunt", gold: 1, lootSellValue: 2 };
+    await repo.create(original);
+    const [gold, loot] = await Promise.all([
+      repo.updateWithPrevious("same", { gold: 40 }),
+      repo.updateWithPrevious("same", { lootSellValue: 70 })
+    ]);
+    const stored = await repo.get("same");
+    assert.equal(stored.gold, 40);
+    assert.equal(stored.lootSellValue, 70);
+    assert.deepEqual(gold.before, original);
+    assert.deepEqual(loot.before, gold.after,
+      "the second read must observe the first committed transaction");
+    assert.deepEqual(loot.after, stored);
+  } finally { db.close(); }
+});
+
+test("updateWithPrevious rejects invalid derivations without changing persisted data", async () => {
+  const db = await setup();
+  try {
+    const repo = createEncountersRepository(db);
+    const original = { encounterId: "e1", gold: 10 };
+    await repo.create(original);
+    await assert.rejects(repo.updateWithPrevious("e1", { gold: 999 }, {
+      finish: () => ({ encounterId: "other", gold: 999 })
+    }), /invalid final encounter identity/);
+    assert.deepEqual(await repo.get("e1"), original);
+    await assert.rejects(repo.updateWithPrevious("missing", { gold: 20 }), /unknown encounterId/);
+    await assert.rejects(repo.updateWithPrevious("e1", { sessionId: "other" }), /identity\/session/);
+    assert.equal(await repo.get("missing"), undefined);
+    assert.deepEqual(await repo.get("e1"), original);
+  } finally { db.close(); }
 });
 
 test("update throws for an unknown encounterId", async () => {

@@ -91,8 +91,13 @@ mode itself remains explicit rather than inferred:
   Current session identity/activity and bounded Loot rows; it does not traverse
   Attempt/Special/target/rarity projections and does not activate the full-summary reader
   grace window;
-- `__POKEPIXEL_HUNT_ANALYZER_CONTROL__` exposes only `pause`, `resume` and `reset`, and
-  those actions still require the Analyzer tab to hold analytics leadership;
+- `__POKEPIXEL_HUNT_ANALYZER_CONTROL__` keeps `pause`, `resume` and
+  `reset` (legacy reset creates a paused/locked session). Its additive
+  protocol-1 `capabilities.resetRunning === true` advertises
+  `act("reset-running")` for a single atomic new running/unlocked session.
+  Better UI Card Mode can use this while a Hunt is running and retains
+  fallback `reset` → `resume` compatibility with legacy Analyzers.
+  All control actions still require the Analyzer to hold analytics leadership;
 - standalone UI additionally exposes `__POKEPIXEL_HUNT_ANALYZER_UI__` with its own
   `protocol: 1` and an allowlisted `navigate(destination)` operation. Destinations are
   semantic (`current`, Current rarity/captured/failed/loot, and History

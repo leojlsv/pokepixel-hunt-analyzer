@@ -9,6 +9,15 @@ import { createInventoryState } from "./inventory-state.js";
 export const CLOSED_HUD_STORAGE_KEY = "pokepixel_hunt_analyzer_closed_hud_v1";
 export const POTION_USAGE_STORAGE_KEY = "pokepixel_hunt_analyzer_potion_usage_v1";
 
+/** Precomputed HUD fields are sufficient for clock ticks and all widgets.
+ * Never retain a second reference to an entire 100k-row Current array when
+ * the authoritative precomputed aggregate is already supplied. The legacy
+ * standalone HUD fallback without a derived aggregate still receives rows.
+ */
+export function compactClosedHudState(state) {
+  return state?.hudEncounterDerived ? { ...state, encounters: [] } : state;
+}
+
 const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const RARITY_ABBR = Object.freeze({
   weak: "W",
@@ -1203,7 +1212,11 @@ export function createClosedHud({
     potionUsage.reconcile(lastState.sessionId, inventory);
     const state = transientState || lastState;
     const key = JSON.stringify([lastState.sessionId ?? null, lastState.lootDataRevision ?? lastState.encounterSnapshotVersion ?? null]);
-    if (encounterCacheKey !== key || (lastState.lootDataRevision == null && lastState.encounterSnapshotVersion == null && encounterCacheSource !== lastState.encounters)) {
+    if (lastState.hudEncounterDerived) {
+      encounterCache = lastState.hudEncounterDerived;
+      encounterCacheKey = key;
+      encounterCacheSource = null;
+    } else if (encounterCacheKey !== key || (lastState.lootDataRevision == null && lastState.encounterSnapshotVersion == null && encounterCacheSource !== lastState.encounters)) {
       const scan = deriveClosedHudState(lastState);
       encounterCache = { highestIv:scan.highestIv, ballStats:scan.ballStats, totalBallsUsed:scan.totalBallsUsed, ballUsage:scan.ballUsage };
       encounterCacheKey = key;
@@ -1259,7 +1272,7 @@ export function createClosedHud({
   }
 
   function render(state) {
-    lastState = state;
+    lastState = compactClosedHudState(state);
     transientState = null;
     lastAuthoritativeAtMs = Number.isFinite(state?.measuredAtMs) ? state.measuredAtMs : Date.now();
     renderLastState();

@@ -8,7 +8,7 @@ function finite(value) {
   return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
 }
 
-function recency(encounter) {
+export function encounterRecency(encounter) {
   return Math.max(
     finite(encounter.startedAtMs),
     finite(encounter.lootAtMs),
@@ -24,7 +24,7 @@ export function latestSpeciesEncounter(encounters = []) {
 
   for (const encounter of encounters) {
     if (!encounter?.speciesId && !encounter?.speciesName) continue;
-    const at = recency(encounter);
+    const at = encounterRecency(encounter);
     if (at < latestAt) continue;
     latest = encounter;
     latestAt = at;

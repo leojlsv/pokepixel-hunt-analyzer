@@ -114,7 +114,11 @@ export function createSessionsRepository(
     // create an implicit Hunt before an authoritative combat context arrives.
     const current = await readCurrent();
     if (current?.activityKind === "expedition" && current.status === "ended") return current;
-    const session = await getOrStartCurrent();
+    // The current row was already read above. A second getOrStartCurrent()
+    // duplicated the meta+session IndexedDB reads for every ordinary event.
+    const session = current && (current.status !== "ended" || current.locked)
+      ? current
+      : await getOrStartCurrent();
     if (session.locked) return session;
 
     const touched = touchActivity(session, now());

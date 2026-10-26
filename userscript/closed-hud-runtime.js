@@ -4,6 +4,7 @@ import {
   POTION_USAGE_STORAGE_KEY
 } from "./closed-hud.js";
 import { MOBILE_CLOSED_HUD_STYLES } from "./closed-hud-mobile-styles.js";
+import { bindOneColumnMode, disposeOneColumnMode } from "./closed-hud-one-column.js";
 import { createSelectProxy } from "./select-proxy.js";
 import { PALETTES, readPalette, selectPalette } from "./palette-theme.js";
 import {
@@ -58,6 +59,12 @@ function syncSelectProxyMode(proxy, select, shadow) {
   proxy.open = false;
   if (mode === "mobile") proxy.prepend(select);
   else proxy.before(select);
+}
+
+function selectedLabel(select, fallback = "") {
+  // Select.value is authoritative; some DOM implementations retain a stale
+  // selectedOptions collection when native selects move between proxy nodes.
+  return [...(select?.options || [])].find(option => option.value === select.value)?.textContent || fallback;
 }
 
 export function mutationNeedsLayoutReconcile(
@@ -324,7 +331,6 @@ export function splitHudSymbolValue(value) {
     value: text.slice(1).trimStart()
   };
 }
-
 export function normalizeHudColumns(value) {
   return value === 0 || value === "0" ? 0 : 2;
 }
@@ -345,39 +351,47 @@ function writeHudColumns(columns) {
   }
 }
 
-function installPrePaintLauncherGuard() {
-  if (typeof document === "undefined" || typeof MutationObserver === "undefined") return null;
+export function installPrePaintLauncherGuard({
+  documentObject = globalThis.document,
+  MutationObserverClass = globalThis.MutationObserver,
+  ElementClass = globalThis.Element
+} = {}) {
+  if (!documentObject || typeof MutationObserverClass !== "function" || typeof ElementClass !== "function") {
+    return () => {};
+  }
 
   const hideLauncher = (host) => {
-    if (!host || host.id !== ROOT_ID) return;
+    if (!host || host.id !== ROOT_ID) return false;
     const launcher = host.shadowRoot?.getElementById("pha-toggle");
-    if (launcher) launcher.style.visibility = "hidden";
+    if (!launcher) return false;
+    // A mounted loading launcher must remain visible if it won the DOM race.
+    if (!launcher.classList.contains("pha-custom-hud") && launcher.getAttribute("aria-busy") !== "true") {
+      launcher.style.visibility = "hidden";
+    }
+    return true;
   };
 
-  hideLauncher(document.getElementById(ROOT_ID));
+  if (hideLauncher(documentObject.getElementById(ROOT_ID))) return () => {};
 
-  const observer = new MutationObserver((mutations) => {
+  const observer = new MutationObserverClass((mutations) => {
     for (const mutation of mutations) {
       for (const node of mutation.addedNodes) {
-        if (!(node instanceof Element)) continue;
-        if (node.id === ROOT_ID) {
-          hideLauncher(node);
-          continue;
+        if (!(node instanceof ElementClass)) continue;
+        if (hideLauncher(node.id === ROOT_ID ? node : node.querySelector?.(`#${ROOT_ID}`))) {
+          observer.disconnect();
+          return;
         }
-        hideLauncher(node.querySelector?.(`#${ROOT_ID}`));
       }
     }
   });
 
-  observer.observe(document.documentElement || document, {
+  observer.observe(documentObject.documentElement || documentObject, {
     childList: true,
     subtree: true
   });
 
-  return observer;
+  return () => observer.disconnect();
 }
-
-const launcherGuard = installPrePaintLauncherGuard();
 
 export function createClosedHud(options = {}) {
   const hud = createBaseClosedHud(options);
@@ -542,7 +556,7 @@ export function createClosedHud(options = {}) {
       proxy.dataset.uiMode = "mobile";
       proxy.open = false;
     }
-    const label = select.selectedOptions?.[0]?.textContent || "Auto";
+    const label = selectedLabel(select, "Auto");
     if (summary.textContent !== label) summary.textContent = label;
   }
 
@@ -804,7 +818,7 @@ export function createClosedHud(options = {}) {
     const summary = proxy?.querySelector(".pha-hud-columns-summary");
     if (!select || !summary) return;
     syncSelectProxyMode(proxy, select, shadow);
-    const label = select.selectedOptions?.[0]?.textContent || "Columns";
+    const label = selectedLabel(select, "Columns");
     if (summary.textContent !== label) summary.textContent = label;
   }
 
@@ -837,7 +851,7 @@ export function createClosedHud(options = {}) {
       const summary = proxy?.querySelector(".pha-hud-widget-summary");
       if (!summary) continue;
       syncSelectProxyMode(proxy, select, shadow);
-      const label = select.selectedOptions?.[0]?.textContent || "Widget";
+      const label = selectedLabel(select, "Widget");
       if (summary.textContent !== label) summary.textContent = label;
       if (proxy.hidden !== select.hidden) proxy.hidden = select.hidden;
     }
@@ -853,7 +867,7 @@ export function createClosedHud(options = {}) {
         classPrefix: "pha-hud-widget",
         ariaLabel: `HUD widget ${Number(select.dataset.hudWidget) + 1}`,
         fallbackLabel: "Widget",
-        getSelectedLabel: () => select.selectedOptions?.[0]?.textContent,
+        getSelectedLabel: () => selectedLabel(select),
         onChange: syncHudWidgetProxies,
         onOpen: (currentProxy) => {
           for (const other of shadow.querySelectorAll(".pha-hud-widget-proxy[open]")) {
@@ -875,7 +889,7 @@ export function createClosedHud(options = {}) {
     const summary = proxy?.querySelector(".pha-hud-preset-summary");
     if (!select || !summary) return;
     syncSelectProxyMode(proxy, select, shadow);
-    const label = select.selectedOptions?.[0]?.textContent || "Preset";
+    const label = selectedLabel(select, "Preset");
     if (summary.textContent !== label) summary.textContent = label;
     if (proxy.hidden !== select.hidden) proxy.hidden = select.hidden;
   }
@@ -908,7 +922,7 @@ export function createClosedHud(options = {}) {
       const summary = proxy?.querySelector(".pha-hud-width-summary");
       if (!summary) continue;
       syncSelectProxyMode(proxy, select, shadow);
-      const label = select.selectedOptions?.[0]?.textContent || "Width";
+      const label = selectedLabel(select, "Width");
       if (summary.textContent !== label) summary.textContent = label;
       if (proxy.hidden !== select.hidden) proxy.hidden = select.hidden;
     }
@@ -924,7 +938,7 @@ export function createClosedHud(options = {}) {
         classPrefix: "pha-hud-width",
         ariaLabel: `Rarity widget width ${Number(select.dataset.hudRarityWidth) + 1}`,
         fallbackLabel: "Width",
-        getSelectedLabel: () => select.selectedOptions?.[0]?.textContent,
+        getSelectedLabel: () => selectedLabel(select),
         onChange: syncHudRarityWidthProxies
       });
       if (anchor) anchor.after(proxy);
@@ -941,7 +955,7 @@ export function createClosedHud(options = {}) {
       const summary = proxy?.querySelector(".pha-hud-item-summary");
       if (!summary) continue;
       syncSelectProxyMode(proxy, select, shadow);
-      const label = select.selectedOptions?.[0]?.textContent || "Select item";
+      const label = selectedLabel(select, "Select item");
       if (summary.textContent !== label) summary.textContent = label;
       if (proxy.hidden !== select.hidden) proxy.hidden = select.hidden;
     }
@@ -957,7 +971,7 @@ export function createClosedHud(options = {}) {
         classPrefix: "pha-hud-item",
         ariaLabel: `HUD item ${Number(select.dataset.hudItem) + 1}`,
         fallbackLabel: "Select item",
-        getSelectedLabel: () => select.selectedOptions?.[0]?.textContent,
+        getSelectedLabel: () => selectedLabel(select),
         onChange: syncHudItemProxies
       });
       if (anchor) anchor.after(proxy);
@@ -974,7 +988,7 @@ export function createClosedHud(options = {}) {
       const summary = proxy?.querySelector(".pha-current-select-summary");
       if (!summary) continue;
       syncSelectProxyMode(proxy, select, shadow);
-      const label = select.selectedOptions?.[0]?.textContent || "All (*)";
+      const label = selectedLabel(select, "All (*)");
       if (summary.textContent !== label) summary.textContent = label;
     }
   }
@@ -989,7 +1003,7 @@ export function createClosedHud(options = {}) {
         classPrefix: "pha-current-select",
         ariaLabel: select.getAttribute("aria-label") || "Current Shiny filter",
         fallbackLabel: "All (*)",
-        getSelectedLabel: () => select.selectedOptions?.[0]?.textContent,
+        getSelectedLabel: () => selectedLabel(select),
         onChange: syncCurrentShinyProxies
       });
       if (anchor) anchor.after(proxy);
@@ -1006,7 +1020,7 @@ export function createClosedHud(options = {}) {
       const summary = proxy?.querySelector(".pha-history-select-summary");
       if (!summary) continue;
       syncSelectProxyMode(proxy, select, shadow);
-      const label = select.selectedOptions?.[0]?.textContent || "All (*)";
+      const label = selectedLabel(select, "All (*)");
       if (summary.textContent !== label) summary.textContent = label;
       if (proxy.hidden !== select.hidden) proxy.hidden = select.hidden;
     }
@@ -1022,7 +1036,7 @@ export function createClosedHud(options = {}) {
         classPrefix: "pha-history-select",
         ariaLabel: select.getAttribute("aria-label") || select.id || "History filter",
         fallbackLabel: "All (*)",
-        getSelectedLabel: () => select.selectedOptions?.[0]?.textContent,
+        getSelectedLabel: () => selectedLabel(select),
         onChange: syncHistoryFilterProxies,
         onOpen: (currentProxy) => {
           for (const other of shadow.querySelectorAll(".pha-history-select-proxy[open]")) {
@@ -1044,7 +1058,7 @@ export function createClosedHud(options = {}) {
     const summary = proxy?.querySelector(".pha-gallery-select-summary");
     if (!select || !summary) return;
     syncSelectProxyMode(proxy, select, shadow);
-    const label = select.selectedOptions?.[0]?.textContent || "All rarities";
+    const label = selectedLabel(select, "All rarities");
     if (summary.textContent !== label) summary.textContent = label;
   }
 
@@ -1163,6 +1177,8 @@ export function createClosedHud(options = {}) {
     ensureStyle();
     applyLayoutPolish();
     installHudZeroModeControl();
+    // One-column ownership requires the native Columns selector to exist.
+    bindOneColumnMode(shadow);
     installHudColumnsProxy();
     installHudWidgetProxies();
     installHudPresetProxy();
@@ -1186,6 +1202,7 @@ export function createClosedHud(options = {}) {
   }
 
   function dispose() {
+    disposeOneColumnMode(shadow);
     observer?.disconnect();
     observer = null;
     layoutObserver?.disconnect();
@@ -1212,5 +1229,3 @@ export function createClosedHud(options = {}) {
     refreshInventory: (cause) => hud.refreshInventory(cause)
   };
 }
-
-void launcherGuard;

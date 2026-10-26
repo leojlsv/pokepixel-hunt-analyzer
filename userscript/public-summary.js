@@ -373,9 +373,13 @@ export function installPublicSummaryBridge({
 
 export function installPublicSessionControl({ pageWindow, performAction }) {
   if (!pageWindow || typeof performAction !== "function") return () => {};
-  const allowed = new Set(["pause", "resume", "reset"]);
+  // Additive protocol-1 capability: one local session rotation that keeps
+  // running without an intermediate paused+locked state. Legacy reset still
+  // creates a paused session; consumers must explicitly opt into this action.
+  const allowed = new Set(["pause", "resume", "reset", "reset-running"]);
   const api = Object.freeze({
     protocol: PUBLIC_SUMMARY_PROTOCOL,
+    capabilities: Object.freeze({ resetRunning: true }),
     async act(action) {
       const normalized = String(action || "").trim().toLowerCase();
       if (!allowed.has(normalized)) return { ok: false, reason: "unsupported-action" };

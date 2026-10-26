@@ -332,3 +332,87 @@ test("Current view repaints Loot when a reward changes but Captured list revisio
     ctx.dispose();
   }
 });
+
+test("Current Loot uses verified row deltas and rehydrates on gaps or stale before-images", () => {
+  const ctx = withShadow();
+  try {
+    const { shadow } = ctx;
+    let catalog = new Map([["map_fragment", { name: "Map Fragment", rarity: "rare" }]]);
+    const loot = createCurrentLootView(shadow, { getLootItemCatalog: () => catalog });
+    const before = {
+      encounterId: "single", sessionId: "hunt-delta", speciesId: "pikachu",
+      lootAtMs: 100, gold: 4, lootItems: [{ itemId: "map_fragment", qty: 2 }]
+    };
+    loot.render({ sessionId: "hunt-delta", lootDataRevision: 11, encounters: [before] });
+    shadow.querySelector(".current-loot-row").click();
+    assert.equal(shadow.querySelector(".current-loot-row").getAttribute("aria-expanded"), "true");
+
+    const lateReward = {
+      ...before, lootSellValue: 7, gold: 9,
+      lootItems: [{ itemId: "map_fragment", qty: 3 }, { itemId: "new_drop", qty: 1 }]
+    };
+    const noTraversal = new Proxy([lateReward], {
+      get(target, key, receiver) {
+        if (key === Symbol.iterator || key === "0") {
+          throw new Error("full encounter traversal during an incremental update");
+        }
+        return Reflect.get(target, key, receiver);
+      }
+    });
+    loot.render({
+      sessionId: "hunt-delta", lootDataRevision: 12, encounters: noTraversal,
+      changedRowsFromRevision: 11, changedRows: [{ previous: before, next: lateReward }]
+    });
+    assert.equal(shadow.getElementById("current-loot-total").textContent, "16");
+    assert.equal(shadow.getElementById("current-loot-count").textContent, "2 items");
+    assert.equal(shadow.querySelector(".current-loot-row").getAttribute("aria-expanded"), "true");
+    assert.equal(shadow.querySelector(".current-loot-sources-table tbody tr").cells[1].textContent, "3");
+
+    // Only source metadata changed. Updating the catalog never requires the
+    // caller's encounter array or another Loot aggregation.
+    catalog = new Map([["map_fragment", { name: "Fragmento do Mapa", rarity: "legendary" }]]);
+    loot.refreshCatalog();
+    assert.match(shadow.querySelector(".current-loot-row").textContent, /Fragmento do Mapa/);
+    assert.match(shadow.querySelector(".current-loot-row").textContent, /Rarity: Legendary/);
+
+    const unchangedRow = shadow.querySelector(".current-loot-row");
+    const noLootEncounter = {
+      encounterId: "started", sessionId: "hunt-delta", speciesId: "eevee"
+    };
+    loot.render({
+      sessionId: "hunt-delta", lootDataRevision: 13,
+      encounters: [lateReward, noLootEncounter],
+      changedRowsFromRevision: 12,
+      changedRows: [{ previous: null, next: noLootEncounter }]
+    });
+    assert.equal(shadow.querySelector(".current-loot-row"), unchangedRow,
+      "new combat without rewards must not recreate Loot DOM");
+
+    const missedReward = { ...lateReward, gold: 21, lootItems: [{ itemId: "new_drop", qty: 5 }] };
+    loot.render({
+      sessionId: "hunt-delta", lootDataRevision: 15,
+      encounters: [missedReward, noLootEncounter],
+      changedRowsFromRevision: 14, changedRows: [{ previous: lateReward, next: missedReward }]
+    });
+    assert.equal(shadow.getElementById("current-loot-total").textContent, "28",
+      "revision gap triggers full hydration");
+    assert.deepEqual([...shadow.querySelectorAll(".current-loot-row")].map((row) => row.dataset.itemId),
+      ["new_drop"]);
+
+    const corrected = { ...missedReward, autoSold: true, autoSellValue: 30 };
+    loot.render({
+      sessionId: "hunt-delta", lootDataRevision: 16,
+      encounters: [corrected, noLootEncounter],
+      changedRowsFromRevision: 15,
+      changedRows: [{ previous: { ...missedReward, gold: 999 }, next: corrected }]
+    });
+    assert.equal(shadow.getElementById("current-loot-total").textContent, "58",
+      "stale before-image triggers full hydration without corrupting totals");
+
+    loot.render({ sessionId: "new-hunt", lootDataRevision: 17, encounters: [] });
+    assert.equal(shadow.getElementById("current-loot-total").textContent, "0");
+    assert.equal(shadow.getElementById("current-loot-count").textContent, "0 items");
+  } finally {
+    ctx.dispose();
+  }
+});

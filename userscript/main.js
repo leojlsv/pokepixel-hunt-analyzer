@@ -21,12 +21,15 @@ import {
   resolvePageWindow
 } from "./websocket-observer.js";
 import { createCurrentRefreshGate } from "./current-refresh-gate.js";
+import { sameEncounterCacheImage } from "./encounter-cache-equivalence.js";
+import { currentRetentionFootprint } from "./performance-footprint.js";
+import { retainLiveActiveKeys } from "./retained-active-keys.js";
 import { needsPeriodicCurrentRefresh } from "./current-refresh-policy.js";
 import { createUi } from "./ui.js";
 import { createAudioAlerts } from "./audio-alerts-runtime.js";
 import { createCatchGallery } from "./catch-gallery.js";
 import { createHistoryDeleteControl } from "./history-delete.js";
-import { createClosedHud } from "./closed-hud-runtime.js";
+import { createClosedHud, installPrePaintLauncherGuard } from "./closed-hud-runtime.js";
 import { createLootItemCatalog } from "./loot-item-catalog.js";
 import { installItemsJsonObserver } from "./items-json-observer.js";
 import {
@@ -40,7 +43,12 @@ import {
   latestCaptureAttemptFromRows,
   updateLatestCaptureAttempt
 } from "./latest-capture-attempt.js";
-import { latestSpeciesEncounter } from "./hunt-view-model.js";
+import { encounterRecency, latestSpeciesEncounter } from "./hunt-view-model.js";
+import {
+  createHudEncounterAggregate,
+  updateHudEncounterAggregate,
+  snapshotHudEncounterAggregate
+} from "./hud-encounter-aggregate.js";
 import {
   cardPresentationSnapshot,
   createCardPresentationCache,
@@ -54,6 +62,7 @@ const CURRENT_REFRESH_MS = 1_000;
 const PUBLIC_SUMMARY_READER_GRACE_MS = 3_000;
 const EVENT_REFRESH_DELAY_MS = 75;
 const STANDBY_RECONCILE_MS = 10_000;
+const MAX_PENDING_ENCOUNTER_DELTAS = 512;
 const CATCH_GALLERY_LOAD_LIMIT = 500;
 const PAGE_API_RATE_LIMIT_FALLBACK_MS = 30_000;
 const LAST_MANUAL_CLEAR_KEY = "pokepixel_hunt_analyzer_last_clear_at_ms_v1";
@@ -62,11 +71,6 @@ const CATCH_GALLERY_SECTION_ID = "catch-gallery";
 const CATCH_GALLERY_BETA_STYLE_ID = "pha-catch-gallery-beta-style";
 const DIAGNOSTICS_GLOBAL = "__POKEPIXEL_HUNT_ANALYZER_DIAGNOSTICS__";
 const OBSERVED_EVENT_TYPES = new Set(EVENT_TYPES);
-const METRIC_DATA_EVENTS = new Set([
-  "loot.received",
-  "capture.failed",
-  "capture.success"
-]);
 const TERMINAL_LIST_EVENTS = new Set([
   "capture.failed",
   "capture.success"
@@ -86,6 +90,7 @@ let pageWindow;
 let lootItemCatalog = new Map();
 const readLootItemCatalog = () => lootItemCatalog;
 let disposeItemsJsonObserver = null;
+let disposePrePaintLauncherGuard = null;
 let updateQueue = Promise.resolve();
 let eventRefreshTimer = null;
 let cachedSessionId = null;
@@ -94,6 +99,8 @@ let lastProjectedSessionId = null;
 let publicSessionGeneration = 0;
 let cachedEncounters = [];
 let cachedEncounterIndexes = new Map();
+let cachedHudEncounterAggregate = null;
+let pendingEncounterDelta = null;
 let cachedAggregateMetrics = null;
 let cachedLatestCaptureAttempt = null;
 let cachedCurrentSessionSpecies = null;
@@ -106,6 +113,9 @@ let encounterListRevision = 0;
 let cachedEncounterListRevision = -1;
 let encounterListSnapshotVersion = 0;
 let lastEncounterSyncAt = 0;
+let fullEncounterReloads = 0;
+let lastFullEncounterReload = null;
+let maxFullEncounterReloadDurationMs = 0;
 let lastCurrentRenderAtMs = null;
 let lastCurrentRender = null;
 let protocolQueueDepth = 0;
@@ -116,6 +126,10 @@ let protocolEventsDroppedStandby = 0;
 let lastProtocolQueuedAtMs = null;
 let lastProtocolProcessedAtMs = null;
 let lastProtocolProcessed = null;
+let lastProtocolQueueWaitMs = null;
+let maxProtocolQueueWaitMs = 0;
+let lastProtocolHandleDurationMs = null;
+let maxProtocolHandleDurationMs = 0;
 let embedded = false;
 let publicSummary = createPublicSummary({ appVersion: APP_VERSION });
 let disposePublicSummaryBridge = null;
@@ -134,19 +148,18 @@ const ready = new Promise((resolve) => {
   resolveReady = resolve;
 });
 
-function markMetricDataDirty() {
-  encounterDataRevision += 1;
-}
-
 function markEncounterListDirty() {
   encounterDataRevision += 1;
   encounterListRevision += 1;
+  pendingEncounterDelta = null;
 }
 
 function invalidateEncounterCache() {
   cachedSessionId = null;
   cachedEncounters = [];
   cachedEncounterIndexes = new Map();
+  cachedHudEncounterAggregate = null;
+  pendingEncounterDelta = null;
   cachedAggregateMetrics = null;
   cachedLatestCaptureAttempt = null;
   cachedCurrentSessionSpecies = null;
@@ -170,23 +183,92 @@ function restoreManualClearFence() {
   }
 }
 
-function recordEncounterChanges(rows, { listChanged = false } = {}) {
+function predatesManualClear(receivedAtMs, eventAtMs) {
+  return lastManualClearAtMs !== null && (
+    receivedAtMs <= lastManualClearAtMs ||
+    (Number.isFinite(eventAtMs) && eventAtMs > 0 &&
+      eventAtMs <= lastManualClearAtMs)
+  );
+}
+
+function recordEncounterChanges(rows, { listChanged = false, transitions = null } = {}) {
+  const previousRevision = encounterDataRevision;
+  const latestSpeciesWasCurrent = listChanged
+    && cachedCurrentSessionSpeciesSnapshotVersion === encounterListSnapshotVersion;
+  let latestSpeciesNeedsRebuild = false;
   encounterDataRevision += 1;
   if (listChanged) encounterListRevision += 1;
   liveActiveEncounterKeys = updateLiveActiveKeys(liveActiveEncounterKeys, rows);
 
   if (
     !cachedSessionId ||
-    cachedEncounterRevision < 0 ||
+    cachedEncounterRevision !== previousRevision ||
+    !cachedHudEncounterAggregate ||
     !cachedAggregateMetrics ||
     rows.some((row) => row.sessionId !== cachedSessionId)
   ) {
+    pendingEncounterDelta = null;
     return;
+  }
+
+  // Cross-check the authoritative transaction before-image against the local
+  // projection before applying any incremental contribution. A stale cache
+  // must be rehydrated instead of silently double-counting a corrected row.
+  const byId = Array.isArray(transitions)
+    ? new Map(transitions.map((entry) => [entry.after?.encounterId, entry]))
+    : null;
+  if (byId && (byId.size !== rows.length || rows.some((row) => {
+    const transition = byId.get(row.encounterId);
+    if (!transition || transition.after?.encounterId !== row.encounterId) return true;
+    const index = cachedEncounterIndexes.get(row.encounterId);
+    const cached = index === undefined ? null : cachedEncounters[index];
+    return !sameEncounterCacheImage(cached, transition.before);
+  }))) {
+    pendingEncounterDelta = null;
+    return;
+  }
+
+  if (!pendingEncounterDelta) {
+    pendingEncounterDelta = {
+      fromRevision: previousRevision,
+      toRevision: encounterDataRevision,
+      fromListVersion: encounterListSnapshotVersion,
+      toListVersion: encounterListSnapshotVersion,
+      changes: new Map()
+    };
   }
 
   for (const row of rows) {
     const index = cachedEncounterIndexes.get(row.encounterId);
-    const previous = index === undefined ? null : cachedEncounters[index];
+    const previous = byId
+      ? byId.get(row.encounterId).before
+      : index === undefined ? null : cachedEncounters[index];
+
+    if (latestSpeciesWasCurrent && !latestSpeciesNeedsRebuild) {
+      const latest = cachedCurrentSessionSpecies;
+      const isLatestCorrection = previous?.encounterId === latest?.encounterId;
+      const rowHasSpecies = Boolean(row?.speciesId || row?.speciesName);
+      if (isLatestCorrection && (!rowHasSpecies || encounterRecency(row) < encounterRecency(previous))) {
+        latestSpeciesNeedsRebuild = true;
+      } else if (rowHasSpecies) {
+        const nextAt = encounterRecency(row);
+        const latestAt = latest ? encounterRecency(latest) : Number.NEGATIVE_INFINITY;
+        const rowIndex = index === undefined ? cachedEncounters.length : index;
+        const latestIndex = latest ? (cachedEncounterIndexes.get(latest.encounterId) ?? -1) : -1;
+        if (!latest || isLatestCorrection || nextAt > latestAt || (nextAt === latestAt && rowIndex >= latestIndex)) {
+          cachedCurrentSessionSpecies = row;
+        }
+      }
+    }
+
+    updateHudEncounterAggregate(cachedHudEncounterAggregate, previous, row);
+    if (pendingEncounterDelta && pendingEncounterDelta.changes.size <= MAX_PENDING_ENCOUNTER_DELTAS) {
+      const original = pendingEncounterDelta.changes.get(row.encounterId);
+      pendingEncounterDelta.changes.set(row.encounterId, {
+        previous: original ? original.previous : previous,
+        next: row
+      });
+    }
 
     cachedAggregateMetrics = updateSessionMetricsForEncounter(
       cachedAggregateMetrics,
@@ -208,6 +290,16 @@ function recordEncounterChanges(rows, { listChanged = false } = {}) {
   if (listChanged) {
     cachedEncounterListRevision = encounterListRevision;
     encounterListSnapshotVersion += 1;
+    if (latestSpeciesWasCurrent && !latestSpeciesNeedsRebuild) {
+      cachedCurrentSessionSpeciesSnapshotVersion = encounterListSnapshotVersion;
+    }
+  }
+  if (pendingEncounterDelta) {
+    pendingEncounterDelta.toRevision = encounterDataRevision;
+    pendingEncounterDelta.toListVersion = encounterListSnapshotVersion;
+    if (pendingEncounterDelta.changes.size > MAX_PENDING_ENCOUNTER_DELTAS) {
+      pendingEncounterDelta = null;
+    }
   }
 }
 
@@ -297,10 +389,7 @@ function enqueueProtocolEvent(payload, socketId, receivedAtMs = Date.now()) {
   // asynchronous Blob decoding afterward. Timestamped replays from before the
   // wipe also stay rejected across reloads; no automatic age filter exists.
   const eventAtMs = Number(payload.ts);
-  if (lastManualClearAtMs !== null && (
-    receivedAtMs <= lastManualClearAtMs ||
-    (Number.isFinite(eventAtMs) && eventAtMs > 0 && eventAtMs <= lastManualClearAtMs)
-  )) return;
+  if (predatesManualClear(receivedAtMs, eventAtMs)) return;
 
   if (!leadership.isActive()) {
     protocolEventsDroppedStandby += 1;
@@ -311,7 +400,9 @@ function enqueueProtocolEvent(payload, socketId, receivedAtMs = Date.now()) {
   protocolEventsQueued += 1;
   protocolQueueDepth += 1;
   protocolMaxQueueDepth = Math.max(protocolMaxQueueDepth, protocolQueueDepth);
-  lastProtocolQueuedAtMs = Date.now();
+  const queuedAtMs = Date.now();
+  const queuedAtMonotonicMs = performance.now();
+  lastProtocolQueuedAtMs = queuedAtMs;
 
   updateQueue = updateQueue
     .then(async () => {
@@ -320,13 +411,27 @@ function enqueueProtocolEvent(payload, socketId, receivedAtMs = Date.now()) {
         protocolEventsDroppedStandby += 1;
         return;
       }
-      const eventResult = await pipeline.handle({
-        type: payload.type,
-        seq: finiteOrNull(payload.seq),
-        ts: finiteOrNull(payload.ts),
-        socketId,
-        data: payload.data
-      });
+      // Decoding may finish while a queued manual wipe is still committing.
+      // The first fence was checked BEFORE joining updateQueue; recheck AFTER
+      // the wipe has finished and BEFORE allowing this event to persist.
+      if (predatesManualClear(receivedAtMs, eventAtMs)) return;
+      lastProtocolQueueWaitMs = Math.max(0, performance.now() - queuedAtMonotonicMs);
+      maxProtocolQueueWaitMs = Math.max(maxProtocolQueueWaitMs, lastProtocolQueueWaitMs);
+      const startedAt = performance.now();
+      let eventResult;
+      try {
+        eventResult = await pipeline.handle({
+          type: payload.type,
+          seq: finiteOrNull(payload.seq),
+          ts: finiteOrNull(payload.ts),
+          socketId,
+          protocolGeneration: payload.protocolGeneration,
+          data: payload.data
+        });
+      } finally {
+        lastProtocolHandleDurationMs = Math.max(0, performance.now() - startedAt);
+        maxProtocolHandleDurationMs = Math.max(maxProtocolHandleDurationMs, lastProtocolHandleDurationMs);
+      }
 
       protocolEventsProcessed += 1;
       lastProtocolProcessedAtMs = Date.now();
@@ -335,6 +440,10 @@ function enqueueProtocolEvent(payload, socketId, receivedAtMs = Date.now()) {
         seq: finiteOrNull(payload.seq),
         socketId
       };
+
+      // No persistence changed for duplicates or rejected events. Invalidating
+      // a terminal/loot revision here can force a full-Hunt IndexedDB read.
+      if (eventResult?.ok !== true || eventResult.duplicate === true) return;
 
       if (eventResult?.terminalAlert) {
         void audioAlerts?.handleTerminalAlert(eventResult.terminalAlert);
@@ -346,17 +455,21 @@ function enqueueProtocolEvent(payload, socketId, receivedAtMs = Date.now()) {
 
       if (eventResult?.changedEncounters?.length > 0) {
         recordEncounterChanges(eventResult.changedEncounters, {
-          listChanged: TERMINAL_LIST_EVENTS.has(payload.type)
+          listChanged: TERMINAL_LIST_EVENTS.has(payload.type),
+          transitions: eventResult.encounterTransitions
         });
       } else if (TERMINAL_LIST_EVENTS.has(payload.type)) {
         markEncounterListDirty();
-      } else if (METRIC_DATA_EVENTS.has(payload.type)) {
-        markMetricDataDirty();
       }
 
       requestCurrentRefresh();
     })
     .catch((error) => {
+      // A protocol envelope may have written an earlier independent effect
+      // before a later IndexedDB transaction failed. Re-read the authoritative
+      // store even though this envelope did not commit a complete projection.
+      markEncounterListDirty();
+      requestCurrentRefresh();
       console.error("PokePixel Hunt Analyzer (event pipeline):", error);
     })
     .finally(() => {
@@ -386,15 +499,19 @@ async function performCurrentLoad() {
     standbyNeedsReconcile;
 
   if (shouldReloadEncounters) {
+    const reloadReason = sessionChanged ? "session-change"
+      : cachedEncounterRevision !== revisionAtStart ? "revision-mismatch"
+        : "standby-reconcile";
+    const reloadStartedAt = performance.now();
     cachedEncounters = session
       ? await encountersRepository.getBySessionId(sessionId)
       : [];
+    cachedHudEncounterAggregate = createHudEncounterAggregate(cachedEncounters);
     cachedEncounterIndexes = new Map(
       cachedEncounters.map((encounter, index) => [encounter.encounterId, index])
     );
     cachedLatestCaptureAttempt = latestCaptureAttemptFromRows(cachedEncounters);
-    const currentEncounterKeys = new Set(cachedEncounters.map(row => String(row?.encounterId || "")).filter(Boolean));
-    liveActiveEncounterKeys = new Set([...liveActiveEncounterKeys].filter(key => currentEncounterKeys.has(key)));
+    liveActiveEncounterKeys = retainLiveActiveKeys(liveActiveEncounterKeys, cachedEncounters);
     cachedCardPresentation = createCardPresentationCache(cachedEncounters, { activeKeys: liveActiveEncounterKeys });
 
     const listSnapshotChanged =
@@ -413,6 +530,15 @@ async function performCurrentLoad() {
       encounters: cachedEncounters,
       now
     });
+    const durationMs = Math.max(0, performance.now() - reloadStartedAt);
+    fullEncounterReloads += 1;
+    maxFullEncounterReloadDurationMs = Math.max(maxFullEncounterReloadDurationMs, durationMs);
+    lastFullEncounterReload = {
+      reason: reloadReason,
+      encounterCount: cachedEncounters.length,
+      durationMs,
+      completedAtMs: Date.now()
+    };
   }
 
   // Match CURRENT's headline invalidation: terminal/list/session changes,
@@ -423,6 +549,17 @@ async function performCurrentLoad() {
   }
 
   const metrics = refreshSessionMetrics(cachedAggregateMetrics, session, now);
+  const encounterDelta = !shouldReloadEncounters && pendingEncounterDelta
+    && pendingEncounterDelta.toRevision === revisionAtStart
+    && pendingEncounterDelta.toListVersion === encounterListSnapshotVersion
+    ? {
+        fromRevision: pendingEncounterDelta.fromRevision,
+        toRevision: pendingEncounterDelta.toRevision,
+        fromListVersion: pendingEncounterDelta.fromListVersion,
+        toListVersion: pendingEncounterDelta.toListVersion,
+        changes: [...pendingEncounterDelta.changes.values()]
+      }
+    : null;
   const currentState = {
     sessionId,
     measuredAtMs: now,
@@ -430,6 +567,8 @@ async function performCurrentLoad() {
     endedAtMs: Number.isFinite(session?.endedAtMs) ? session.endedAtMs : null,
     encounterSnapshotVersion: encounterListSnapshotVersion,
     lootDataRevision: cachedEncounterRevision,
+    encounterDelta,
+    hudEncounterDerived: snapshotHudEncounterAggregate(cachedHudEncounterAggregate),
     metrics,
     encounters: cachedEncounters,
     currentSessionSpecies: cachedCurrentSessionSpecies,
@@ -444,6 +583,7 @@ async function performCurrentLoad() {
   });
   ui?.renderCurrent(currentState);
   closedHud?.render(currentState);
+  if (pendingEncounterDelta?.toRevision === revisionAtStart) pendingEncounterDelta = null;
 
   lastCurrentRenderAtMs = Date.now();
   lastCurrentRender = {
@@ -484,7 +624,12 @@ async function buildDiagnosticsSnapshot() {
       lastQueuedAtMs: lastProtocolQueuedAtMs,
       lastProcessedAtMs: lastProtocolProcessedAtMs,
       lastProcessedEvent: lastProtocolProcessed ? { ...lastProtocolProcessed } : null,
+      lastQueueWaitMs: lastProtocolQueueWaitMs,
+      maxQueueWaitMs: maxProtocolQueueWaitMs,
+      lastHandleDurationMs: lastProtocolHandleDurationMs,
+      maxHandleDurationMs: maxProtocolHandleDurationMs,
       currentRefresh: currentRefreshGate.snapshot(),
+      uiCache: ui?.retentionSnapshot?.() ?? null,
       currentCache: {
         cachedSessionId,
         encounterDataRevision,
@@ -492,7 +637,18 @@ async function buildDiagnosticsSnapshot() {
         encounterListRevision,
         cachedEncounterListRevision,
         encounterCount: cachedEncounters.length,
-        lastEncounterSyncAt
+        lastEncounterSyncAt,
+        fullEncounterReloads,
+        retained: currentRetentionFootprint({
+          encounters: cachedEncounters,
+          indexes: cachedEncounterIndexes,
+          cardPresentation: cachedCardPresentation,
+          liveKeys: liveActiveEncounterKeys,
+          pendingChanges: pendingEncounterDelta,
+          pageWindow
+        }),
+        maxFullEncounterReloadDurationMs,
+        lastFullEncounterReload: lastFullEncounterReload ? { ...lastFullEncounterReload } : null
       },
       apiRateLimit: {
         observed429: pageApiRateLimitCount,
@@ -547,6 +703,7 @@ async function handleSessionAction(action) {
       let result = null;
       switch (action) {
         case "new":
+        case "reset-running":
           result = await sessionsRepository.forceNewSession();
           invalidateEncounterCache();
           break;
@@ -673,7 +830,16 @@ function mountUiWhenReady() {
       onLoadHistorySessionEncounters: (sessionId) =>
         encountersRepository.getBySessionId(sessionId),
       getLootItemCatalog: readLootItemCatalog,
-      onClearAll: handleRemoveAllAnalytics
+      onClearAll: handleRemoveAllAnalytics,
+      onRequestCurrentRefresh: () => {
+        // Returning from a long-hidden Current requires a fresh full source
+        // read, even if the ACTIVE cooperating revision did not advance:
+        // legacy same-origin writers may have changed its IDB rows.
+        // Preserve the tracker/owner/live-active Card keys; do NOT call
+        // invalidateEncounterCache(), which clears unrelated live authority.
+        markEncounterListDirty();
+        return loadCurrent();
+      }
     });
     disposePublicUiBridge = installPublicUiBridge({
       pageWindow,
@@ -716,6 +882,7 @@ function scheduleRefreshes() {
   currentRefreshInterval = setInterval(() => {
     const now = Date.now();
     if (!embedded) closedHud?.tick(now);
+    ui?.maybeReleaseHiddenViews?.(now);
     if (!needsPeriodicCurrentRefresh({
       currentVisible: ui?.needsCurrentTicker?.() === true,
       lastFullReadAtMs: lastPublicSummaryReadAtMs,
@@ -744,6 +911,7 @@ async function initialize() {
     onRateLimited: notePageApiRateLimit
   });
   embedded = isEmbedMode(pageWindow);
+  if (!embedded) disposePrePaintLauncherGuard = installPrePaintLauncherGuard();
   disposePublicSummaryBridge = installPublicSummaryBridge({
     pageWindow,
     appVersion: APP_VERSION,
@@ -807,6 +975,8 @@ function disposeRuntime() {
   catchGallery?.dispose();
   historyDeleteControl?.dispose();
   closedHud?.dispose();
+  disposePrePaintLauncherGuard?.();
+  disposePrePaintLauncherGuard = null;
   disposePublicSummaryBridge?.();
   disposePublicSessionControl?.();
   disposePublicUiBridge?.();

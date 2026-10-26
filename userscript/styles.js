@@ -604,6 +604,8 @@ th.sortable:focus-visible {
 .captured-table { max-width: 100%; }
 .captured-table th:last-child { padding-right: 4px; padding-left: 4px; font-size: 9px; }
 .captured-table td:not(:last-child) { overflow: hidden; text-overflow: ellipsis; }
+.captured-table td.gender { width: auto; padding-left: 1px; padding-right: 1px; }
+.captured-table td:nth-child(4) { padding-left: 2px; padding-right: 2px; font-size: 10px; }
 .iv-atk { color: #e598b7; font-weight: 700; }
 .iv-spatk { color: #7fb3e8; font-weight: 700; }
 .failed-pokemon-col { width: 24%; }
@@ -745,6 +747,45 @@ tbody tr:last-child td { border-bottom: 0; }
   white-space: normal;
 }
 .encounter-section .table-wrap { max-height: 168px; }
+.encounter-page-controls {
+  display:grid;
+  grid-template-columns:max-content minmax(0,1fr) max-content max-content max-content;
+  align-items:center;
+  gap:4px;
+  padding:4px 6px;
+  border-top:1px solid var(--border-soft);
+  background:var(--bg-elevated); color:var(--muted);
+  font-size:10px; font-variant-numeric:tabular-nums;
+}
+.encounter-page-controls button {
+  display:inline-flex; align-items:center; justify-content:center;
+  height:28px; min-height:28px; min-width:0; padding:0 6px;
+  border:1px solid var(--border); background:var(--bg);
+  border-radius:2px; color:var(--text); font:inherit; cursor:pointer;
+}
+.encounter-page-controls > button:nth-of-type(1),
+.encounter-page-controls > button:nth-of-type(2) { min-width:42px; }
+.encounter-page-controls > button:nth-of-type(3) { min-width:30px; }
+.encounter-page-controls button:disabled { opacity:.45; cursor:default; }
+.encounter-page-status {
+  min-width:0; line-height:1.2; text-align:center; font-size:9px;
+  white-space:normal;
+}
+.encounter-page-jump {
+  display:inline-flex; align-items:center; gap:4px;
+  white-space:nowrap; font-size:9px;
+}
+.encounter-page-jump input {
+  width:62px; min-width:0; height:28px;
+  padding:2px 3px; border:1px solid var(--border);
+  border-radius:2px; background:var(--bg); color:var(--text);
+  font:inherit; text-align:center; font-variant-numeric:tabular-nums;
+  appearance:textfield; -moz-appearance:textfield;
+}
+.encounter-page-jump input::-webkit-inner-spin-button,
+.encounter-page-jump input::-webkit-outer-spin-button {
+  appearance:none; margin:0;
+}
 #captured-section .table-wrap { overflow-x: hidden; }
 .encounter-section th,
 .encounter-section td { height: 28px; }

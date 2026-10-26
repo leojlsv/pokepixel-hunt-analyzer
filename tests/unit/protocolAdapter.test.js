@@ -338,3 +338,57 @@ test("protocol adapter rejects unsafe runtime retention settings", () => {
     /positive safe integer/
   );
 });
+
+test("recent raw reward replay identities remain bounded and expire without changing Hunt data", () => {
+  let clock = 1_000;
+  const adapter = createProtocolAdapter({
+    now: () => clock,
+    runtimeEntryLimit: 3,
+    runtimeRetentionMs: 30_000
+  });
+  adapter.adapt({ type: "hunt.analyzer_reset", seq: 1, ts: clock,
+    data: { session_id: "s", zone_id: "z" } });
+
+  for (let i = 0; i < 5; i += 1) {
+    clock += 100;
+    const canonical = adapter.adapt({ type: "loot.received", seq: 10 + i, ts: clock,
+      data: { session_id: "s", per_kill: [
+        { seq: 100 + i, trainer_exp: 40, pokemon_exp: 40 }
+      ] } });
+    assert.equal(canonical.filter((e) => e.type === "loot.received").length, 1);
+  }
+  assert.equal(adapter.getDiagnosticsSnapshot().recentLootFrameIdentities, 3);
+  clock += 30_001;
+  adapter.adapt({ type: "hunt.frame", seq: 99, ts: clock, data: null });
+  assert.equal(adapter.getDiagnosticsSnapshot().recentLootFrameIdentities, 0);
+});
+
+test("oversized/unserializable raw rewards bypass replay fingerprinting without losing their EXP", () => {
+  const adapter = createProtocolAdapter();
+  adapter.adapt({
+    type: "hunt.analyzer_reset", seq: 1, ts: 1,
+    data: { session_id: "s", zone_id: "z" }
+  });
+
+  const oversized = adapter.adapt({
+    type: "loot.received", seq: 2, ts: 2,
+    data: { session_id: "s", per_kill: [{
+      seq: 21, trainer_exp: 50, pokemon_exp: 75,
+      untrusted_extra: { description: "x".repeat(200_000) }
+    }] }
+  });
+  assert.equal(oversized.filter((event) => event.type === "loot.received").length, 1);
+  assert.equal(oversized.find((event) => event.type === "loot.received").data.trainer_exp, 50);
+  assert.equal(adapter.getDiagnosticsSnapshot().recentLootFrameIdentities, 0);
+
+  const nonJsonMetadata = adapter.adapt({
+    type: "loot.received", seq: 3, ts: 3,
+    data: { session_id: "s", per_kill: [{
+      seq: 22, trainer_exp: 100, pokemon_exp: 100,
+      untrusted_extra: { toJSON() { throw new Error("must never stringify"); } }
+    }] }
+  });
+  assert.equal(nonJsonMetadata.filter((event) => event.type === "loot.received").length, 1);
+  assert.equal(adapter.getDiagnosticsSnapshot().unfingerprintableLootFrames, 2);
+  assert.equal(adapter.getDiagnosticsSnapshot().recentLootFrameIdentities, 0);
+});

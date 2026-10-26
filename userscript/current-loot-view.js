@@ -1,4 +1,4 @@
-import { aggregateLootHistory } from "./loot-history-model.js";
+import { createCurrentLootAccumulator } from "./current-loot-aggregate.js";
 import {
   knownLootItemRarity,
   lootItemCatalogSignature
@@ -22,12 +22,14 @@ function itemRarity(item) {
 /**
  * Current-only projection; never reads all History sessions or drives the
  * one-second Current refresh into an encounter scan. Aggregation runs only
- * on a new session or a changed encounter-data revision.
+ * on a new session or a changed encounter-data revision. Reliable encounter
+ * deltas update only affected item/source totals; missing deltas rehydrate.
  */
 export function createCurrentLootView(shadow, { getLootItemCatalog = () => null } = {}) {
   let sessionId = undefined;
   let dataRevision = undefined;
-  let summary = aggregateLootHistory();
+  const aggregate = createCurrentLootAccumulator();
+  let summary = aggregate.hydrate();
   let currentCatalogSignature = "";
   const expandedItems = new Set();
 
@@ -40,7 +42,10 @@ export function createCurrentLootView(shadow, { getLootItemCatalog = () => null 
   function render({
     sessionId: nextSessionId = null,
     lootDataRevision = 0,
-    encounters = []
+    encounters = [],
+    changedRows = null,
+    changedRowsFromRevision = null,
+    encounterDelta = null
   } = {}) {
     const changedSession = sessionId !== nextSessionId;
     if (!changedSession && dataRevision === lootDataRevision) {
@@ -51,12 +56,31 @@ export function createCurrentLootView(shadow, { getLootItemCatalog = () => null 
       }
       return;
     }
+    const transitions = encounterDelta?.changes ?? changedRows;
+    const fromRevision = encounterDelta?.fromRevision ?? changedRowsFromRevision;
+    const toRevision = encounterDelta?.toRevision ?? lootDataRevision;
+    const incremental = !changedSession && Array.isArray(transitions)
+      && fromRevision === dataRevision && toRevision === lootDataRevision
+      ? aggregate.applyChanges(transitions, {
+        sessionId: nextSessionId,
+        encounterCount: nextSessionId == null ? 0 : encounters.length
+      })
+      : { applied: false, changed: false };
+
     sessionId = nextSessionId;
     dataRevision = lootDataRevision;
     if (changedSession) expandedItems.clear();
-    summary = aggregateLootHistory(
-      sessionId == null ? [] : [{ session: { sessionId }, encounters }]
-    );
+    if (incremental.applied) {
+      summary = aggregate.getSummary();
+      if (!incremental.visibleChanged) {
+        if (!shadow.getElementById("view-current")?.hidden && summary.items.length > 0) {
+          refreshCatalog();
+        }
+        return;
+      }
+    } else {
+      summary = aggregate.hydrate(encounters, { sessionId });
+    }
     renderContents({ preserveScroll: !changedSession });
   }
 
@@ -142,6 +166,12 @@ export function createCurrentLootView(shadow, { getLootItemCatalog = () => null 
     const body = shadow.getElementById("current-loot-body");
     const wrap = shadow.querySelector(".current-loot-wrap");
     const scrollTop = preserveScroll ? wrap?.scrollTop : null;
+    // A raw/legacy correction can replace the entire Loot table while a
+    // keyboard user is focused on an item. Restore focus by stable item ID
+    // only if the same item remains visible after the full refresh.
+    const active = shadow.activeElement;
+    const focusedItemId = active?.classList?.contains("current-loot-row")
+      && body.contains(active) ? active.dataset.itemId : null;
     const fragment = document.createDocumentFragment();
 
     for (const item of visible) {
@@ -193,6 +223,13 @@ export function createCurrentLootView(shadow, { getLootItemCatalog = () => null 
     }
     body.replaceChildren(fragment);
     if (scrollTop != null && wrap) wrap.scrollTop = scrollTop;
+    if (focusedItemId != null) {
+      for (const row of body.querySelectorAll(".current-loot-row")) {
+        if (row.dataset.itemId !== focusedItemId) continue;
+        row.focus({ preventScroll: true });
+        break;
+      }
+    }
   }
 
   function refreshCatalog() {
@@ -209,5 +246,24 @@ export function createCurrentLootView(shadow, { getLootItemCatalog = () => null 
     currentCatalogSignature = signature;
   }
 
-  return { render, refreshCatalog };
+  function suspend() {
+    // UI-only: never touches IDB. Clearing tbody alone leaves all per-encounter
+    // Loot contributions retained in the accumulator's private Map.
+    sessionId = undefined;
+    dataRevision = undefined;
+    summary = aggregate.hydrate();
+    currentCatalogSignature = "";
+    expandedItems.clear();
+    shadow.getElementById("current-loot-body").replaceChildren();
+  }
+
+  function retentionSnapshot() {
+    return {
+      contributionRows: summary.matchedEncounters,
+      lootItemTypes: summary.items.length,
+      visibleDomRows: shadow.getElementById("current-loot-body").childElementCount
+    };
+  }
+
+  return { render, refreshCatalog, suspend, retentionSnapshot };
 }

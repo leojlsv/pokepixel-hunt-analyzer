@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
-import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
+import { IDBFactory, IDBKeyRange, IDBObjectStore } from "fake-indexeddb";
 import { Window } from "happy-dom";
 import { openDatabase, STORE_NAMES } from "../../data/db.js";
 
@@ -89,6 +89,13 @@ class RuntimeSocket {
 test("1.15.6 retains old data until the owner clicks Remover Tudo; late Blob cannot restore it", async () => {
   const factory = new IDBFactory();
   await seedOldAnalytics(factory);
+  // Release the pre-wipe socket frame WHILE the wipe transaction is pending.
+  // A wall-clock Blob delay usually finishes after the wipe, missing the
+  // harder race: decoded/queued before commit, processed after commit.
+  let releaseBlob;
+  const decodeGate = new Promise(resolve => { releaseBlob = resolve; });
+  const originalClear = IDBObjectStore.prototype.clear;
+  let encounteredWipeClear = false;
   const browser = new Window({ url: "https://pokepixel.nietore.com/play/" });
   browser.unsafeWindow = browser;
   browser.indexedDB = factory;
@@ -115,21 +122,33 @@ test("1.15.6 retains old data until the owner clicks Remover Tudo; late Blob can
       "20-day analytics must remain without any user action");
 
     const socket = new browser.WebSocket("wss://synthetic.invalid");
-    class DelayedBlob extends browser.Blob {
-      async text() {
-        await new Promise(resolve => setTimeout(resolve, 150));
-        return super.text();
-      }
-    }
-    socket.emit(new DelayedBlob([JSON.stringify({
+    const delayedFrameText = JSON.stringify({
       type: "capture.failed", seq: 5, ts: Date.now() - 20_000,
       data: { wild_monster_id: "old-event", species_id: "pidgey" }
-    })]));
+    });
+    class DelayedBlob extends browser.Blob {
+      async text() {
+        await decodeGate;
+        // Return synchronously after the gate instead of relying on a second
+        // Blob decode task, which could finish after the clear transaction.
+        return delayedFrameText;
+      }
+    }
+    IDBObjectStore.prototype.clear = function (...args) {
+      const request = originalClear.apply(this, args);
+      if (this.name === STORE_NAMES.ENCOUNTERS && !encounteredWipeClear) {
+        encounteredWipeClear = true;
+        releaseBlob();
+      }
+      return request;
+    };
+    socket.emit(new DelayedBlob([delayedFrameText]));
     button.click();
     assert.ok(await waitFor(() => button.textContent === "Remover Tudo"
       && button.getRootNode().getElementById("history-clear-all-status")
         ?.textContent.includes("Catch Gallery: 1 captura(s) preservada(s)")),
     "the operation must report confirmation only after the IDB commit");
+    assert.equal(encounteredWipeClear, true, "fixture must release Blob during clear transaction");
     await new Promise(resolve => setTimeout(resolve, 210));
     assert.deepEqual(await counts(factory), { encounters: 1, sessions: 0, configs: 0, meta: 0 });
     const db = await openDatabase({ indexedDBFactory: factory });
@@ -153,6 +172,8 @@ test("1.15.6 retains old data until the owner clicks Remover Tudo; late Blob can
     assert.equal(typeof browser.localStorage.getItem("pokepixel_hunt_analyzer_last_clear_at_ms_v1"), "string");
     assert.ok(browser.localStorage.getItem("pokepixel_hunt_analyzer_ui_v2"), "UI preferences survive removal");
   } finally {
+    IDBObjectStore.prototype.clear = originalClear;
+    releaseBlob?.();
     browser.dispatchEvent(new browser.Event("beforeunload"));
     browser.close();
   }

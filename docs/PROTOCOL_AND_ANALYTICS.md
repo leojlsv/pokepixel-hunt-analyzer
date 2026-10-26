@@ -214,7 +214,7 @@ loot.received.per_kill[]   (may arrive after terminal capture)
 The adapter synthesizes:
 
 ```text
-wildMonsterId = huntsim:<server-session-or-zone>:<kill-seq>
+wildMonsterId = huntsim:<server-session-or-zone>:<kill-seq>[:g<local-generation>]
 ```
 
 Observed correlation sources:
@@ -225,7 +225,18 @@ hunt.events[].cap.id
 loot.received.per_kill[].seq
 ```
 
-These represent the HuntSim kill sequence used as the stable local correlation key.
+These represent the HuntSim kill sequence used as the local correlation key.
+After a confirmed reset/transition with observed kills, the adapter advances a
+local generation so a server-recycled transport ID and kill sequence cannot
+overwrite the previous encounter. The initial generation keeps the historical
+ID form for backward compatibility. This is **not** a new persisted Hunt,
+nor proof of an authoritative server-run ID.
+
+When `loot.received.session_id` is recycled and both an active and a retired
+run could own a kill, the adapter declines to attribute that reward. The same
+fail-closed rule applies to capture terminals matching multiple generations.
+The protocol must supply a unique run identity to recover every ambiguous
+late reward/terminal safely; this cannot be inferred from kill sequence alone.
 
 The tracker keeps a finalized HuntSim encounter correlated long enough for late loot to patch the same persisted row, then releases it after reward reconciliation/closure.
 
@@ -248,10 +259,15 @@ Assign a local `socketId` to each observed WebSocket instance.
 Canonical dedupe identity:
 
 ```text
-socketId | eventType | seq
+legacy:             socketId | eventType | seq
+synthetic HuntSim:  socketId | eventType | seq | local protocolGeneration
 ```
 
 Do not treat `seq` as globally unique; it may restart after reconnection.
+The adapter's generation is only used as a dedupe/correlation namespace.
+It never triggers `New Hunt` or resets persistent metrics. Ambiguous drops
+are counted in the WebSocket observer diagnostics rather than silently
+assigned to the current session.
 
 HuntSim also emits multiple projections of the same gameplay outcome. Protocol-level reconciliation must prevent these from reaching analytics as separate captures/rewards. In particular, do not double count:
 

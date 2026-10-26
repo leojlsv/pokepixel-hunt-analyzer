@@ -1,0 +1,570 @@
+{
+  "kind": "local-source-provenance-not-release",
+  "candidateVersion": "1.15.11",
+  "baseCommit": "2624e752cf5e91c959bf7efa016fe86ff8484053",
+  "sourceImportCount": 111,
+  "productionGraphV5Entries": [],
+  "deliberateWipSourceDifference": [
+    "userscript/protocol-adapter.js"
+  ],
+  "reason": "Keeps the 1.15.8 default protocol adapter; discards the opt-in TEST-only V5 checkpoint export/restore. All other source inputs semantically match the v1.15.10 WIP (normalized LF).",
+  "prodBundleSha256": "B51047186B9C6B276792E35D3A6989E7AD8908FEDCCC9F823FF3575A939CB7AC",
+  "devBundleSha256": "FA7AFE12D7544C8C10EA9694169A0CCC23C9AD0B39295383802C309ED8DAC726",
+  "sourceInputs": [
+    {
+      "path": "data/catch-gallery-archive.js",
+      "normalizedSha256": "3BB164B27B50FE675390BBC2C4DC14EA88D3BD600EF19EF1B1F2C6307A6A55DD",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "data/clear-all.js",
+      "normalizedSha256": "E4D565C2E5E632F5B797CCFECF4A7DEE3B4A67188056AD43F4A35C08F7A44562",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "data/configsRepository.js",
+      "normalizedSha256": "6B64BFF420655FC3F5B3C565DD5C83020D4F45FC7F8232690659FD764A65011A",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "data/db.js",
+      "normalizedSha256": "D267056E6CB436BFE7CDB31AB32C509F659E95B635AC206CADF1E6E28D2251DD",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "data/diagnosticsRepository.js",
+      "normalizedSha256": "48CB926C0B192478D517D6B58530287852EA7246298580F649933A269F77D388",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "data/encounter-revision.js",
+      "normalizedSha256": "FA56E2B8F8D20BE0897E4C6F3B7359DD253EB04C26EFAB8A02CCA1198217A1E8",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "data/encountersRepository.js",
+      "normalizedSha256": "45F090AEEE719F12D8C0A8CAFE077868F6AB7A091605CDFB1D36B07B9CAED75C",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "data/migrations.js",
+      "normalizedSha256": "D3B76AE393DC0744573F4F9C39D132FF119EF0C90D82D4833F61743FD081A918",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "data/repository.js",
+      "normalizedSha256": "86F502E17206DE9A7E8152108FE8898D19F145C3DAF87D8444885B8417E86C78",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "data/sessionsRepository.js",
+      "normalizedSha256": "C1495E966A8A648D1E1AC2EFFDA8E50BBB7AAABCF1AAE34F38BF7A7D3AD1531B",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "data/write-gate.js",
+      "normalizedSha256": "20F036C2C0E7A4190A5EC79C11E60D79012D8BAA63F1686003A1FE4E5611381E",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/audioAlertPolicy.js",
+      "normalizedSha256": "BE205AC6FDEEEFC0FF500A60475279762AA4E1690DEFC9146D568775C145F680",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/audioVolume.js",
+      "normalizedSha256": "990E5FE6E2293113679CD03A61F2912942C1F52E8A3DF37595A3065A82E69F8C",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/canonicalJson.js",
+      "normalizedSha256": "5C37487EAA297580F67F62F9F72E6EFD1725FB014C0DF07CD4C0AF516417E364",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/captureTicket.js",
+      "normalizedSha256": "ADFC669848FC7C23753FAD4B81F7F32C4AAC594C92E50B2A86DE565ABFF807C4",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/catchGallery.js",
+      "normalizedSha256": "724ECA634FC3C7E730A982BF914CB94D5300886730BB8F468A04A936F11E6E36",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/config.js",
+      "normalizedSha256": "A26C524CF53F634AA7ADBE6A0AAD3BE686310E1B049ABCD65E50ED34B5586192",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/configHash.js",
+      "normalizedSha256": "A994A9ED8AF5DEBEA48F652310C83179A3D54A26F7988EE7489410CF59D53D11",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/encounterTracker.js",
+      "normalizedSha256": "FC7C97D4C83A08A290089311DB24912295053DF8B833C3382A6F8F12AE457C7F",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/events.js",
+      "normalizedSha256": "655F7AE201A94486AC724C986C562EDB50E96077D5CFC15B8DCCC79E395CB529",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/groupKey.js",
+      "normalizedSha256": "4F4F63F354F16E90A68140F2A9E9E686038EF8732354BE1D4510B898B6B45D9A",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/groupMetrics.js",
+      "normalizedSha256": "AFAE801BB10C0C34C26E195AC589607319D4B065C16BD216E6974378349C000F",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/huntLifecycle.js",
+      "normalizedSha256": "F673686C1E54A2A3C2272091843A478C257CB79DB08C9FC28F81A3E6348D937B",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/ivTotal.js",
+      "normalizedSha256": "870B363DE31D16D2190C7ECDF762BEE4AC89CE280E00E146C1B78CB438AA52C7",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/rarityBreakdown.js",
+      "normalizedSha256": "4B918B5707099F0A228484D97AB67CA131B699E1FD0F79946749F64C4CC65122",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/sessionMetrics.js",
+      "normalizedSha256": "1744434C59A90A22C5AAE014F44E5E87E4CECCFA2D9033A8B306D4F0D05CC19E",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/sessionTiming.js",
+      "normalizedSha256": "2FB567713EC4FBE46206FE53948C364E109F8FFFAE5109808CBEF383B573E0B4",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "domain/terminalAlert.js",
+      "normalizedSha256": "7482FD536C214C2CB01E99A124F78BAC4954BE59BD87CB88C776EA3B8A996540",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "services/eventPipeline.js",
+      "normalizedSha256": "BA9DDFE7E15B6365753325C6605613B2D115D9EE1C1D94F15C8CE634562144B4",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "services/huntDeletion.js",
+      "normalizedSha256": "858FA54CCF48167BC9A538F4B348374CA85F5BE1984DEEBE25AAB50F6DCFADB7",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-alerts-runtime.js",
+      "normalizedSha256": "5F600F2A4D1027667D5D959B8C400CE2C6530BD5E551B068BF9E3275F9190CB0",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-alerts.js",
+      "normalizedSha256": "E6E8B0667F739A607CCAFB4C2031B3E439D454AABE6A9DB8823959A5C524E6BA",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/epic-captured.js",
+      "normalizedSha256": "8CB2E2755ECA3981099AE52E4A6B7B232A8030DCB68B4D8700DEDC424DFF0B2A",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/epic-fled.js",
+      "normalizedSha256": "96D234EB101BB9D35EBBC7917CCC08BB811A1A6F8F88C1B4EFE3A89FA0CE1F29",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/legendary-captured.js",
+      "normalizedSha256": "CF898C67B00CF5C0F574DC2ADF2D6389F9BC9144DB553B7B0ADFAF3BAAEA2DAF",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/legendary-fled.js",
+      "normalizedSha256": "D68C440446378DAAB0F17BFFB09078A26A18D0F89F4156E357E420353BDDAD5A",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/mythic-captured.js",
+      "normalizedSha256": "A3C2BB8B14C37DB6E3D8D1DDC29ECC87A421C7B2A2CB76444F548A29D182D589",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/mythic-fled.js",
+      "normalizedSha256": "9180A98A57F267B024EF0C14E5EF1A2923E4DB324AECA521B1BF24B25472798B",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-1.js",
+      "normalizedSha256": "D7C8EB49B90D3156F2AE879F43FFA5D878139F7485B9DCC0430854259D87460A",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-10.js",
+      "normalizedSha256": "2A751BC7C4B34B618F66A2BF376588A1FE85FBDC16953B13580383654930267D",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-2.js",
+      "normalizedSha256": "D6CE41155563C9EF4DD4B8AB9A2AB9AAC2FB5F35CB443B0F748BB642435D8FC6",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-3.js",
+      "normalizedSha256": "F2D23A78F3B4E4FB8E879D3FC65FDB08497D5CFBDF8201E905F7C0BE1F76ABB2",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-4.js",
+      "normalizedSha256": "FDBD752E54DBD7EAE3988B5AE56D72B085029868F6F868C7BCD80F072F083D29",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-5a.js",
+      "normalizedSha256": "4C5354C9387E41C62638AF249948E2190784E15A7DBAFEDF9388966B09287389",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-5b.js",
+      "normalizedSha256": "B0915DE41E310652752573A7DAB2776218B0EE1156AF87DA3863D122C5DAD34D",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-5c.js",
+      "normalizedSha256": "89A777B65223F910B0F547E723A11E8E7169958C414724BD0D89B3ACC8431BD1",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-5d.js",
+      "normalizedSha256": "71FC996C78161D77C69F0B4D1777B7A31954B75F638061C9EDAE6BF9178D1726",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-6.js",
+      "normalizedSha256": "81FA97CFEA138B9B02AD160C070ECEC4B78832069CB69758B5A3D2C80C5A6D7A",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-7.js",
+      "normalizedSha256": "C3B65B81AE93E502B67F3424894A8A886E2BE65EC486707D825FBB6065974CBA",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-8.js",
+      "normalizedSha256": "A0154459869F41A46DE4253F7473AE8E328D923CED0C4132A3387ABEA67652E3",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-9a.js",
+      "normalizedSha256": "26E68E6F537F47466E4D8BC4DCD5CB06923E755116D237DB208F25AC7B52FC71",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-9b.js",
+      "normalizedSha256": "9A068BD3F57364A546C7D527D4B9B3A0E1955230B04EB1FF742C92152292852C",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-9c.js",
+      "normalizedSha256": "DA6DBB204541BB4688057BBE52A5D319B5C4FAD8D5D7DDD8442BBEC54206DFC4",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/chunk-9d.js",
+      "normalizedSha256": "A7249E89CDEBC8EA35D0CC06F7822DD4FD2D50964572F0C7DF048D1211CDF9FE",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/set2/sprite.js",
+      "normalizedSha256": "FC3388AA2EADD91B38667E9D07CC32A72401B0285D4DBA538A3025FE72481FED",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/shiny-captured.js",
+      "normalizedSha256": "BDFE8C3D03FBC243023E20EFA2B8278E751996E5DF32EC7013D6872F2C2E13D8",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/audio-assets/shiny-fled.js",
+      "normalizedSha256": "55668F3A2548A08C42CBF56057657D2A53C45DF080D1381693B2BA50B7FE512F",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/capture-ticket-assets/legend_backpaper.png",
+      "normalizedSha256": "A37CFF7B297F63D9DFEF291D299E02DB70B92B6E0874AAB8341EA1D48F54F2CF",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/capture-ticket-assets/legend_ticket_frame.png",
+      "normalizedSha256": "7A8451331ACF5A67222BD20E19D3082880481790E8CB899054F336CB726C46B4",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/capture-ticket-assets/mythic_backpaper.png",
+      "normalizedSha256": "728922B786E3FB6F1BE7667DF4A35BBFFD2452682AA710A772AC040759459DB9",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/capture-ticket-assets/mythic_ticket_frame.png",
+      "normalizedSha256": "C83D9964BAB7BD6434BB0F9312ECC34D9508B982971C789E6974233DEABCF8C8",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/capture-ticket-assets/shiny_backpaper.png",
+      "normalizedSha256": "B30B37A3CDB8EF79615FD66AD686302C64C4EF8D1CCBFB4F09315587E5281B36",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/capture-ticket-assets/shiny_ticket_frame.png",
+      "normalizedSha256": "DC4AE935D8DA0BD2F0E51BA20CD702B3B7CDAE46292AEB45601587FF71418C56",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/capture-ticket.js",
+      "normalizedSha256": "E94EF9AA063F9040CD15A4A637D72F97F7269DE6DCA3922983BD83CDC84DAADC",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/card-presentation.js",
+      "normalizedSha256": "8A727DD985A0F29F918F943C0DAF478B448B71F516C63C5F0A011CD0DB107F18",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/catch-chance-preferences.js",
+      "normalizedSha256": "4F58D5CB835C7F048A150E5232F0EFA7B86AAC81DCBEF1FA598AC8EA20807543",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/catch-gallery.js",
+      "normalizedSha256": "DEECBD4AF89BABB911B9B2FB62906427693F371762AECD38D2C4A81247CA2827",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/closed-hud-mobile-styles.js",
+      "normalizedSha256": "BE98D5BCBD1A08739BFCA44AB7AE1612BE48FA08D255F3DCD0BD2E5C6521845D",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/closed-hud-one-column.js",
+      "normalizedSha256": "59456646F59C629C930C35804A9CACF57CC43244FA6300BC7E89088E2A3E756D",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/closed-hud-runtime.js",
+      "normalizedSha256": "239B2F4875C1284839FBCAEC395C666BEB00DBCB5C5C4C32E6D3123F099A363B",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/closed-hud.js",
+      "normalizedSha256": "65C7CFC6E14722F8D5DA13C187D3DEF0D4A87B883DDB72A47B4C515CCFACC18D",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/current-loot-aggregate.js",
+      "normalizedSha256": "7C4EB6EEBB208C7351CC7371D57145CE84A9D698AE5955E95639A7D5F20DAA8E",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/current-loot-view.js",
+      "normalizedSha256": "23FBAC8EC5C6A577B7B0F17285530627C38C12A59A9F3ADA3C8B803A3FD249CF",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/current-rarity-preferences.js",
+      "normalizedSha256": "53CDC194F528C8B455D17A257E7015A683BF0965A90956C59D30D9592F9ADAA6",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/current-refresh-gate.js",
+      "normalizedSha256": "4AAC0FDB70B559703202B2CBD6FED4C9B46DAA63A18A28795AD18832F12F0199",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/current-refresh-policy.js",
+      "normalizedSha256": "5E08279029E53BB764DAD68F4B042E760EB81D2BDEF6FBBFB1E52B770D6F049A",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/current-view.js",
+      "normalizedSha256": "7C7C66D76615550694F66F716BCF403777042C2D0374DE1689CC832932FB2234",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/custom-audio-repository.js",
+      "normalizedSha256": "EFFE536F5C0572FA4FB927DCEF07169B2DF0FA6C66D0B4A33DC13C42D4891E3F",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/encounter-cache-equivalence.js",
+      "normalizedSha256": "D5C29F22BE149ECC749D726AA1C4B32C563A9320FDB81CB2E4F81B9B66F5012F",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/encounter-list-model.js",
+      "normalizedSha256": "00E0BEBC2218CC56AE49E53AA1E54D8197879027531A2D68D522BA843F98C829",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/history-delete.js",
+      "normalizedSha256": "73B32380A6B92042A0E755617F97A95658918D7905D9CD4BD68A5E871DA891F5",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/history-styles.js",
+      "normalizedSha256": "D5954814F415CF4D6E6A884AF9C7BFA69C2B9175B11EDFC55EB7BE74716EE5AE",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/history-view.js",
+      "normalizedSha256": "7565420D47A6B9344115B0133B63B078D13190B586080119235C7A6FD5B4DE8D",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/hud-encounter-aggregate.js",
+      "normalizedSha256": "223E89AAF1141EB54E2B984CAAFCC64E661BFC36F99C814E678D77FD9CB74BF3",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/hunt-view-model.js",
+      "normalizedSha256": "B9E2EB4BA14AD74645986333108371B65BD872B35AACA7EA95116BE10024663C",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/inventory-state.js",
+      "normalizedSha256": "F3F58D420C71EE9179D3E6D52873E50D1BEAB76733EB10F36C18374D8368BA45",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/items-json-observer.js",
+      "normalizedSha256": "AF0C7EF46CB43647B3A8C3AEBCDC3C950D78EDEFF90DB6AEE455738561DE99A2",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/latest-capture-attempt.js",
+      "normalizedSha256": "B2D88FB38475CF0172A2B92E6FE24FCE1879612788F1FE85DCD2F39AE2C93613",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/loot-history-model.js",
+      "normalizedSha256": "E98D44C8C4CAB9808C2C533E9CD4D10C29D6F1FD851EA48910DBE9988BCACEB8",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/loot-item-catalog.js",
+      "normalizedSha256": "C629686D6327C8BE67E61E214F1F56CFB424D01FB40BD273121F8EDFE679CDE3",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/loot-rarity-filter.js",
+      "normalizedSha256": "BAA550FBBF99BC5DB4A3EB8654FD13E4A186CA57959F88CE86AD48989D520B22",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/main.js",
+      "normalizedSha256": "0FFC716EB7E048CE31542D990E44F0931E228FCD446B8171D4803A408451BC1C",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/mobile-styles.js",
+      "normalizedSha256": "FD792BE90EC4D411DA0CB0D6D2DE77D41EA9A0D7D8F744BAB16FEBD92370CA57",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/palette-theme.js",
+      "normalizedSha256": "829B8653C3CB94E52225C6C31296FE9B0339CF96196E434009B2DEA336CC915A",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/performance-footprint.js",
+      "normalizedSha256": "EA4904BCA8BF125F71092D42961BE0CC867FC48E31EC5E288A02B62D20CBAC89",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/png-metadata.js",
+      "normalizedSha256": "40547208577CF5484734E450660900CD5987BCF538A0D58093955E9CC8F90A41",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/protocol-adapter.js",
+      "normalizedSha256": "0F99AA1AB5C87500F9B13F0A1F8F02BE5AAEF56C07F5E9657FD2AAB56E4D2166",
+      "matchesVerifiedWipProduction": false
+    },
+    {
+      "path": "userscript/public-summary.js",
+      "normalizedSha256": "2460F94343C39A9B895D664CFF02C54C517DE76F8F5C4BEE15E30F29305A7786",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/public-ui.js",
+      "normalizedSha256": "1EE7BC63AADB52D7E088FD6F830465D9D14ABFDD03891297C45FE1D3D1C49258",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/remote-image-loader.js",
+      "normalizedSha256": "E3978134A27E1522062B07FB3C3D40C48004EAB1C169E60C32DA4C1FCF0D9CF7",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/retained-active-keys.js",
+      "normalizedSha256": "CCE8F32A09133D718F728DBE647AC9384B8DB29B3FDF646FDE21A1B045933AE1",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/segmented-encounter-list.js",
+      "normalizedSha256": "3BB7E58535F5EA1B402428E18C6476BA07C221C6380C64D0A7DF03BD167F23DE",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/select-proxy.js",
+      "normalizedSha256": "0C1F7B21C3F72AB3846938632A0AAB8FBB02D11617791F9CFF81EDA4FD9B6E0C",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/styles.js",
+      "normalizedSha256": "A14505D0293D58395E613A2DE958133080C398DE4F03235F86D28E45E5DD4464",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/tab-leadership.js",
+      "normalizedSha256": "8A86C93AF299032ECE55E53ED807F2DDB7611ED6F95084135E56DC291088C216",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/ui-markup.js",
+      "normalizedSha256": "2A72DB368F79D876C40672B326473D64583194B8B6CC484CB4E2E37E6D96FCC0",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/ui-mode.js",
+      "normalizedSha256": "87ED8EF376A0D40B3175F8781A2A983FDD9DEBD7CCCA6B47913BA0DE685B9139",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/ui-state.js",
+      "normalizedSha256": "8BA61F915F3698A1C968689F731096EDD7617E701CA420B223968D1B9D386C50",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/ui-utils.js",
+      "normalizedSha256": "6950117B92D9D5F29F323A185C6F7304BFF006BAEBC594A0CCB55D2507F0EA67",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/ui.js",
+      "normalizedSha256": "F537FA8CA9410134BCEB6B9B72FA2D48D553B7017466E2C47292C9E8570509FB",
+      "matchesVerifiedWipProduction": true
+    },
+    {
+      "path": "userscript/websocket-observer.js",
+      "normalizedSha256": "B86A1836615115AB99D4DC6C97EBB223193042F7BDAA35E1B46FB58E7A5FEC2C",
+      "matchesVerifiedWipProduction": true
+    }
+  ]
+}

@@ -212,6 +212,33 @@ test("a deliberately stuck older connection still reports a blocked upgrade", as
   older.close();
 });
 
+test("a rejected blocked upgrade cannot silently migrate schema after the old tab closes", async () => {
+  const indexedDBFactory = freshIndexedDBFactory();
+  const older = await openDatabase({ indexedDBFactory, version: 1 });
+  older.onversionchange = () => {}; // third-party tab refuses auto-close
+  try {
+    await assert.rejects(
+      openDatabase({ indexedDBFactory, version: SCHEMA_VERSION }), /blocked/
+    );
+  } finally {
+    older.close();
+  }
+  // The abandoned versionchange is queued ahead of this v1 request. If it
+  // migrated despite the rejected Promise, opening v1 raises VersionError.
+  const reopened = await openDatabase({ indexedDBFactory, version: 1 });
+  try {
+    assert.equal(reopened.version, 1);
+    assert.deepEqual(Array.from(reopened.objectStoreNames).sort(), [
+      STORE_NAMES.CONFIGS, STORE_NAMES.ENCOUNTERS,
+      STORE_NAMES.META, STORE_NAMES.SESSIONS
+    ].sort());
+    assert.equal(reopened.transaction(STORE_NAMES.ENCOUNTERS)
+      .objectStore(STORE_NAMES.ENCOUNTERS).indexNames.contains("captureTicketAtMs"), false);
+  } finally {
+    reopened.close();
+  }
+});
+
 test("a migration that throws mid-upgrade aborts atomically — no partial index survives", async () => {
   const indexedDBFactory = freshIndexedDBFactory();
 

@@ -640,7 +640,7 @@ test("paused public summary suppresses a stale current target while preserving h
   assert.equal(summary.attemptHistory.length, 1);
 });
 
-test("public session control exposes only pause resume reset and cleans up", async () => {
+test("public session control advertises atomic reset-running in addition to legacy actions and cleans up", async () => {
   const pageWindow = {};
   const actions = [];
   const cleanup = installPublicSessionControl({
@@ -650,11 +650,14 @@ test("public session control exposes only pause resume reset and cleans up", asy
   const api = pageWindow[PUBLIC_CONTROL_GLOBAL];
   assert.equal(api.protocol, 1);
   assert.equal(Object.isFrozen(api), true);
+  assert.deepEqual(api.capabilities, { resetRunning: true });
+  assert.equal(Object.isFrozen(api.capabilities), true);
   assert.deepEqual(await api.act("pause"), { ok: true });
   assert.deepEqual(await api.act("reset"), { ok: true });
+  assert.deepEqual(await api.act("reset-running"), { ok: true });
   assert.deepEqual(await api.act("resume"), { ok: false, reason: "action-unavailable" });
   assert.deepEqual(await api.act("end"), { ok: false, reason: "unsupported-action" });
-  assert.deepEqual(actions, ["pause", "reset", "resume"]);
+  assert.deepEqual(actions, ["pause", "reset", "reset-running", "resume"]);
   cleanup();
   assert.equal(pageWindow[PUBLIC_CONTROL_GLOBAL], undefined);
 });

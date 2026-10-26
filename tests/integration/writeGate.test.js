@@ -40,6 +40,36 @@ test("gate aborts an already-issued write request if ownership changes before ID
   db.close();
 });
 
+test("authoritative before/after encounter update rolls back if leadership is lost after put", async () => {
+  const db = await setup();
+  const encounters = createEncountersRepository(db);
+  const row = { encounterId: "owned", sessionId: "hunt", gold: 7 };
+  await encounters.create(row);
+  let owner = true;
+  registerDatabaseWriteGate(db, () => owner);
+  const originalPut = IDBObjectStore.prototype.put;
+  let triggered = false;
+  try {
+    IDBObjectStore.prototype.put = function (value, ...args) {
+      const request = originalPut.call(this, value, ...args);
+      if (!triggered && this.name === STORE_NAMES.ENCOUNTERS) {
+        triggered = true;
+        owner = false;
+      }
+      return request;
+    };
+    await assert.rejects(encounters.updateWithPrevious("owned", { gold: 70 }), WriteLeadershipLostError);
+  } finally {
+    IDBObjectStore.prototype.put = originalPut;
+  }
+  assert.equal(triggered, true);
+  assert.deepEqual(await encounters.get("owned"), row);
+  owner = true;
+  assert.deepEqual((await encounters.updateWithPrevious("owned", { gold: 70 })).before, row);
+  assert.equal((await encounters.get("owned")).gold, 70);
+  db.close();
+});
+
 test("creating a new Hunt cannot leave a session without its current pointer", async () => {
   const db = await setup();
   const repo = createSessionsRepository(db);

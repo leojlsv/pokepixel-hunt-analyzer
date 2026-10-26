@@ -5,7 +5,56 @@ The project follows Semantic Versioning.
 
 > Detailed historical notes that previously lived in this file through v1.11.1 are preserved verbatim in [`docs/CHANGELOG_ARCHIVE_PRE_1.12.md`](docs/CHANGELOG_ARCHIVE_PRE_1.12.md). This file keeps the release-level history concise from v1.12.0 forward.
 
-## [Unreleased]
+## [1.15.12] - 2026-10-26
+
+### Hunt restart EXP accounting and Better UI Card Mode integration
+- Card Mode Better UI: adiciona a capability pública opt-in
+  `resetRunning` com ação `reset-running`, que usa a transição já
+  existente `forceNewSession()` para iniciar uma nova Hunt
+  `running/unlocked` diretamente, preservando o Reset legado
+  `paused/locked`. Melhor UI antigo mantém contrato e testes.
+- Corrige descarte de `loot.received.per_kill` quando duas Hunts na mesma
+  zona reutilizam o `session_id` de transporte, mas têm kills diferentes.
+- Separa gerações locais de correlação/deduplicação do HuntSim sem
+  executar `New Hunt` nem alterar a sessão persistida automaticamente.
+- Protege contra reinício de sequências no mesmo WebSocket, colisões de
+  IDs sintéticos e replay exato de recompensas antigas com ou sem
+  `session_id`, usando cache transitório limitado.
+- Recompensas e capturas sem identidade de origem suficiente são rejeitadas
+  de forma conservadora e contabilizadas em diagnósticos read-only;
+  isso evita atribuição incorreta, mas pode deixar EXP ambígua sem contar.
+- Acrescenta regressões com IndexedDB descartável, controles de Expedition,
+  replay tardio, reanúncio de sessão e limites do cache. O Product Owner
+  validou o comportamento em jogo em 2026-10-26 e autorizou
+  commit, push, merge e release; a investigação técnica original
+  não acessou dados privados nem o IndexedDB real do jogador.
+- Detalhes e limitações:
+  `docs/HUNT_RESTART_EXP_ACCOUNTING_INVESTIGATION_2026-10-24.md`.
+
+### Bounded-Hunt performance improvements from the unpublished v1.15.11 candidate
+- Isolate production-reachable non-destructive long-Hunt mitigations from
+  the much larger experimental worktree, retaining v1.15.8 Catch Chance
+  precision and the supported Tampermonkey update/namespace semantics.
+- Release duplicate Current/History UI caches after 120 seconds hidden,
+  without changing Hunt identity, Seen, capture counts, persisted records,
+  Card, Closed HUD or the player-owned IndexedDB source.
+- Bound Current Captured and Failed to 100 main DOM rows per list and
+  History Attempts to 100 rows, preserving complete filtered counts,
+  late corrections, keyboard focus, deep page rank/navigation and
+  History session Load More. The desktop pager uses compact 28px controls;
+  mobile touch controls remain 44px and clear the floating mini-HUD.
+- Keep incremental hot-path/atomic before-after projections and defensive
+  multi-tab/IndexedDB safeguards that ship in the already-tested local
+  1.15.10 candidate. Exclude the opt-in TEST-only protocol checkpoint and
+  all experimental V5 certified-writer/index/cutover modules from the
+  production graph.
+- Move the test-only `happy-dom` dependency to 21.0.4, resolving its HIGH
+  audit advisory, with no change to the browser userscript's runtime deps.
+- Local-only QA artifacts and release provenance:
+  `docs/RELEASE_V11511_BOUNDED_PERFORMANCE_REVIEW_2026-10-24.md`.
+- O estudo original v1.15.11 permaneceu inédito; os ajustes de produção
+  selecionados integram esta release cumulativa v1.15.12. Os módulos
+  experimentais V5 e as build DEV continuam excluídos do pacote publicado.
 
 ## [1.15.8] - 2026-10-22
 

@@ -1,7 +1,5 @@
-const ROOT_ID = "pokepixel-hunt-analyzer-root";
 const HUD_COLUMNS_STORAGE_KEY = "pokepixel_hunt_analyzer_closed_hud_columns_v1";
 const ONE_COLUMN_VALUE = "1";
-const MAX_BIND_ATTEMPTS = 200;
 
 let formFieldObserver = null;
 let observedFormShadow = null;
@@ -62,12 +60,16 @@ function analyzerFieldId(field) {
 function assignFormFieldIds(root, resolver) {
   if (!root?.querySelectorAll) return 0;
   let assigned = 0;
-  for (const field of root.querySelectorAll("input, select, textarea")) {
-    if (field.id || field.name) continue;
+  const assign = (field) => {
+    if (field.id || field.name) return;
     const id = resolver(field);
-    if (!id) continue;
+    if (!id) return;
     field.id = id;
     assigned += 1;
+  };
+  if (root.matches?.("input, select, textarea")) assign(root);
+  for (const field of root.querySelectorAll("input, select, textarea")) {
+    assign(field);
   }
   return assigned;
 }
@@ -90,8 +92,11 @@ function installAnalyzerFormFieldIds(shadow) {
   formFieldObserver?.disconnect();
   observedFormShadow = shadow;
   formFieldObserver = new MutationObserver((mutations) => {
-    if (!mutations.some((mutation) => mutation.addedNodes.length > 0)) return;
-    ensureAnalyzerFormFieldIds(shadow);
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
+        if (node.nodeType === 1) assignFormFieldIds(node, analyzerFieldId);
+      }
+    }
   });
   formFieldObserver.observe(shadow, { childList: true, subtree: true });
 }
@@ -165,7 +170,7 @@ function applyOneColumnMode(shadow, enabled) {
   return true;
 }
 
-function bindOneColumnMode(shadow) {
+export function bindOneColumnMode(shadow) {
   const select = shadow?.querySelector("[data-hud-zero-mode]");
   const settings = shadow?.getElementById("pha-hud-settings");
   if (!select || !settings || select.dataset.hudOneColumnBound === "true") return false;
@@ -196,14 +201,10 @@ function bindOneColumnMode(shadow) {
   return true;
 }
 
-function bindWhenReady(attempt = 0) {
-  if (typeof document === "undefined") return;
-  const shadow = document.getElementById(ROOT_ID)?.shadowRoot || null;
-  if (bindOneColumnMode(shadow)) return;
-  if (attempt >= MAX_BIND_ATTEMPTS) return;
-  setTimeout(() => bindWhenReady(attempt + 1), 50);
-}
-
-if (typeof document !== "undefined") {
-  queueMicrotask(() => bindWhenReady());
+export function disposeOneColumnMode(shadow) {
+  if (shadow && observedFormShadow === shadow) {
+    formFieldObserver?.disconnect();
+    formFieldObserver = null;
+    observedFormShadow = null;
+  }
 }
