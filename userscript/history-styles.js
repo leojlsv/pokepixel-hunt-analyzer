@@ -429,6 +429,8 @@ export const HISTORY_STYLES = String.raw`
 .history-attempts-table td:nth-child(5),
 .history-attempts-table th:nth-child(6),
 .history-attempts-table td:nth-child(6) { text-align: right; }
+.history-attempts-table th:nth-child(5),
+.history-attempts-table td:nth-child(5) { padding-left: 1px; padding-right: 1px; font-size: 9px; }
 
 /* History > Loot groups observed items; monetary totals belong to encounters,
  * never to individual items, because the protocol does not price each drop. */
@@ -573,8 +575,8 @@ export const HISTORY_STYLES = String.raw`
 .failed-chance-col { width: 18%; }
 .failed-time-col { width: 24%; }
 
-/* Four or more decimals need a larger Chance column at 320px. Keep the
- * original column proportions for the default three-decimal display. */
+/* Extended Catch Chance precision needs a larger column at 320px. Preserve
+ * default three-decimal proportions, and retain the bounded pager CSS. */
 :host([data-catch-chance-extended="true"]) .failed-pokemon-col { width: 20%; }
 :host([data-catch-chance-extended="true"]) .failed-iv-col { width: 9%; }
 :host([data-catch-chance-extended="true"]) .failed-ball-col { width: 20%; }
@@ -583,6 +585,11 @@ export const HISTORY_STYLES = String.raw`
   padding-left: 2px;
   padding-right: 2px;
   font-size: 9px;
+}
+:host([data-catch-chance-extended="true"]) #failed-section .failed-table th:nth-child(3),
+:host([data-catch-chance-extended="true"]) #failed-section .failed-table td:nth-child(3) {
+  padding-left: 2px;
+  padding-right: 2px;
 }
 
 :host([data-catch-chance-extended="true"]) .history-attempt-pokemon-col { width: 21%; }

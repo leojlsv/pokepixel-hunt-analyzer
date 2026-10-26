@@ -46,10 +46,17 @@ function createObserverStatus(now) {
     parsedMessages: 0,
     observerParseErrors: 0,
     adapterErrors: 0,
+    adapterAmbiguousLootEntriesDropped: 0,
+    adapterUncorrelatedRecycledLootEntriesDropped: 0,
+    adapterAmbiguousTerminalEventsDropped: 0,
+    adapterReplayedLootFramesDropped: 0,
+    adapterUnfingerprintableLootFrames: 0,
     callbackErrors: 0,
     canonicalPayloads: 0,
     queueDepth: 0,
     maxQueueDepth: 0,
+    lastQueueWaitMs: null,
+    maxQueueWaitMs: 0,
     lastSocketId: null,
     lastMessageAtMs: null,
     lastPayloadAtMs: null,
@@ -77,10 +84,17 @@ export function getWebSocketObserverStatus({ windowObject = window } = {}) {
       parsedMessages: 0,
       observerParseErrors: 0,
       adapterErrors: 0,
+      adapterAmbiguousLootEntriesDropped: 0,
+      adapterUncorrelatedRecycledLootEntriesDropped: 0,
+      adapterAmbiguousTerminalEventsDropped: 0,
+      adapterReplayedLootFramesDropped: 0,
+      adapterUnfingerprintableLootFrames: 0,
       callbackErrors: 0,
       canonicalPayloads: 0,
       queueDepth: 0,
       maxQueueDepth: 0,
+      lastQueueWaitMs: null,
+      maxQueueWaitMs: 0,
       lastSocketId: null,
       lastMessageAtMs: null,
       lastPayloadAtMs: null,
@@ -131,6 +145,7 @@ export function installWebSocketObserver({
 
       socket.addEventListener("message", (event) => {
         const receivedAtMs = now();
+        const receivedAtMonotonicMs = performance.now();
         status.messagesReceived += 1;
         status.lastMessageAtMs = receivedAtMs;
         status.lastSocketId = socketId;
@@ -142,6 +157,8 @@ export function installWebSocketObserver({
         // overtake an earlier one before correlation reached the pipeline.
         socketQueue = socketQueue
           .then(async () => {
+            status.lastQueueWaitMs = Math.max(0, performance.now() - receivedAtMonotonicMs);
+            status.maxQueueWaitMs = Math.max(status.maxQueueWaitMs, status.lastQueueWaitMs);
             const payload = await parseProtocolPayload(event.data);
             if (!payload) {
               status.observerParseErrors += 1;
@@ -169,6 +186,21 @@ export function installWebSocketObserver({
             let canonicalPayloads;
             try {
               canonicalPayloads = protocolAdapter.adapt(payload);
+              // O(1) diagnostic counters surface otherwise silent ambiguity
+              // without copying correlation maps or retaining raw payloads.
+              const adapterDiagnostics = protocolAdapter.getDiagnosticsSnapshot?.();
+              if (adapterDiagnostics) {
+                status.adapterAmbiguousLootEntriesDropped =
+                  adapterDiagnostics.ambiguousLootEntriesDropped ?? 0;
+                status.adapterUncorrelatedRecycledLootEntriesDropped =
+                  adapterDiagnostics.uncorrelatedRecycledLootEntriesDropped ?? 0;
+                status.adapterAmbiguousTerminalEventsDropped =
+                  adapterDiagnostics.ambiguousTerminalEventsDropped ?? 0;
+                status.adapterReplayedLootFramesDropped =
+                  adapterDiagnostics.replayedLootFramesDropped ?? 0;
+                status.adapterUnfingerprintableLootFrames =
+                  adapterDiagnostics.unfingerprintableLootFrames ?? 0;
+              }
             } catch (error) {
               status.adapterErrors += 1;
               console.error("PokePixel Hunt Analyzer (protocol adapter):", error);

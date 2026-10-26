@@ -25,7 +25,7 @@ import {
 const HISTORY_PAGE_SIZE = 20;
 const HISTORY_LOAD_CONCURRENCY = 4;
 const HISTORY_SUBVIEWS = new Set(["hunts", "pokemon", "attempts", "loot"]);
-const ATTEMPT_BATCH_SIZE = 100;
+export const HISTORY_ATTEMPTS_PAGE_SIZE = 100;
 
 function sameHistoryRange(left, right) {
   return left?.after === right?.after && left?.before === right?.before;
@@ -217,7 +217,8 @@ export function createHistoryView(shadow, {
 }) {
   let bundles = [];
   let activeSubview = "hunts";
-  let attemptRenderCount = ATTEMPT_BATCH_SIZE;
+  let attemptPageStart = 0;
+  let cachedFilteredAttempts = null;
   let loading = false;
   let loadPromise = null;
   let pendingRefresh = false;
@@ -268,7 +269,9 @@ export function createHistoryView(shadow, {
     const next = String(value || "").trim().toLowerCase();
     if (!HISTORY_SUBVIEWS.has(next)) return false;
     activeSubview = next;
-    attemptRenderCount = ATTEMPT_BATCH_SIZE;
+    attemptPageStart = 0;
+    const attemptsWrap = shadow.getElementById("history-attempts-wrap");
+    attemptsWrap.scrollTop = 0;
     let activeButton = null;
     for (const candidate of shadow.querySelectorAll("[data-history-view]")) {
       const selected = candidate.dataset.historyView === activeSubview;
@@ -278,6 +281,9 @@ export function createHistoryView(shadow, {
       if (selected) activeButton = candidate;
     }
     render();
+    if (next === "attempts" && shadow.host?.dataset?.uiMode === "mobile") {
+      attemptsWrap.scrollIntoView?.({block:"start",inline:"nearest"});
+    }
     if (focus) activeButton?.focus({ preventScroll: true });
     return true;
   }
@@ -317,8 +323,14 @@ export function createHistoryView(shadow, {
     for (const [id, key] of bindings) {
       shadow.getElementById(id).addEventListener("change", (event) => {
         filters[key] = event.target.value;
-        attemptRenderCount = ATTEMPT_BATCH_SIZE;
+        cachedFilteredAttempts = null;
+        attemptPageStart = 0;
+        const attemptsWrap = shadow.getElementById("history-attempts-wrap");
+        attemptsWrap.scrollTop = 0;
         render();
+        if (activeSubview === "attempts" && shadow.host?.dataset?.uiMode === "mobile") {
+          attemptsWrap.scrollIntoView?.({block:"start",inline:"nearest"});
+        }
       });
     }
 
@@ -348,14 +360,35 @@ export function createHistoryView(shadow, {
 
     const attemptsWrap = shadow.getElementById("history-attempts-wrap");
     attemptsWrap.addEventListener("scroll", () => {
-      if (activeSubview !== "attempts") return;
+      if (activeSubview !== "attempts" || attemptsWrap.scrollTop <= 0) return;
       const remaining = attemptsWrap.scrollHeight - attemptsWrap.scrollTop - attemptsWrap.clientHeight;
-      if (remaining > 48) return;
-      const total = filteredAttempts().length;
-      if (attemptRenderCount >= total) return;
-      attemptRenderCount = Math.min(total, attemptRenderCount + ATTEMPT_BATCH_SIZE);
-      renderAttempts();
+      if (remaining <= 48 &&
+          attemptPageStart + HISTORY_ATTEMPTS_PAGE_SIZE < (cachedFilteredAttempts?.length || 0)) {
+        showAttemptsPage(attemptPageStart + HISTORY_ATTEMPTS_PAGE_SIZE);
+      }
     }, { passive: true });
+
+    shadow.getElementById("history-attempts-page-prev").addEventListener("click",
+      () => showAttemptsPage(attemptPageStart - HISTORY_ATTEMPTS_PAGE_SIZE));
+    shadow.getElementById("history-attempts-page-next").addEventListener("click",
+      () => showAttemptsPage(attemptPageStart + HISTORY_ATTEMPTS_PAGE_SIZE));
+    const jump = shadow.getElementById("history-attempts-page-jump");
+    const jumpToRow = () => {
+      const row = Number(jump.value);
+      if (!Number.isSafeInteger(row) || row < 1) {
+        jump.value = cachedFilteredAttempts?.length ? String(attemptPageStart + 1) : "";
+        return;
+      }
+      showAttemptsPage(Math.floor((row - 1) / HISTORY_ATTEMPTS_PAGE_SIZE) *
+        HISTORY_ATTEMPTS_PAGE_SIZE);
+      jump.value = cachedFilteredAttempts?.length ? String(attemptPageStart + 1) : "";
+    };
+    shadow.getElementById("history-attempts-page-go").addEventListener("click", jumpToRow);
+    jump.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      jumpToRow();
+    });
   }
 
   function clearLoadError() {
@@ -404,6 +437,7 @@ export function createHistoryView(shadow, {
         return;
       }
       bundles = page.bundles;
+      cachedFilteredAttempts = null;
       nextBefore = page.nextBefore;
       activeRange = range;
       // A Current change during the read must not turn a potentially older
@@ -414,7 +448,7 @@ export function createHistoryView(shadow, {
       expandedPokemon.clear();
       expandedLoot.clear();
       notableSelectionBySession.clear();
-      attemptRenderCount = ATTEMPT_BATCH_SIZE;
+      attemptPageStart = 0;
       populateFilters();
       populateLootSessions();
       render();
@@ -445,6 +479,7 @@ export function createHistoryView(shadow, {
         return;
       }
       bundles.push(...page.bundles);
+      cachedFilteredAttempts = null;
       nextBefore = page.nextBefore;
       populateFilters();
       populateLootSessions();
@@ -508,14 +543,62 @@ export function createHistoryView(shadow, {
 
   function invalidate() {
     dataVersion += 1;
+    cachedFilteredAttempts = null;
     loadedPeriod = null;
     syncLoadMore();
+  }
+  function suspend() {
+    // Hidden-only, memory-only release. An in-flight History read must not
+    // re-publish pages after this generation has been discarded. Keep scalar
+    // filters/period and saved UI preferences so reopen can reload from IDB.
+    resetGeneration += 1;
+    dataVersion += 1;
+    bundles = [];
+    cachedFilteredAttempts = null;
+    loading = false;
+    loadPromise = null;
+    pendingRefresh = false;
+    inFlightPeriod = null;
+    inFlightRange = null;
+    inFlightOperation = null;
+    inFlightDataVersion = null;
+    loadedPeriod = null;
+    nextBefore = null;
+    cachedLootSummary = null;
+    currentLootCatalogSignature = "";
+    attemptPageStart = 0;
+    expandedHunts.clear();
+    expandedAttempts.clear();
+    expandedPokemon.clear();
+    expandedLoot.clear();
+    notableSelectionBySession.clear();
+    for (const id of [
+      "history-hunts-body", "history-pokemon-body",
+      "history-attempts-body", "history-loot-body"
+    ]) shadow.getElementById(id)?.replaceChildren();
+    syncLoadMore();
+  }
+
+  function retentionSnapshot() {
+    return {
+      cachedSessions: bundles.length,
+      // Demand-only diagnostic. No source scan on the ordinary 1s ticker.
+      cachedEncounterRows: bundles.reduce((sum, bundle) =>
+        sum + (bundle.encounters?.length || 0), 0),
+      cachedFilteredAttempts: cachedFilteredAttempts?.length ?? 0,
+      attemptPageStart,
+      renderedAttemptRows: shadow.getElementById("history-attempts-body")
+        ?.querySelectorAll(".history-attempt-row").length ?? 0,
+      loadedPeriod,
+      paginationAvailable: nextBefore !== null
+    };
   }
   function resetAfterClear() {
     // A pending pre-wipe page must never restore removed rows into the UI.
     resetGeneration += 1;
     dataVersion += 1;
     bundles = [];
+    cachedFilteredAttempts = null;
     loading = false;
     loadPromise = null;
     pendingRefresh = false;
@@ -529,7 +612,7 @@ export function createHistoryView(shadow, {
     activeRange = currentRange();
     cachedLootSummary = null;
     currentLootCatalogSignature = "";
-    attemptRenderCount = ATTEMPT_BATCH_SIZE;
+    attemptPageStart = 0;
     expandedHunts.clear();
     expandedAttempts.clear();
     expandedPokemon.clear();
@@ -646,10 +729,52 @@ export function createHistoryView(shadow, {
   }
 
   function filteredAttempts() {
-    return allEncounters()
+    if (cachedFilteredAttempts !== null) return cachedFilteredAttempts;
+    cachedFilteredAttempts = allEncounters()
       .filter((encounter) => ["success", "failed"].includes(encounter.captureResult))
       .filter(matchesEncounter)
       .sort((left, right) => (right.captureAtMs || 0) - (left.captureAtMs || 0));
+    return cachedFilteredAttempts;
+  }
+
+  function showAttemptsPage(requestedStart = 0) {
+    const total = filteredAttempts().length;
+    const maxStart = total
+      ? Math.floor((total - 1) / HISTORY_ATTEMPTS_PAGE_SIZE) *
+        HISTORY_ATTEMPTS_PAGE_SIZE : 0;
+    attemptPageStart = Math.min(Math.max(0, Math.trunc(requestedStart) || 0), maxStart);
+    renderAttempts();
+    const wrap = shadow.getElementById("history-attempts-wrap");
+    if (wrap) wrap.scrollTop = 0;
+    if (shadow.host?.dataset?.uiMode === "mobile") {
+      wrap?.scrollIntoView?.({ block: "start", inline: "nearest" });
+    }
+  }
+
+  function updateAttemptsPageControls(total) {
+    const start = total ? attemptPageStart + 1 : 0;
+    const end = total ? Math.min(attemptPageStart + HISTORY_ATTEMPTS_PAGE_SIZE, total) : 0;
+    const status = total
+      ? formatNumber(start) + "–" + formatNumber(end) + " de " + formatNumber(total)
+      : "0 de 0";
+    shadow.getElementById("history-attempts-page-status").textContent = status;
+    shadow.getElementById("history-attempts-page-prev").disabled = attemptPageStart <= 0;
+    shadow.getElementById("history-attempts-page-next").disabled =
+      attemptPageStart + HISTORY_ATTEMPTS_PAGE_SIZE >= total;
+    const jump = shadow.getElementById("history-attempts-page-jump");
+    jump.max = String(total);
+    if (shadow.activeElement !== jump) jump.value = total ? String(start) : "";
+    shadow.getElementById("history-attempts-page-go").disabled = total === 0;
+    // Attempts on a single page have no useful paging actions; the main
+    // History status still displays the full loaded/filtered count.
+    const controls = shadow.getElementById("history-attempts-page-prev")
+      .closest(".encounter-page-controls");
+    const singlePage = total <= HISTORY_ATTEMPTS_PAGE_SIZE && attemptPageStart === 0;
+    if (singlePage && !controls.hidden && controls.contains(shadow.activeElement)) {
+      shadow.getElementById("history-tab-attempts")
+        ?.focus({ preventScroll: true });
+    }
+    controls.hidden = singlePage;
   }
 
   function rerenderKeepingFocus(row, rerender, selector, datasetKey, value) {
@@ -1183,9 +1308,18 @@ export function createHistoryView(shadow, {
 
   function renderAttempts() {
     const attempts = filteredAttempts();
-    const visible = attempts.slice(0, attemptRenderCount);
+    const maxStart = attempts.length
+      ? Math.floor((attempts.length - 1) / HISTORY_ATTEMPTS_PAGE_SIZE) *
+        HISTORY_ATTEMPTS_PAGE_SIZE : 0;
+    attemptPageStart = Math.min(attemptPageStart, maxStart);
+    const visible = attempts.slice(attemptPageStart, attemptPageStart + HISTORY_ATTEMPTS_PAGE_SIZE);
     setStatus(`${attempts.length} ${attempts.length === 1 ? "Attempt" : "Attempts"}`);
     const body = shadow.getElementById("history-attempts-body");
+    const scroller = shadow.getElementById("history-attempts-wrap");
+    const priorScroll = scroller?.scrollTop ?? 0;
+    const focusedElement = shadow.activeElement;
+    const focusedId = focusedElement?.classList?.contains("history-attempt-row")
+      ? focusedElement.dataset.encounterId : null;
     const fragment = document.createDocumentFragment();
 
     for (const encounter of visible) {
@@ -1242,6 +1376,16 @@ export function createHistoryView(shadow, {
     }
 
     body.replaceChildren(fragment);
+    updateAttemptsPageControls(attempts.length);
+    if (scroller) scroller.scrollTop = priorScroll;
+    if (focusedId && (!shadow.activeElement ||
+        shadow.activeElement === focusedElement ||
+        shadow.activeElement.isConnected === false)) {
+      const replacement = [...body.querySelectorAll(".history-attempt-row")]
+        .find((row) => row.dataset.encounterId === focusedId) ||
+        body.querySelector(".history-attempt-row");
+      replacement?.focus({ preventScroll: true });
+    }
   }
 
   return {
@@ -1249,6 +1393,8 @@ export function createHistoryView(shadow, {
     refreshCatchChance: render,
     ensureLoaded,
     invalidate,
+    suspend,
+    retentionSnapshot,
     resetAfterClear,
     loadMore,
     refreshLootCatalog,

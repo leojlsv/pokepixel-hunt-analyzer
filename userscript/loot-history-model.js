@@ -1,10 +1,10 @@
 /** Aggregate persisted encounter rewards. A drop's value cannot be allocated to
  * an individual item: lootSellValue is authoritative only for the encounter. */
-function safeAmount(value) {
+export function safeLootAmount(value) {
   return Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
-function itemEntries(encounter) {
+export function lootItemEntries(encounter) {
   const combined = new Map();
   for (const item of Array.isArray(encounter?.lootItems) ? encounter.lootItems : []) {
     const itemId = typeof (item?.itemId ?? item?.item_id) === "string"
@@ -41,13 +41,13 @@ export function aggregateLootHistory(bundles = [], {
       matchedEncounters += 1;
       if (Number.isFinite(encounter.lootAtMs)) lootedEncounters += 1;
 
-      totals.directGold += safeAmount(encounter.gold);
-      totals.lootSellValue += safeAmount(encounter.lootSellValue);
+      totals.directGold += safeLootAmount(encounter.gold);
+      totals.lootSellValue += safeLootAmount(encounter.lootSellValue);
       if (encounter.autoSold === true) {
-        totals.autoSellValue += safeAmount(encounter.autoSellValue);
+        totals.autoSellValue += safeLootAmount(encounter.autoSellValue);
       }
 
-      for (const [itemId, qty] of itemEntries(encounter)) {
+      for (const [itemId, qty] of lootItemEntries(encounter)) {
         let entry = items.get(itemId);
         if (!entry) {
           entry = { itemId, qty: 0, drops: 0, sources: new Map() };

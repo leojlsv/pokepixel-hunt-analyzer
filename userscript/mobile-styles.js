@@ -83,6 +83,10 @@ export const MOBILE_STYLES = String.raw`
 :host([data-ui-mode="mobile"]) .current-view,
 :host([data-ui-mode="mobile"]) .history-view {
   min-width: 0;
+  /* The floating mini-HUD occupies the lower edge of this view. Keep the
+   * last pager's second touch row reachable above it, not underneath it. */
+  padding-bottom: calc(72px + var(--pha-safe-bottom));
+  scroll-padding-bottom: calc(72px + var(--pha-safe-bottom));
 }
 
 :host([data-ui-mode="mobile"]) .history-filter-block {
@@ -436,6 +440,49 @@ export const MOBILE_STYLES = String.raw`
   padding-top: 10px;
   padding-bottom: 10px;
   touch-action: manipulation;
+}
+
+/* The six-IV heading must wrap rather than extend the 320px Captured grid. */
+:host([data-ui-mode="mobile"]) .captured-table th:last-child {
+  white-space: normal;
+  line-height: 1.15;
+}
+
+/* Compact desktop pager geometry does not override mobile touch targets. */
+:host([data-ui-mode="mobile"]) .encounter-page-controls {
+  grid-template-columns:44px minmax(0,1fr) 44px;
+  grid-template-rows:44px 44px;
+  gap:3px 6px;
+  padding:4px 8px;
+}
+:host([data-ui-mode="mobile"]) .encounter-page-controls > button {
+  height:44px;
+  min-height:44px;
+  min-width:44px;
+  padding:0 5px;
+}
+:host([data-ui-mode="mobile"]) .encounter-page-controls > button:nth-of-type(1) {
+  grid-column:1; grid-row:1;
+}
+:host([data-ui-mode="mobile"]) .encounter-page-controls > button:nth-of-type(2) {
+  grid-column:3; grid-row:1;
+}
+:host([data-ui-mode="mobile"]) .encounter-page-controls > button:nth-of-type(3) {
+  grid-column:3; grid-row:2;
+}
+:host([data-ui-mode="mobile"]) .encounter-page-status {
+  grid-column:2; grid-row:1;
+  font-size:10px;
+}
+:host([data-ui-mode="mobile"]) .encounter-page-jump {
+  grid-column:1 / 3; grid-row:2;
+  justify-self:end;
+  font-size:10px;
+}
+:host([data-ui-mode="mobile"]) .encounter-page-jump input {
+  width:68px;
+  height:44px;
+  min-height:44px;
 }
 
 /* History Mobile: interaction-only improvements; preserve the original layout. */

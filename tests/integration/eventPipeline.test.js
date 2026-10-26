@@ -119,6 +119,29 @@ test("full round trip persists a complete encounter with sessionId/configId/grou
   assert.equal(sessions[0].status, "running");
 });
 
+test("pipeline exposes persisted before/after transitions across started, loot and terminal", async () => {
+  const { db, pipeline } = await setup();
+  const first = await pipeline.handle(combatStarted({ wildId: "wild_transition", seq: 1, ts: 1000 }));
+  assert.equal(first.encounterTransitions.length, 1);
+  const created = first.encounterTransitions[0];
+  assert.equal(created.before, null);
+  assert.deepEqual(created.after, first.changedEncounters[0]);
+
+  const loot = await pipeline.handle(lootReceived({ wildId: "wild_transition", seq: 2, ts: 1500 }));
+  assert.equal(loot.encounterTransitions.length, 1);
+  assert.deepEqual(loot.encounterTransitions[0].before, created.after);
+  assert.deepEqual(loot.encounterTransitions[0].after, loot.changedEncounters[0]);
+
+  const terminal = await pipeline.handle(captureFailed({ wildId: "wild_transition", seq: 3, ts: 1600 }));
+  assert.deepEqual(terminal.encounterTransitions[0].before, loot.encounterTransitions[0].after);
+  assert.deepEqual(terminal.encounterTransitions[0].after, terminal.changedEncounters[0]);
+  assert.deepEqual(await createEncountersRepository(db).get(created.after.encounterId),
+    terminal.encounterTransitions[0].after);
+  assert.deepEqual(await pipeline.handle(captureFailed({ wildId: "wild_transition", seq: 3, ts: 1600 })),
+    { ok: true, duplicate: true });
+  db.close();
+});
+
 test("config change between encounters produces different config_id/group_key", async () => {
   const { db, pipeline } = await setup();
 
@@ -503,6 +526,26 @@ test("production dedupe rejects recent duplicates and eventually evicts the olde
   const diagnostics = await pipeline.getDiagnosticsSnapshot();
   assert.equal(diagnostics.dedupeRegistrySize, 2);
   assert.equal(diagnostics.duplicateEvents, 1);
+});
+
+test("production dedupe circular buffer preserves eviction order across repeated wraps", async () => {
+  const { pipeline } = await setup(() => 0, { dedupeEventLimit: 3 });
+  const frame = (seq) => combatStarted({ wildId: `wild_${seq}`, seq, ts: seq * 1000 });
+
+  for (let seq = 1; seq <= 11; seq += 1) {
+    assert.equal((await pipeline.handle(frame(seq))).duplicate, undefined);
+  }
+  for (const seq of [9, 10, 11]) {
+    assert.equal((await pipeline.handle(frame(seq))).duplicate, true);
+  }
+  assert.equal((await pipeline.handle(frame(8))).duplicate, undefined,
+    "oldest evicted key must remain replayable after multiple circular wraps");
+  assert.equal((await pipeline.handle(frame(9))).duplicate, undefined,
+    "reintroducing an old key must evict the next oldest retained identity");
+
+  const diagnostics = await pipeline.getDiagnosticsSnapshot();
+  assert.equal(diagnostics.dedupeRegistrySize, 3);
+  assert.equal(diagnostics.duplicateEvents, 3);
 });
 
 test("event pipeline rejects invalid dedupe limits", async () => {

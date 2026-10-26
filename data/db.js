@@ -24,6 +24,11 @@ export function openDatabase({
   }
 
   return new Promise((resolve, reject) => {
+    // IDBOpenDBRequest has no cancel() API. A blocked notification may be
+    // followed by a delayed upgrade after another tab finally closes. Once
+    // the caller has been rejected, never allow that abandoned request to
+    // change the schema in the background.
+    let abandoned = false;
     // version:null reopens an already-upgraded database without requesting an
     // unsafe downgrade. Only used as a fallback when v1.15.6 encounters the
     // schema v4 left behind by an earlier QA candidate.
@@ -32,12 +37,17 @@ export function openDatabase({
       : indexedDBFactory.open(name, version);
 
     request.onupgradeneeded = (event) => {
+      if (abandoned) {
+        request.transaction?.abort();
+        return;
+      }
       // The upgrade transaction is the only way to add an index to an
       // EXISTING store (creating a brand-new store only needs `db`).
       runMigrations(request.result, event.oldVersion, event.newVersion, request.transaction);
     };
 
     request.onblocked = () => {
+      abandoned = true;
       reject(
         new Error(
           "openDatabase: blocked by another open connection with an older version"
@@ -47,6 +57,10 @@ export function openDatabase({
 
     request.onsuccess = () => {
       const db = request.result;
+      if (abandoned) {
+        db.close();
+        return;
+      }
 
       // A userscript update can introduce a new schema while another game tab
       // still holds an older connection. Closing on versionchange lets the

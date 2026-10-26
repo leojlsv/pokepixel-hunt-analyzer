@@ -8,6 +8,7 @@ import {
   parseProtocolPayload,
   resolvePageWindow
 } from "../../userscript/websocket-observer.js";
+import { createProtocolAdapter } from "../../userscript/protocol-adapter.js";
 
 const HOOK_FLAG = "__POKEPIXEL_HUNT_ANALYZER_USERSCRIPT_HOOKED__";
 
@@ -178,9 +179,43 @@ test("serializes async message decoding per socket and tracks raw type timing", 
   assert.equal(status.canonicalPayloads, 3);
   assert.equal(status.queueDepth, 0);
   assert.equal(status.maxQueueDepth, 3);
+  assert.ok(status.maxQueueWaitMs > 0,
+    "later messages must report time spent behind the earlier asynchronous Blob");
+  assert.ok(status.lastQueueWaitMs >= 0);
   assert.equal(status.lastPayloadType, "first");
   assert.equal(status.rawTypes.first.count, 2);
   assert.equal(status.rawTypes.second.count, 1);
   assert.ok(status.rawTypes.first.firstAtMs <= status.rawTypes.first.lastAtMs);
   assert.ok(status.rawTypes.second.firstAtMs <= status.rawTypes.second.lastAtMs);
+});
+
+test("observer status exposes bounded adapter ambiguity counters without retaining raw rewards", async () => {
+  const windowObject = { WebSocket: FakeWebSocket };
+  installWebSocketObserver({
+    windowObject,
+    protocolAdapter: createProtocolAdapter(),
+    onPayload() {}
+  });
+  const socket = new windowObject.WebSocket("wss://example.test");
+  const emit = (type, seq, data) => socket.emit("message", {
+    data: JSON.stringify({ type, seq, ts: 1_000 + seq, data })
+  });
+
+  emit("hunt.analyzer_reset", 1, { session_id: "same", zone_id: "z" });
+  emit("combat.started", 2, { session: { id: "same", zone_id: "z", map_id: 14 } });
+  emit("hunt.capture_queue", 3, { add: [{ id: 5, sp: "pidgey", lv: 4 }] });
+  emit("hunt.events", 4, [{ k: "knockout", t: 2, cap: { id: 5 } }]);
+  emit("hunt.analyzer_reset", 5, { session_id: "same", zone_id: "z" });
+  emit("combat.started", 6, { session: { id: "same", zone_id: "z", map_id: 14 } });
+  emit("hunt.capture_queue", 7, { add: [{ id: 5, sp: "pidgey", lv: 4 }] });
+  emit("hunt.events", 8, [{ k: "knockout", t: 2, cap: { id: 5 } }]);
+  emit("loot.received", 9, {
+    session_id: "same", per_kill: [{ seq: 5, trainer_exp: 250, pokemon_exp: 250 }]
+  });
+
+  await waitUntil(() => getWebSocketObserverStatus({ windowObject }).parsedMessages === 9);
+  const status = getWebSocketObserverStatus({ windowObject });
+  assert.equal(status.adapterAmbiguousLootEntriesDropped, 1);
+  assert.equal(status.adapterUncorrelatedRecycledLootEntriesDropped, 0);
+  assert.equal(status.adapterAmbiguousTerminalEventsDropped, 0);
 });

@@ -76,7 +76,7 @@ function createHudRarityMarkup() {
 
 function sortableHeader(prefix, key, label, title = "") {
   const titleAttribute = title ? ` title="${title}"` : "";
-  return `<th data-encounter-sort="${prefix}" data-sort-key="${key}"${titleAttribute} style="cursor:pointer;user-select:none">${label} <span data-sort-indicator="${key}" aria-hidden="true"></span></th>`;
+  return `<th data-encounter-sort="${prefix}" data-sort-key="${key}"${titleAttribute} tabindex="0" aria-sort="none" style="cursor:pointer;user-select:none">${label} <span data-sort-indicator="${key}" aria-hidden="true"></span></th>`;
 }
 
 function createEncounterSectionMarkup(prefix, title) {
@@ -121,6 +121,15 @@ function createEncounterSectionMarkup(prefix, title) {
           <thead><tr>${headers}</tr></thead>
           <tbody id="${prefix}-body"></tbody>
         </table>
+      </div>
+      <div class="encounter-page-controls" role="group" aria-label="${title} pagination">
+        <button type="button" id="${prefix}-page-prev" title="Previous 100 Pokémon" disabled>‹ Prev</button>
+        <span id="${prefix}-page-status" class="encounter-page-status" aria-live="polite">0 de 0</span>
+        <button type="button" id="${prefix}-page-next" title="Next 100 Pokémon" disabled>Next ›</button>
+        <label class="encounter-page-jump">Ir para
+          <input type="number" id="${prefix}-page-jump" min="1" step="1" inputmode="numeric" aria-label="Start at ${title} row">
+        </label>
+        <button type="button" id="${prefix}-page-go" title="Go to Pokémon row">Ir</button>
       </div>
     </section>`;
 }
@@ -221,6 +230,15 @@ function createHistoryMarkup() {
             </tr></thead>
             <tbody id="history-attempts-body"></tbody>
           </table>
+        </div>
+        <div class="encounter-page-controls" role="group" aria-label="History Attempts pagination">
+          <button id="history-attempts-page-prev" type="button" title="Previous 100 Attempts" disabled>‹ Prev</button>
+          <span id="history-attempts-page-status" class="encounter-page-status" aria-live="polite">0 de 0</span>
+          <button id="history-attempts-page-next" type="button" title="Next 100 Attempts" disabled>Next ›</button>
+          <label class="encounter-page-jump">Ir para
+            <input type="number" id="history-attempts-page-jump" min="1" step="1" inputmode="numeric" aria-label="Start at History Attempt row">
+          </label>
+          <button id="history-attempts-page-go" type="button" title="Go to Attempt row">Ir</button>
         </div>
       </section>
 

@@ -1,0 +1,56 @@
+[
+  {
+    "case": "bounded-dom-102h",
+    "status": "pass",
+    "synthetic": true,
+    "engine": "node-happy-dom",
+    "logicalHuntHours": 102,
+    "canonicalRows": 24480,
+    "sourceRowsNeverRemoved": true,
+    "noIndexedDbNetworkOrRelease": true,
+    "current": {
+      "captures": 2226,
+      "failed": 22254,
+      "maxMountedEncounterRows": 200,
+      "capPerBucket": 100,
+      "measuredPageVisits": 12,
+      "pageSettleWallMsMedian": 38.58
+    },
+    "history": {
+      "filteredAttemptsOfLoadedSessions": 24480,
+      "maxMountedAttemptRows": 100,
+      "cap": 100,
+      "measuredPageVisits": 6,
+      "synchronousPageCommitMsMedian": 67.66
+    },
+    "processHeapAfterBothViewsMiB": 110.28,
+    "caveat": "Synthetic Happy DOM uses actual presentation logic but no layout/paint; all Current/History source rows and O(N) maps are still retained. DOM caps are deterministic. Timings and Node heap are not browser FPS or an in-game RAM guarantee."
+  },
+  {
+    "case": "bounded-dom-102h",
+    "status": "pass",
+    "synthetic": true,
+    "engine": "node-happy-dom",
+    "logicalHuntHours": 102,
+    "canonicalRows": 91800,
+    "sourceRowsNeverRemoved": true,
+    "noIndexedDbNetworkOrRelease": true,
+    "current": {
+      "captures": 8346,
+      "failed": 83454,
+      "maxMountedEncounterRows": 200,
+      "capPerBucket": 100,
+      "measuredPageVisits": 12,
+      "pageSettleWallMsMedian": 30.18
+    },
+    "history": {
+      "filteredAttemptsOfLoadedSessions": 91800,
+      "maxMountedAttemptRows": 100,
+      "cap": 100,
+      "measuredPageVisits": 6,
+      "synchronousPageCommitMsMedian": 29.82
+    },
+    "processHeapAfterBothViewsMiB": 159.28,
+    "caveat": "Synthetic Happy DOM uses actual presentation logic but no layout/paint; all Current/History source rows and O(N) maps are still retained. DOM caps are deterministic. Timings and Node heap are not browser FPS or an in-game RAM guarantee."
+  }
+]

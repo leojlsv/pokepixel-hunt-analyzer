@@ -1,0 +1,40 @@
+[
+  {
+    "status": "pass",
+    "experiment": "non-destructive-hidden-view-cold-release",
+    "engine": "node-happy-dom",
+    "synthetic": true,
+    "logicalHuntHours": 102,
+    "sourceRowsRetainedThroughout": 24480,
+    "viewReferenceEntriesBefore": 73440,
+    "viewReferenceEntriesCold": 0,
+    "initialViewWallMs": 135.806,
+    "coldSuspendMs": 6.411,
+    "reopenWallMs": 76.899,
+    "processHeapWarmMiB": 53.22,
+    "processHeapColdMiB": 31.95,
+    "visibleDomBefore": 200,
+    "visibleDomAfterWake": 200,
+    "noPersistenceOrNetwork": true,
+    "caveat": "Real UI logic but synthetic Happy DOM: Node heap includes the canonical source and unrelated objects; GC timing is indicative, not a Chrome/game FPS or memory SLO. No IndexedDB writes/reads or player state; only in-memory view maps were released. Current main source remains O(N), and reopen must rehydrate."
+  },
+  {
+    "status": "pass",
+    "experiment": "non-destructive-hidden-view-cold-release",
+    "engine": "node-happy-dom",
+    "synthetic": true,
+    "logicalHuntHours": 102,
+    "sourceRowsRetainedThroughout": 91800,
+    "viewReferenceEntriesBefore": 275400,
+    "viewReferenceEntriesCold": 0,
+    "initialViewWallMs": 252.433,
+    "coldSuspendMs": 7.189,
+    "reopenWallMs": 90.012,
+    "processHeapWarmMiB": 127.82,
+    "processHeapColdMiB": 80.92,
+    "visibleDomBefore": 200,
+    "visibleDomAfterWake": 200,
+    "noPersistenceOrNetwork": true,
+    "caveat": "Real UI logic but synthetic Happy DOM: Node heap includes the canonical source and unrelated objects; GC timing is indicative, not a Chrome/game FPS or memory SLO. No IndexedDB writes/reads or player state; only in-memory view maps were released. Current main source remains O(N), and reopen must rehydrate."
+  }
+]

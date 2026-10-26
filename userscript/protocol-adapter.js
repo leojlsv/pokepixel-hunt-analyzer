@@ -7,6 +7,10 @@ const DEFAULT_RUNTIME_ENTRY_LIMIT = 2_048;
 const LOOT_ITEM_LIMIT = 32;
 const LOOT_ITEM_ID_LIMIT = 64;
 const LOOT_ITEM_QTY_LIMIT = 1e15;
+const MAX_RECENT_LOOT_FRAME_IDENTITIES = 256;
+const MAX_LOOT_FRAME_IDENTITY_LENGTH = 4_096;
+const MAX_LOOT_FRAME_IDENTITY_NODES = 256;
+const AMBIGUOUS_TERMINAL = Symbol("ambiguous-terminal-run");
 const textDecoder = new TextDecoder();
 
 const PASSTHROUGH_TYPES = new Set([
@@ -29,6 +33,51 @@ function finite(value) {
 
 function stringOrNull(value) {
   return typeof value === "string" && value ? value : null;
+}
+
+// Avoid serializing arbitrarily deep or large reward metadata merely to
+// recognize replayed frames. This checks the FULL raw tree (not a lossy subset)
+// with bounded work; unsupported shapes skip the replay cache rather than
+// accidentally equating two different rewards.
+function isBoundedLootFrameIdentityShape(perKill, lootSellValue) {
+  const pending = [{ value: perKill, depth: 0 }, { value: lootSellValue, depth: 0 }];
+  const visited = new WeakSet();
+  let budget = MAX_LOOT_FRAME_IDENTITY_LENGTH;
+  let nodeCount = 0;
+
+  while (pending.length) {
+    const { value, depth } = pending.pop();
+    if (++nodeCount > MAX_LOOT_FRAME_IDENTITY_NODES || depth > 6) return false;
+
+    if (value === null || value === undefined) {
+      budget -= 5;
+    } else if (typeof value === "string") {
+      budget -= value.length + 2;
+    } else if (typeof value === "number" || typeof value === "boolean") {
+      budget -= 24;
+    } else if (Array.isArray(value)) {
+      if (value.length > 64 || visited.has(value)) return false;
+      visited.add(value);
+      budget -= value.length + 2;
+      for (const item of value) pending.push({ value: item, depth: depth + 1 });
+    } else if (typeof value === "object") {
+      if (visited.has(value)) return false;
+      visited.add(value);
+      let propertyCount = 0;
+      for (const key in value) {
+        if (!Object.prototype.hasOwnProperty.call(value, key)) continue;
+        if (++propertyCount > 32) return false;
+        budget -= key.length + 4;
+        pending.push({ value: value[key], depth: depth + 1 });
+        if (pending.length > MAX_LOOT_FRAME_IDENTITY_NODES) return false;
+      }
+    } else {
+      return false;
+    }
+
+    if (budget < 0) return false;
+  }
+  return true;
 }
 
 function normalizeLootItems(items) {
@@ -177,12 +226,26 @@ export function createProtocolAdapter({
   let activeExpeditionRunId = null;
   let finishedExpeditionRunId = null;
   let transportSessionId = null;
+  // The server can restart kill/frame sequences on the same WebSocket and
+  // may recycle the transport session ID. Keep a local correlation epoch;
+  // it is NOT an instruction to start a new persisted Analytics Hunt.
+  let protocolGeneration = 0;
+  let observedKillInGeneration = false;
+  let ambiguousLootEntriesDropped = 0;
+  let uncorrelatedRecycledLootEntriesDropped = 0;
+  let ambiguousTerminalEventsDropped = 0;
+  let replayedLootFramesDropped = 0;
+  let unfingerprintableLootFrames = 0;
 
   const entitiesBySlot = new Map();
   const firstHitAtBySlot = new Map();
   const captureQueueByKillSeq = new Map();
   const killsBySeq = new Map();
   const retiredHunts = [];
+  // Bounded, temporary identities of frames already emitted by the adapter.
+  // Prevents an exact old reward replay from mutating a newly recycled kill
+  // context before the pipeline can apply its generation-scoped dedupe.
+  const recentlyEmittedLootFrames = new Map();
 
   function trimMap(map) {
     while (map.size > runtimeEntryLimit) {
@@ -191,6 +254,14 @@ export function createProtocolAdapter({
   }
 
   function pruneRuntimeState(timestamp = now()) {
+    for (const [identity, previous] of recentlyEmittedLootFrames) {
+      if (timestamp - previous.retainedAtMs > runtimeRetentionMs) {
+        recentlyEmittedLootFrames.delete(identity);
+      }
+    }
+    while (recentlyEmittedLootFrames.size > Math.min(runtimeEntryLimit, MAX_RECENT_LOOT_FRAME_IDENTITIES)) {
+      recentlyEmittedLootFrames.delete(recentlyEmittedLootFrames.keys().next().value);
+    }
     for (const [killSeq, queued] of captureQueueByKillSeq) {
       if (timestamp - queued.retainedAtMs > runtimeRetentionMs) {
         captureQueueByKillSeq.delete(killSeq);
@@ -238,6 +309,10 @@ export function createProtocolAdapter({
       if (retiredHunts.length > 2) retiredHunts.shift();
     }
     clearHuntRuntime();
+    // Initial reset + session-only combat.started both call rotate. Advance
+    // only after observing kills, so they cannot create two epochs per start.
+    if (observedKillInGeneration) protocolGeneration += 1;
+    observedKillInGeneration = false;
   }
 
   function adoptExpeditionContext(runId, mapId = null) {
@@ -259,12 +334,16 @@ export function createProtocolAdapter({
 
   function syntheticWildMonsterId(killSeq) {
     const scope = sessionContext.id || sessionContext.zoneId || "unknown";
-    return `huntsim:${scope}:${killSeq}`;
+    // A recycled (scope, killSeq) must never overwrite the former encounter.
+    return protocolGeneration === 0
+      ? `huntsim:${scope}:${killSeq}`
+      : `huntsim:${scope}:${killSeq}:g${protocolGeneration}`;
   }
 
   function buildSyntheticCombatStarted(payload, context) {
     return {
       type: "combat.started",
+      protocolGeneration: context.protocolGeneration,
       seq: syntheticSequence(payload.seq, context.killSeq, 1),
       ts: finite(payload.ts),
       data: {
@@ -310,6 +389,7 @@ export function createProtocolAdapter({
 
     const context = {
       killSeq: normalizedKillSeq,
+      protocolGeneration,
       slot,
       eventId: entity?.eventId ?? null,
       speciesId: queued?.speciesId ?? entity?.speciesId ?? null,
@@ -332,6 +412,7 @@ export function createProtocolAdapter({
       retainedAtMs: now()
     };
 
+    observedKillInGeneration = true;
     retain(killsBySeq, normalizedKillSeq, context);
     if (slot !== null) firstHitAtBySlot.delete(slot);
     return context;
@@ -370,6 +451,11 @@ export function createProtocolAdapter({
       : candidates.filter((context) => context.eventId === eventId);
     const pool = exact.length > 0 ? exact : candidates;
 
+    if (new Set(pool.map((context) => context.protocolGeneration)).size > 1) {
+      // The packet has no Hunt generation, and reused event_id/zone/species
+      // cannot distinguish a late A capture from the current B capture.
+      return AMBIGUOUS_TERMINAL;
+    }
     pool.sort((a, b) => (b.killedAtMs ?? 0) - (a.killedAtMs ?? 0));
     return pool[0] || null;
   }
@@ -411,6 +497,7 @@ export function createProtocolAdapter({
         if (!context.terminalSeen && context.lootSeen) {
           output.push({
             type: "hunt.kill_closed",
+            protocolGeneration: context.protocolGeneration,
             seq: syntheticSequence(payload.seq, killSeq, 3),
             ts: finite(payload.ts),
             data: { wild_monster_id: context.syntheticWildMonsterId }
@@ -457,16 +544,53 @@ export function createProtocolAdapter({
   function adaptAggregatedLoot(payload) {
     const data = payload.data || {};
     const sourceSessionId = stringOrNull(data.session_id);
-    const retired = sourceSessionId
-      ? retiredHunts.find((entry) => entry.transportSessionId === sourceSessionId)
+    // A raw frame with stable server seq+timestamp and identical reward body
+    // is an exact replay even if a later Hunt reused the transport ID/seq.
+    // Do NOT dedupe by killSeq or EXP alone: legitimate kills repeat both.
+    let rawFrameIdentity = null;
+    if (Number.isSafeInteger(payload.seq) && Number.isFinite(payload.ts) &&
+        Array.isArray(data.per_kill) && (sourceSessionId?.length ?? 0) <= 256 &&
+        isBoundedLootFrameIdentityShape(data.per_kill, data.loot_sell_value)) {
+      try {
+        rawFrameIdentity = JSON.stringify([
+          payload.seq, payload.ts, sourceSessionId, data.per_kill, data.loot_sell_value
+        ]);
+        if (rawFrameIdentity.length > MAX_LOOT_FRAME_IDENTITY_LENGTH) {
+          rawFrameIdentity = null;
+        }
+      } catch {
+        // An invalid/non-JSON test payload cannot establish replay identity.
+      }
+    }
+    if (Array.isArray(data.per_kill) && !rawFrameIdentity) {
+      unfingerprintableLootFrames += 1;
+    }
+    const earlierFrame = rawFrameIdentity
+      ? recentlyEmittedLootFrames.get(rawFrameIdentity)
       : null;
+    if (earlierFrame && earlierFrame.generation !== protocolGeneration &&
+        (!sourceSessionId || sourceSessionId === transportSessionId)) {
+      replayedLootFramesDropped += 1;
+      return [];
+    }
+    // A packet without session_id is compatible with ANY retained run. A
+    // previously unseen late A reward can be just as dangerous as a replay
+    // if B recycles killSeq; never interpret absent source identity as proof
+    // of ownership by the active context.
+    const retiredWithSession = sourceSessionId
+      ? retiredHunts.filter((entry) => entry.transportSessionId === sourceSessionId)
+      : retiredHunts;
     const perKill = Array.isArray(data.per_kill) ? data.per_kill : null;
-    if (!perKill) return retired ? [] : [payload];
-    if (sourceSessionId && transportSessionId && sourceSessionId !== transportSessionId && !retired) {
+    if (!perKill) {
+      return sourceSessionId && sourceSessionId !== transportSessionId && retiredWithSession.length
+        ? [] : [payload];
+    }
+    if (sourceSessionId && transportSessionId &&
+        sourceSessionId !== transportSessionId && retiredWithSession.length === 0) {
       // Unknown transport session: never attribute its reward to the active run.
       return [];
     }
-    if (sourceSessionId && !retired && !transportSessionId) {
+    if (sourceSessionId && retiredWithSession.length === 0 && !transportSessionId) {
       transportSessionId = sourceSessionId;
     }
 
@@ -477,14 +601,41 @@ export function createProtocolAdapter({
       const killSeq = finite(kill?.seq);
       if (killSeq === null) return;
 
-      const context = retired
-        ? retired.killsBySeq.get(killSeq) || null
-        : ensureKillContext(killSeq, payload);
+      const retiredMatches = retiredWithSession.filter((entry) => entry.killsBySeq.has(killSeq));
+      const activeMatchesSession = !sourceSessionId || !transportSessionId ||
+        sourceSessionId === transportSessionId;
+      const activeHasKill = killsBySeq.has(killSeq) || captureQueueByKillSeq.has(killSeq);
+      const sharedTransportIdentity = activeMatchesSession && retiredWithSession.length > 0;
+      let retired = null;
+      let context = null;
+
+      if (activeMatchesSession && activeHasKill && retiredMatches.length === 0) {
+        context = ensureKillContext(killSeq, payload);
+      } else if (retiredMatches.length === 1 && !activeMatchesSession) {
+        retired = retiredMatches[0];
+        context = retired.killsBySeq.get(killSeq);
+      } else if (retiredMatches.length > 1 ||
+          (retiredMatches.length === 1 && sharedTransportIdentity)) {
+        // Same recycled transport ID + kill seq identifies two possible
+        // runs. Even without an observed B knockout, missing frames mean we
+        // cannot prove that the reward belongs to the retired A context.
+        ambiguousLootEntriesDropped += 1;
+        return;
+      } else if (!activeMatchesSession || retiredWithSession.length > 0) {
+        // A missing kill context under a reused transport ID cannot prove
+        // that this is new reward rather than delayed reward from the past.
+        uncorrelatedRecycledLootEntriesDropped += 1;
+        return;
+      } else {
+        context = ensureKillContext(killSeq, payload);
+      }
+
       if (!retired) emitStartIfNeeded(payload, context, output);
       if (!context || !context.startedEmitted) return;
 
       output.push({
         type: "loot.received",
+        protocolGeneration: context.protocolGeneration,
         seq: syntheticSequence(payload.seq, killSeq, 2),
         ts: finite(payload.ts),
         data: {
@@ -506,6 +657,7 @@ export function createProtocolAdapter({
       if (context.closedSeen && !context.terminalSeen) {
         output.push({
           type: "hunt.kill_closed",
+          protocolGeneration: context.protocolGeneration,
           seq: syntheticSequence(payload.seq, killSeq, 3),
           ts: finite(payload.ts),
           data: { wild_monster_id: context.syntheticWildMonsterId }
@@ -516,12 +668,28 @@ export function createProtocolAdapter({
       }
     });
 
+    if (rawFrameIdentity && !earlierFrame &&
+        output.some((event) => event.type === "loot.received")) {
+      recentlyEmittedLootFrames.set(rawFrameIdentity, {
+        generation: protocolGeneration,
+        retainedAtMs: now()
+      });
+      while (recentlyEmittedLootFrames.size >
+          Math.min(runtimeEntryLimit, MAX_RECENT_LOOT_FRAME_IDENTITIES)) {
+        recentlyEmittedLootFrames.delete(recentlyEmittedLootFrames.keys().next().value);
+      }
+    }
+
     return output;
   }
 
   function adaptTerminal(payload) {
     const ts = finite(payload.ts);
     const context = matchTerminalContext(payload.data, ts);
+    if (context === AMBIGUOUS_TERMINAL) {
+      ambiguousTerminalEventsDropped += 1;
+      return [];
+    }
     if (!context) {
       if (payload.data?.zone_id === "expedition" && sessionContext.zoneId !== "expedition") {
         return []; // An unresolved late Expedition capture must not become a Hunt orphan.
@@ -534,6 +702,7 @@ export function createProtocolAdapter({
 
     const canonical = {
       ...payload,
+      protocolGeneration: context.protocolGeneration,
       data: {
         ...payload.data,
         wild_monster_id: context.syntheticWildMonsterId
@@ -558,11 +727,21 @@ export function createProtocolAdapter({
     switch (payload.type) {
       case "combat.started":
         if (!payload.data?.enemy && payload.data?.session) {
-          if (payload.data.session.zone_id && payload.data.session.zone_id !== "expedition") {
+          const nextId = stringOrNull(payload.data.session.id);
+          const nextZone = stringOrNull(payload.data.session.zone_id);
+          const confirmedContextChange =
+            (nextId && sessionContext.id && nextId !== sessionContext.id) ||
+            (nextZone && sessionContext.zoneId && nextZone !== sessionContext.zoneId);
+          if (nextZone && nextZone !== "expedition") {
             activeExpeditionRunId = null;
           }
-          rotateHuntRuntime();
-          transportSessionId = stringOrNull(payload.data.session.id);
+          // A session-only announcement can also be a reconnect/reannounce
+          // within the SAME run. The explicit analyzer_reset has already
+          // rotated; repeating rotation here would split live encounters.
+          if (confirmedContextChange) rotateHuntRuntime();
+          if (confirmedContextChange || !transportSessionId) {
+            transportSessionId = nextId;
+          }
           updateSessionFromCombat(payload);
           return [];
         }
@@ -651,8 +830,26 @@ export function createProtocolAdapter({
 
   return {
     adapt,
+    getDiagnosticsSnapshot() {
+      return {
+        protocolGeneration,
+        ambiguousLootEntriesDropped,
+        uncorrelatedRecycledLootEntriesDropped,
+        ambiguousTerminalEventsDropped,
+        replayedLootFramesDropped,
+        unfingerprintableLootFrames,
+        recentLootFrameIdentities: recentlyEmittedLootFrames.size
+      };
+    },
     snapshot() {
       return {
+        protocolGeneration,
+        ambiguousLootEntriesDropped,
+        uncorrelatedRecycledLootEntriesDropped,
+        ambiguousTerminalEventsDropped,
+        replayedLootFramesDropped,
+        unfingerprintableLootFrames,
+        recentLootFrameIdentities: recentlyEmittedLootFrames.size,
         sessionContext: { ...sessionContext },
         entitiesBySlot: new Map(entitiesBySlot),
         captureQueueByKillSeq: new Map(captureQueueByKillSeq),

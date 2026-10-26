@@ -11,6 +11,7 @@ import { createRepository } from "./repository.js";
 import { promisifyRequest } from "./db.js";
 import { STORE_NAMES } from "./migrations.js";
 import { archivedCatchGalleryRow } from "./catch-gallery-archive.js";
+import { bumpEncounterRevision, readEncounterRevision } from "./encounter-revision.js";
 import {
   abortIfWriteGateLost,
   assertDatabaseWriteGate,
@@ -20,24 +21,103 @@ import {
 export function createEncountersRepository(db) {
   const repo = createRepository(db, STORE_NAMES.ENCOUNTERS);
 
-  async function create(row) {
-    await repo.put(row);
-    return row;
+  function create(row) {
+    // IDs are immutable. A retried create must never overwrite an existing
+    // encounter while announcing a `{before:null, after:row}` transition.
+    return new Promise((resolve, reject) => {
+      let transaction;
+      let leadershipLost = false;
+      try {
+        assertDatabaseWriteGate(db);
+        transaction = db.transaction([STORE_NAMES.ENCOUNTERS, STORE_NAMES.META], "readwrite");
+        const checkOwnership = () => {
+          if (!abortIfWriteGateLost(db, transaction)) return true;
+          leadershipLost = true;
+          return false;
+        };
+        const createRequest = transaction.objectStore(STORE_NAMES.ENCOUNTERS).add(row);
+        createRequest.onsuccess = () => {
+          if (!checkOwnership()) return;
+          bumpEncounterRevision(transaction, row.sessionId, checkOwnership);
+        };
+        transaction.oncomplete = () => resolve(row);
+        transaction.onabort = () => reject(leadershipLost
+          ? new WriteLeadershipLostError()
+          : transaction.error ?? new Error("Encounter creation aborted"));
+      } catch (error) {
+        try { transaction?.abort(); } catch {}
+        reject(error);
+      }
+    });
+  }
+
+  /**
+   * Reads the authoritative before-image and commits its replacement in one
+   * readwrite transaction. A full-session UI cache is no longer required to
+   * derive corrected encounter deltas. Resolve only after transaction commit;
+   * leader loss aborts the write and never returns a successful transition.
+   * `finish` may synchronously derive extra persisted fields from the merged
+   * encounter, e.g. capture-ticket eligibility.
+   */
+  function updateWithPrevious(encounterId, patch, { finish = null } = {}) {
+    return new Promise((resolve, reject) => {
+      let transaction;
+      let leadershipLost = false;
+      let failure = null;
+      let transition = null;
+      try {
+        assertDatabaseWriteGate(db);
+        transaction = db.transaction([STORE_NAMES.ENCOUNTERS, STORE_NAMES.META], "readwrite");
+        const store = transaction.objectStore(STORE_NAMES.ENCOUNTERS);
+        const checkOwnership = () => {
+          if (!abortIfWriteGateLost(db, transaction)) return true;
+          leadershipLost = true;
+          return false;
+        };
+        const request = store.get(encounterId);
+
+        request.onsuccess = () => {
+          if (!checkOwnership()) return;
+          const before = request.result;
+          if (!before) {
+            failure = new Error(`encountersRepository.update: unknown encounterId "${encounterId}"`);
+            transaction.abort();
+            return;
+          }
+          try {
+            const merged = { ...before, ...patch };
+            const after = finish ? finish(merged) : merged;
+            if (!after || after.encounterId !== encounterId || after.sessionId !== before.sessionId) {
+              throw new Error("encountersRepository.updateWithPrevious: invalid final encounter identity/session");
+            }
+            const put = store.put(after);
+            put.onsuccess = () => {
+              if (!checkOwnership()) return;
+              bumpEncounterRevision(transaction, before.sessionId, checkOwnership);
+            };
+            transition = { before, after };
+          } catch (error) {
+            failure = error;
+            transaction.abort();
+          }
+        };
+        transaction.oncomplete = () => resolve(transition);
+        transaction.onabort = () => reject(leadershipLost
+          ? new WriteLeadershipLostError()
+          : failure || transaction.error || new Error("Encounter update aborted"));
+        transaction.onerror = () => {
+          if (!failure) failure = transaction.error;
+        };
+      } catch (error) {
+        try { transaction?.abort(); } catch {}
+        reject(error);
+      }
+    });
   }
 
   async function update(encounterId, patch) {
-    const existing = await repo.get(encounterId);
-
-    if (!existing) {
-      throw new Error(
-        `encountersRepository.update: unknown encounterId "${encounterId}"`
-      );
-    }
-
-    const updated = { ...existing, ...patch };
-    await repo.put(updated);
-
-    return updated;
+    const result = await updateWithPrevious(encounterId, patch);
+    return result.after;
   }
 
   function get(encounterId) {
@@ -117,7 +197,7 @@ export function createEncountersRepository(db) {
       let transaction;
       try {
         assertDatabaseWriteGate(db);
-        transaction = db.transaction(STORE_NAMES.ENCOUNTERS, "readwrite");
+        transaction = db.transaction([STORE_NAMES.ENCOUNTERS, STORE_NAMES.META], "readwrite");
       } catch (error) {
         reject(error);
         return;
@@ -143,6 +223,9 @@ export function createEncountersRepository(db) {
         const cursor = request.result;
 
         if (!cursor) {
+          // One bump represents the whole committed deletion/archive batch.
+          // Repeated deletion safely changes only the revision, not the rows.
+          bumpEncounterRevision(transaction, sessionId, checkOwnership);
           return;
         }
 
@@ -161,9 +244,11 @@ export function createEncountersRepository(db) {
   return {
     create,
     update,
+    updateWithPrevious,
     get,
     getAll,
     getBySessionId,
+    getSessionRevision: (sessionId) => readEncounterRevision(db, sessionId),
     getRecentCaptureTickets,
     deleteBySessionId
   };

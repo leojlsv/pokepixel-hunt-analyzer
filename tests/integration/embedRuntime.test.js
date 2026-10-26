@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
-import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
+import { IDBFactory, IDBIndex, IDBKeyRange, IDBObjectStore } from "fake-indexeddb";
 import { Window } from "happy-dom";
 import { openDatabase, STORE_NAMES } from "../../data/db.js";
 import { createRepository } from "../../data/repository.js";
@@ -66,6 +66,7 @@ test("standalone runtime publishes the public Cards contract without suppressing
   const bundle = await buildRuntimeBundle();
 
   window.unsafeWindow = window;
+  window.WebSocket = SyntheticWebSocket;
   window.indexedDB = new IDBFactory();
   window.IDBKeyRange = IDBKeyRange;
   window.setInterval = () => 1;
@@ -77,13 +78,38 @@ test("standalone runtime publishes the public Cards contract without suppressing
     const api = await waitFor(() => {
       const candidate = window[PUBLIC_SUMMARY];
       return candidate?.getSummary?.().available === true ? candidate : null;
-    });
-    const root = await waitFor(() => window.document.getElementById("pokepixel-hunt-analyzer-root"));
+    }, { timeoutMs: 8_000 });
+    // The full Node suite runs many CPU-heavy isolated fixtures concurrently;
+    // this checks eventual standalone wiring, not a cold-start 2s latency SLA.
+    const root = await waitFor(() =>
+      window.document.getElementById("pokepixel-hunt-analyzer-root"),
+      { timeoutMs: 8_000 });
 
     assert.ok(api, "standalone initialization must publish the same bounded Current summary contract");
     assert.equal(api.protocol, 1);
     assert.ok(root, "standalone Analyzer UI must still mount");
     assert.equal(typeof window[DIAGNOSTICS], "function", "standalone diagnostics remain available");
+    const diagnostics = await window[DIAGNOSTICS]();
+    assert.ok(diagnostics.runtime.currentCache.fullEncounterReloads >= 1);
+    assert.ok(diagnostics.runtime.currentCache.lastFullEncounterReload.durationMs >= 0);
+    assert.equal(typeof diagnostics.runtime.currentCache.lastFullEncounterReload.reason, "string");
+    assert.equal(diagnostics.runtime.currentCache.lastFullEncounterReload.encounterCount, 0);
+    assert.equal(diagnostics.runtime.currentCache.retained.canonicalCachedRows, 0);
+    assert.equal(diagnostics.runtime.currentCache.retained.cachedEncounterIndexEntries, 0);
+    assert.equal(diagnostics.runtime.currentCache.retained.cardRecentAttempts, 0);
+    const socket = new window.WebSocket("wss://synthetic.invalid");
+    socket.emitMessage({
+      type: "capture.failed", seq: 1, ts: Date.now(),
+      data: { wild_monster_id: "synthetic-1", species_id: "pidgey", quality: "common" }
+    });
+    assert.ok(await waitFor(() => api.getSummary().failed === 1));
+    const updated = await window[DIAGNOSTICS]();
+    assert.ok(updated.runtime.currentCache.retained.canonicalCachedRows >= 1);
+    assert.ok(updated.runtime.currentCache.retained.cachedEncounterIndexEntries >= 1);
+    assert.ok(updated.runtime.eventsProcessed >= 1);
+    assert.ok(updated.runtime.maxQueueWaitMs >= 0);
+    assert.ok(updated.runtime.maxHandleDurationMs >= 0);
+    assert.ok(updated.runtime.lastHandleDurationMs >= 0);
     const control = window[PUBLIC_CONTROL];
     assert.equal(control?.protocol, 1);
     assert.equal(Object.isFrozen(control), true);
@@ -142,6 +168,13 @@ test("real embed runtime hydrates the public summary without mounting Analyzer U
     assert.equal(api.getSummary().status, "running");
     assert.equal((await control.act("pause")).ok, true);
     assert.equal(api.getSummary().status, "paused");
+    assert.equal(control.capabilities?.resetRunning, true);
+    const pausedGeneration = api.getSummary().sessionGeneration;
+    assert.equal((await control.act("reset-running")).ok, true);
+    const runningAfterReset = api.getSummary();
+    assert.equal(runningAfterReset.status, "running");
+    assert.ok(runningAfterReset.sessionGeneration > pausedGeneration,
+      "atomic reset-running creates a fresh unlocked Hunt directly without a paused intermediate state");
 
     const currentRefresh = scheduledIntervals.find((entry) => entry.delay === 1_000);
     assert.ok(currentRefresh, "embed runtime must schedule the 1s Current refresh");
@@ -155,6 +188,85 @@ test("real embed runtime hydrates the public summary without mounting Analyzer U
     });
     assert.ok(refreshed, "scheduled embed refresh must renew Analyzer-owned source freshness");
     assert.equal(refreshed.available, true);
+  } finally {
+    window.dispatchEvent(new window.Event("beforeunload"));
+    window.close();
+  }
+});
+
+test("real embedded Cards reset-running preserves live XP/h while delayed old reward remains historical", async () => {
+  const window = new Window({ url: "https://pokepixel.nietore.com/play/" });
+  const indexedDB = new IDBFactory();
+  window[EMBED_MARKER] = { protocol: 1 };
+  window.unsafeWindow = window;
+  window.WebSocket = SyntheticWebSocket;
+  window.indexedDB = indexedDB;
+  window.IDBKeyRange = IDBKeyRange;
+  window.setInterval = () => 1;
+  window.clearInterval = () => {};
+  try {
+    window.eval(await buildRuntimeBundle());
+    const api = await waitFor(() => {
+      const value = window[PUBLIC_SUMMARY];
+      return value?.getSummary?.().available && value.getSummary().leadershipActive
+        ? value : null;
+    }, { timeoutMs: 8_000 });
+    assert.ok(api);
+    const control = window[PUBLIC_CONTROL];
+    assert.equal(control?.capabilities?.resetRunning, true);
+    const socket = new window.WebSocket("wss://synthetic.invalid");
+    const emit = (type, seq, data) => socket.emitMessage({ type, seq, ts: Date.now(), data });
+    const started = (wildId, speciesId) => ({
+      enemy: { id: wildId, species_id: speciesId, level: 5, quality: "common",
+        zone_id: "same-route", map_id: 14 },
+      session: { id: "game-hunt-continues", zone_id: "same-route" }
+    });
+    const reward = (wildId, speciesId, xp) => ({
+      wild_monster_id: wildId, species_id: speciesId,
+      exp: xp, trainer_exp: xp, pokemon_exp: xp, gold: 2
+    });
+
+    emit("combat.started", 1, started("wild-A", "eevee"));
+    const before = await waitFor(() => {
+      const s = api.getSummary();
+      return s.status === "running" && s.currentSessionSpecies?.speciesId === "eevee" ? s : null;
+    }, { timeoutMs: 8_000 });
+    assert.ok(before);
+    assert.equal((await control.act("reset-running")).ok, true);
+    const reset = api.getSummary();
+    assert.equal(reset.status, "running");
+    assert.equal(reset.trainerExp, 0);
+    assert.equal(reset.currentSessionSpecies, null);
+    assert.ok(reset.sessionGeneration > before.sessionGeneration);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    emit("loot.received", 2, reward("wild-A", "eevee", 50));
+    emit("combat.started", 3, started("wild-B", "pikachu"));
+    emit("loot.received", 4, reward("wild-B", "pikachu", 200));
+    const fresh = await waitFor(() => {
+      const s = api.getSummary();
+      return s.status === "running" && s.trainerExp === 200 &&
+        s.pokemonExp === 200 && (s.currentTarget?.speciesId === "pikachu" ||
+        s.currentSessionSpecies?.speciesId === "pikachu") ? s : null;
+    }, { timeoutMs: 8_000 });
+    assert.ok(fresh, "new game encounters must remain countable after Card Reset");
+    assert.ok(Number.isFinite(fresh.trainerExpPerHour) && fresh.trainerExpPerHour > 0);
+
+    const db = await openDatabase({ indexedDBFactory: indexedDB });
+    try {
+      const rows = await createRepository(db, STORE_NAMES.ENCOUNTERS).getAll();
+      const sessions = await createRepository(db, STORE_NAMES.SESSIONS).getAll();
+      assert.equal(rows.length, 2);
+      const a = rows.find((row) => row.wildMonsterId === "wild-A");
+      const b = rows.find((row) => row.wildMonsterId === "wild-B");
+      assert.equal(a?.trainerExp, 50);
+      assert.equal(b?.trainerExp, 200);
+      assert.notEqual(a.sessionId, b.sessionId);
+      assert.equal(sessions.find((s) => s.sessionId === a.sessionId)?.status, "ended");
+      assert.equal(sessions.find((s) => s.sessionId === b.sessionId)?.status, "running");
+    } finally {
+      db.close();
+    }
   } finally {
     window.dispatchEvent(new window.Event("beforeunload"));
     window.close();
@@ -577,6 +689,268 @@ test("queued protocol event is dropped when leadership changes after enqueue", a
   } finally {
     window.dispatchEvent(new window.Event("beforeunload"));
     Object.defineProperty(window, "localStorage", originalStorageDescriptor);
+    window.close();
+  }
+});
+
+test("duplicate or rejected terminal events do not refresh the full Current projection", async () => {
+  const window = new Window({ url: "https://pokepixel.nietore.com/play/" });
+  window[EMBED_MARKER] = { protocol: 1 };
+  window.unsafeWindow = window;
+  window.WebSocket = SyntheticWebSocket;
+  window.indexedDB = new IDBFactory();
+  window.IDBKeyRange = IDBKeyRange;
+  window.setInterval = () => 1;
+  window.clearInterval = () => {};
+
+  try {
+    window.eval(await buildRuntimeBundle());
+    const api = await waitFor(() => {
+      const candidate = window[PUBLIC_SUMMARY];
+      return candidate?.getSummary?.().available && candidate.getSummary().leadershipActive
+        ? candidate : null;
+    });
+    assert.ok(api);
+
+    const socket = new window.WebSocket("wss://synthetic.invalid");
+    const failedCapture = {
+      type: "capture.failed",
+      seq: 31,
+      ts: Date.now(),
+      data: {
+        wild_monster_id: "wild-31",
+        species_id: "pikachu",
+        species_name: "Pikachu",
+        quality: "common",
+        level: 10,
+        capsule_item_id: "pokeball",
+        capsule_name: "Poke Ball",
+        chance: 0.75
+      }
+    };
+
+    socket.emitMessage(failedCapture);
+    const accepted = await waitFor(() => {
+      const current = api.getSummary();
+      return current.failed === 1 && current.seen === 1 ? current : null;
+    });
+    assert.ok(accepted, "accepted capture must still update the public metrics");
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    socket.emitMessage(failedCapture);
+    await new Promise((resolve) => setTimeout(resolve, 140));
+    assert.equal(api.getSummary().capturedAtMs, accepted.capturedAtMs,
+      "duplicate capture cannot trigger a new Current projection or full-session hydration");
+    assert.equal(api.getSummary().failed, 1);
+
+    socket.emitMessage({ type: "capture.failed", seq: 32, ts: Date.now(), data: null });
+    await new Promise((resolve) => setTimeout(resolve, 140));
+    assert.equal(api.getSummary().capturedAtMs, accepted.capturedAtMs,
+      "rejected canonical event cannot invalidate Current");
+
+    socket.emitMessage({
+      ...failedCapture,
+      seq: 33,
+      ts: Date.now(),
+      data: { ...failedCapture.data, wild_monster_id: "wild-33" }
+    });
+    assert.ok(await waitFor(() => {
+      const current = api.getSummary();
+      return current.failed === 2 && current.seen === 2 ? current : null;
+    }), "a subsequent accepted capture must still refresh authoritative Current");
+  } finally {
+    window.dispatchEvent(new window.Event("beforeunload"));
+    window.close();
+  }
+});
+
+test("accepted auto-potion updates session expenses without reloading every current encounter", async () => {
+  const window = new Window({ url: "https://pokepixel.nietore.com/play/" });
+  window[EMBED_MARKER] = { protocol: 1 };
+  window.unsafeWindow = window;
+  window.WebSocket = SyntheticWebSocket;
+  window.indexedDB = new IDBFactory();
+  window.IDBKeyRange = IDBKeyRange;
+  window.setInterval = () => 1;
+  window.clearInterval = () => {};
+  const originalGetAll = IDBIndex.prototype.getAll;
+  let sessionEncounterReads = 0;
+  IDBIndex.prototype.getAll = function (...args) {
+    if (this.name === "sessionId") sessionEncounterReads += 1;
+    return originalGetAll.apply(this, args);
+  };
+
+  try {
+    window.eval(await buildRuntimeBundle());
+    const api = await waitFor(() => {
+      const candidate = window[PUBLIC_SUMMARY];
+      return candidate?.getSummary?.().available && candidate.getSummary().leadershipActive
+        ? candidate : null;
+    });
+    assert.ok(api);
+    const socket = new window.WebSocket("wss://synthetic.invalid");
+    socket.emitMessage({
+      type: "combat.started", seq: 1, ts: Date.now(),
+      data: { enemy: { id: "wild-1", species_id: "eevee", level: 7 }, session: { id: "server-1" } }
+    });
+    assert.ok(await waitFor(() => api.getSummary().status === "running" && api.getSummary().currentTarget));
+    const before = api.getSummary();
+    const readsBefore = sessionEncounterReads;
+    socket.emitMessage({
+      type: "loot.received", seq: 2, ts: Date.now(),
+      data: { auto_potion_used: "potion_small", supply_cost: 25 }
+    });
+    const updated = await waitFor(() => {
+      const result = api.getSummary();
+      return result.expenses >= before.expenses + 25 ? result : null;
+    });
+    assert.ok(updated, "accepted potion expenditure remains authoritative");
+    assert.equal(sessionEncounterReads, readsBefore,
+      "a session-only cost change must not trigger a full session encounter read");
+  } finally {
+    IDBIndex.prototype.getAll = originalGetAll;
+    window.dispatchEvent(new window.Event("beforeunload"));
+    window.close();
+  }
+});
+
+test("authoritative before-image mismatch repairs a Current cache changed by another database writer", async () => {
+  const window = new Window({ url: "https://pokepixel.nietore.com/play/" });
+  const indexedDB = new IDBFactory();
+  window[EMBED_MARKER] = { protocol: 1 };
+  window.unsafeWindow = window;
+  window.WebSocket = SyntheticWebSocket;
+  window.indexedDB = indexedDB;
+  window.IDBKeyRange = IDBKeyRange;
+  window.setInterval = () => 1;
+  window.clearInterval = () => {};
+
+  const originalGetAll = IDBIndex.prototype.getAll;
+  let sessionReads = 0;
+  let externalDb = null;
+  IDBIndex.prototype.getAll = function (...args) {
+    if (this.name === "sessionId") sessionReads += 1;
+    return originalGetAll.apply(this, args);
+  };
+  try {
+    window.eval(await buildRuntimeBundle());
+    const api = await waitFor(() => {
+      const candidate = window[PUBLIC_SUMMARY];
+      return candidate?.getSummary?.().available && candidate.getSummary().leadershipActive
+        ? candidate : null;
+    });
+    assert.ok(api);
+    const socket = new window.WebSocket("wss://synthetic.invalid");
+    socket.emitMessage({
+      type: "combat.started", seq: 1, ts: Date.now(),
+      data: {
+        enemy: { id: "wild-cache", species_id: "pidgey", level: 7 },
+        session: { id: "server-cache" }
+      }
+    });
+    assert.ok(await waitFor(() => api.getSummary().currentTarget?.speciesId === "pidgey"));
+
+    const readsAfterStart = sessionReads;
+    socket.emitMessage({
+      type: "loot.received", seq: 2, ts: Date.now(),
+      data: {
+        wild_monster_id: "wild-cache", species_id: "pidgey",
+        gold: 37, loot_sell_value: 0, trainer_exp: 10, pokemon_exp: 10
+      }
+    });
+    assert.ok(await waitFor(() => api.getSummary().dollar === 37));
+    assert.equal(sessionReads, readsAfterStart,
+      "a valid matching before-image must preserve incremental Current updates");
+
+    // Simulate a committed record correction by another connection. It is
+    // intentionally invisible to the runtime's in-memory Current snapshot.
+    externalDb = await openDatabase({ indexedDBFactory: indexedDB });
+    const repo = createRepository(externalDb, STORE_NAMES.ENCOUNTERS);
+    const [before] = await repo.getAll();
+    assert.ok(before?.encounterId);
+    await repo.put({ ...before, autoSold: true, autoSellValue: 900 });
+    const readsBefore = sessionReads;
+
+    socket.emitMessage({
+      type: "capture.failed", seq: 3, ts: Date.now(),
+      data: {
+        wild_monster_id: "wild-cache", species_id: "pidgey", species_name: "Pidgey",
+        quality: "common", level: 7, capsule_item_id: "pokeball", chance: 0.5
+      }
+    });
+    assert.ok(await waitFor(() => api.getSummary().dollar === 937),
+      "Current must preserve the externally committed auto-sell correction");
+    assert.ok(sessionReads > readsBefore,
+      "a conflicting before-image must force authoritative session hydration");
+  } finally {
+    externalDb?.close();
+    IDBIndex.prototype.getAll = originalGetAll;
+    window.dispatchEvent(new window.Event("beforeunload"));
+    window.close();
+  }
+});
+
+test("a partial multi-effect persistence failure reconciles Current without waiting for a successful retry", async () => {
+  const window = new Window({ url: "https://pokepixel.nietore.com/play/" });
+  const indexedDB = new IDBFactory();
+  window[EMBED_MARKER] = { protocol: 1 };
+  window.unsafeWindow = window;
+  window.WebSocket = SyntheticWebSocket;
+  window.indexedDB = indexedDB;
+  window.IDBKeyRange = IDBKeyRange;
+  window.setInterval = () => 1;
+  window.clearInterval = () => {};
+  let verifyDb;
+  const originalAdd = IDBObjectStore.prototype.add;
+  const originalError = window.console.error;
+  let failOnce = true;
+  try {
+    window.eval(await buildRuntimeBundle());
+    const api = await waitFor(() => {
+      const candidate = window[PUBLIC_SUMMARY];
+      return candidate?.getSummary?.().available && candidate.getSummary().leadershipActive
+        ? candidate : null;
+    });
+    assert.ok(api);
+    const socket = new window.WebSocket("wss://synthetic.invalid");
+    const started = (species, seq) => ({
+      type: "combat.started", seq, ts: Date.now(),
+      data: { enemy: { id: "reused-wild", species_id: species, level: 7, quality: "common" },
+        session: { id: "server-hunt" } }
+    });
+    socket.emitMessage(started("pidgey", 1));
+    assert.ok(await waitFor(() => api.getSummary().currentTarget?.speciesId === "pidgey"));
+
+    IDBObjectStore.prototype.add = function (value, ...args) {
+      if (failOnce && this.name === STORE_NAMES.ENCOUNTERS && value.speciesId === "eevee") {
+        failOnce = false;
+        throw new Error("synthetic second-effect persistence failure");
+      }
+      return originalAdd.call(this, value, ...args);
+    };
+    // The first effect finalizes Pidgey; only the second create fails.
+    // The handler must reload that committed finalization immediately.
+    window.console.error = () => {};
+    socket.emitMessage(started("eevee", 2));
+    assert.ok(await waitFor(() => !failOnce), "failure must happen after first effect");
+    assert.ok(await waitFor(() => api.getSummary().currentTarget === null),
+      "Current must stop presenting the finalized previous target after partial failure");
+
+    verifyDb = await openDatabase({ indexedDBFactory: indexedDB });
+    const persisted = await createRepository(verifyDb, STORE_NAMES.ENCOUNTERS).getAll();
+    assert.equal(persisted.length, 1);
+    assert.equal(persisted[0].state, "incomplete");
+
+    socket.emitMessage(started("eevee", 2));
+    assert.ok(await waitFor(() => api.getSummary().currentTarget?.speciesId === "eevee"),
+      "original protocol identity must remain retryable after a failure");
+    const after = await createRepository(verifyDb, STORE_NAMES.ENCOUNTERS).getAll();
+    assert.equal(after.length, 2);
+  } finally {
+    IDBObjectStore.prototype.add = originalAdd;
+    window.console.error = originalError;
+    verifyDb?.close();
+    window.dispatchEvent(new window.Event("beforeunload"));
     window.close();
   }
 });

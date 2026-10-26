@@ -1,5 +1,3 @@
-import "./closed-hud-one-column.js";
-
 export const MOBILE_CLOSED_HUD_STYLES = String.raw`
 #pha-toggle.pha-custom-hud[data-hud-columns="1"] {
   width: 145px !important;

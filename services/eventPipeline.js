@@ -29,7 +29,12 @@ const RECENT_EVENT_LIMIT = 50;
 const DEFAULT_DEDUPE_EVENT_LIMIT = 10_000;
 
 function protocolDedupeKey(message) {
-  return `${message.socketId}|${message.type}|${message.seq}`;
+  // Synthetic HuntSim sequences may restart on the SAME socket. The adapter
+  // supplies its bounded, local run generation; legacy event identity remains
+  // unchanged when no generation is present.
+  const generation = Number.isSafeInteger(message.protocolGeneration) &&
+    message.protocolGeneration >= 0 ? `|hunt-generation:${message.protocolGeneration}` : "";
+  return `${message.socketId}|${message.type}|${message.seq}${generation}`;
 }
 
 function addPatch(target, patch) {
@@ -59,14 +64,19 @@ export function createEventPipeline(
   // socketId|type|seq semantics for the most recent protocol window.
   const seenEventKeys = new Set();
   const seenEventQueue = [];
+  let oldestEventIndex = 0;
 
   function rememberEventKey(key) {
-    seenEventKeys.add(key);
-    seenEventQueue.push(key);
-
-    if (seenEventQueue.length > dedupeEventLimit) {
-      seenEventKeys.delete(seenEventQueue.shift());
+    if (seenEventQueue.length === dedupeEventLimit) {
+      // Reuse the oldest slot. Array.shift() moved up to 10,000 entries
+      // after every accepted frame once the registry reached capacity.
+      seenEventKeys.delete(seenEventQueue[oldestEventIndex]);
+      seenEventQueue[oldestEventIndex] = key;
+      oldestEventIndex = (oldestEventIndex + 1) % dedupeEventLimit;
+    } else {
+      seenEventQueue.push(key);
     }
+    seenEventKeys.add(key);
   }
 
   // Diagnostics must never sit in front of encounter persistence. Counters are
@@ -190,7 +200,7 @@ export function createEventPipeline(
   // combat.started is the event that carries the server session/zone context
   // used to decide automatic Hunt boundaries.
   async function resolveSessionForCombatStarted(row) {
-    const previous = await sessionsRepo.getCurrentReadOnly();
+    let previous = await sessionsRepo.getCurrentReadOnly();
 
     if (previous?.activityKind === "expedition") {
       if (previous.locked) return previous;
@@ -201,9 +211,14 @@ export function createEventPipeline(
       // finish signal was missed. This switch remains atomic in the repository.
       await sessionsRepo.forceNewSession();
       observedExpeditionRunId = null;
+      previous = null;
     }
 
-    const session = await sessionsRepo.getOrStartCurrent();
+    // Reuse the just-read session in the ordinary hot path. Looking it up
+    // again created two more IndexedDB read transactions per combat start.
+    const session = previous && (previous.status !== "ended" || previous.locked)
+      ? previous
+      : await sessionsRepo.getOrStartCurrent();
 
     // Manual Pause/End locks the Hunt. Only explicit Resume/New Hunt should
     // allow automatic boundary handling to resume.
@@ -231,26 +246,29 @@ export function createEventPipeline(
   }
 
   async function persistFinalizedEncounter(effect) {
-    const updated = await encountersRepo.update(effect.encounterId, effect.patch);
-
-    // `captureTicketAtMs` is deliberately derived here, after the complete
-    // persisted row exists. The sparse v3 index then contains only encounters
-    // that can actually generate a ticket; ordinary successes never enter it.
-    if (
-      canGenerateCaptureTicket(updated) &&
-      updated.captureTicketAtMs !== updated.captureAtMs
-    ) {
-      return encountersRepo.update(effect.encounterId, {
-        captureTicketAtMs: updated.captureAtMs
-      });
-    }
-
-    return updated;
+    return encountersRepo.updateWithPrevious(effect.encounterId, effect.patch, {
+      // Derive eligibility from the merged row inside the same transaction.
+      // This avoids a second read/write cycle and ensures the before-image is
+      // the exact persisted record before terminal enrichment.
+      finish: (updated) => canGenerateCaptureTicket(updated)
+        && updated.captureTicketAtMs !== updated.captureAtMs
+        ? { ...updated, captureTicketAtMs: updated.captureAtMs }
+        : updated
+    });
   }
 
   async function applyEffects(effects) {
     let sessionId;
     const changedEncounters = new Map();
+
+    function recordChange(transition) {
+      const { before, after } = transition;
+      const prior = changedEncounters.get(after.encounterId);
+      changedEncounters.set(after.encounterId, {
+        before: prior ? prior.before : before,
+        after
+      });
+    }
 
     async function currentSessionId() {
       if (sessionId === undefined) {
@@ -301,19 +319,17 @@ export function createEventPipeline(
           const row = await finishRowForPersistence(effect.row, resolvedSessionId);
           const created = await encountersRepo.create(row);
           if (effect.row.state === "started") encounterOwners.set(created.encounterId, resolvedSessionId);
-          changedEncounters.set(created.encounterId, created);
+          recordChange({ before: null, after: created });
           break;
         }
 
         case "encounter.update": {
-          const updated = await encountersRepo.update(effect.encounterId, effect.patch);
-          changedEncounters.set(updated.encounterId, updated);
+          recordChange(await encountersRepo.updateWithPrevious(effect.encounterId, effect.patch));
           break;
         }
 
         case "encounter.finalize": {
-          const finalized = await persistFinalizedEncounter(effect);
-          changedEncounters.set(finalized.encounterId, finalized);
+          recordChange(await persistFinalizedEncounter(effect));
           break;
         }
 
@@ -390,8 +406,12 @@ export function createEventPipeline(
     const terminalAlert = buildTerminalAlert(envelope, swept.state);
     const result = applyEvent(swept.state, envelope);
     const resultChanges = await applyEffects(result.effects);
-    for (const [encounterId, row] of resultChanges) {
-      changedEncounters.set(encounterId, row);
+    for (const [encounterId, transition] of resultChanges) {
+      const previous = changedEncounters.get(encounterId);
+      changedEncounters.set(encounterId, {
+        before: previous ? previous.before : transition.before,
+        after: transition.after
+      });
     }
 
     // Commit in-memory state and dedupe only after persistence succeeds. A
@@ -415,7 +435,8 @@ export function createEventPipeline(
     return {
       ok: true,
       terminalAlert,
-      changedEncounters: [...changedEncounters.values()]
+      changedEncounters: [...changedEncounters.values()].map(({ after }) => after),
+      encounterTransitions: [...changedEncounters.values()]
     };
   }
 

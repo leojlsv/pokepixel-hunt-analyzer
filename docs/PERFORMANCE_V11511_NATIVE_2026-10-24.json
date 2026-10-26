@@ -1,0 +1,1154 @@
+{
+    "status":  "pass",
+    "isolated":  true,
+    "screenshots":  "docs/evidence/v11511-native-pager",
+    "results":  [
+                    {
+                        "engine":  "native-chromium-layout",
+                        "viewportWidth":  320,
+                        "evidence":  {
+                                         "status":  "pass",
+                                         "synthetic":  true,
+                                         "environment":  "native-Chromium-real-CSS-and-scroll",
+                                         "width":  320,
+                                         "mode":  "mobile",
+                                         "sourceRows":  1000,
+                                         "logicalHuntHours":  102,
+                                         "capturedCount":  334,
+                                         "failedCount":  666,
+                                         "currentCapturedMaxRows":  100,
+                                         "currentFailedMaxRows":  100,
+                                         "historyAttemptsMaxRows":  100,
+                                         "checks":  {
+                                                        "currentMounted100":  true,
+                                                        "currentExactTotals":  true,
+                                                        "currentDeepPages":  true,
+                                                        "capturedShowsSixIV":  true,
+                                                        "capturedExpanded":  true,
+                                                        "currentKeyboardSort":  true,
+                                                        "currentSortRestored":  true,
+                                                        "mobileCurrentScrollOwner":  true,
+                                                        "currentNextBounded":  true,
+                                                        "currentExtendedChancePrecision":  true,
+                                                        "currentNoHorizontalOverflow":  true,
+                                                        "currentControlProportions":  true,
+                                                        "currentPagerGeometry":  true,
+                                                        "currentDeepJumpReadable":  true,
+                                                        "mobileCurrentPagerNotObscured":  true,
+                                                        "historyInitiallyBounded":  true,
+                                                        "historyExtendedChancePrecision":  true,
+                                                        "historyDeepPage":  true,
+                                                        "historyKeyboardExpanded":  true,
+                                                        "mobileHistoryScrollOwner":  true,
+                                                        "historyNavigationBounded":  true,
+                                                        "historyNoHorizontalOverflow":  true,
+                                                        "historyControlProportions":  true,
+                                                        "historyPagerGeometry":  true,
+                                                        "historyDeepJumpReadable":  true,
+                                                        "mobileHistoryPagerNotObscured":  true,
+                                                        "singlePagePagersHidden":  true,
+                                                        "singlePageCountersIntact":  true,
+                                                        "current":  true,
+                                                        "history":  true,
+                                                        "singlePage":  true
+                                                    },
+                                         "dimensions":  {
+                                                            "current":  {
+                                                                            "viewport":  320,
+                                                                            "viewWidth":  318,
+                                                                            "scopeScrollOverflow":  0,
+                                                                            "documentScrollOverflow":  0,
+                                                                            "tables":  [
+                                                                                           {
+                                                                                               "id":  "captured-body",
+                                                                                               "wrapWidth":  300,
+                                                                                               "tableWidth":  300,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+                                                                                                                        {
+                                                                                                                            "tag":  "TH",
+                                                                                                                            "text":  "Pokémon ▼",
+                                                                                                                            "clientWidth":  60,
+                                                                                                                            "scrollWidth":  65,
+                                                                                                                            "right":  70,
+                                                                                                                            "wrapRight":  310
+                                                                                                                        }
+                                                                                                                    ]
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "failed-body",
+                                                                                               "wrapWidth":  300,
+                                                                                               "tableWidth":  300,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+
+                                                                                                                    ]
+                                                                                           }
+                                                                                       ],
+                                                                            "controls":  [
+                                                                                             {
+                                                                                                 "id":  "captured-page-prev",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-next",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-jump",
+                                                                                                 "width":  68,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-go",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-prev",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-next",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-jump",
+                                                                                                 "width":  68,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-go",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             }
+                                                                                         ],
+                                                                            "pagers":  [
+                                                                                           {
+                                                                                               "height":  100,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           },
+                                                                                           {
+                                                                                               "height":  100,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           }
+                                                                                       ],
+                                                                            "jumpInputs":  [
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  32.34,
+                                                                                                   "contentWidth":  60,
+                                                                                                   "appearance":  "textfield"
+                                                                                               },
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  32.34,
+                                                                                                   "contentWidth":  60,
+                                                                                                   "appearance":  "textfield"
+                                                                                               }
+                                                                                           ]
+                                                                        },
+                                                            "history":  {
+                                                                            "viewport":  320,
+                                                                            "viewWidth":  318,
+                                                                            "scopeScrollOverflow":  0,
+                                                                            "documentScrollOverflow":  0,
+                                                                            "tables":  [
+                                                                                           {
+                                                                                               "id":  "history-attempts-body",
+                                                                                               "wrapWidth":  298,
+                                                                                               "tableWidth":  296,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+                                                                                                                        {
+                                                                                                                            "tag":  "TH",
+                                                                                                                            "text":  "Result",
+                                                                                                                            "clientWidth":  30,
+                                                                                                                            "scrollWidth":  33,
+                                                                                                                            "right":  151.11,
+                                                                                                                            "wrapRight":  309
+                                                                                                                        }
+                                                                                                                    ]
+                                                                                           }
+                                                                                       ],
+                                                                            "controls":  [
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-prev",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-next",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-jump",
+                                                                                                 "width":  68,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-go",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             }
+                                                                                         ],
+                                                                            "pagers":  [
+                                                                                           {
+                                                                                               "height":  100,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           }
+                                                                                       ],
+                                                                            "jumpInputs":  [
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  32.34,
+                                                                                                   "contentWidth":  60,
+                                                                                                   "appearance":  "textfield"
+                                                                                               }
+                                                                                           ]
+                                                                        }
+                                                        },
+                                         "timing":  {
+                                                        "currentInitialHydrationMs":  81,
+                                                        "currentDoubleJumpMs":  38.4,
+                                                        "historyHydrateMs":  17.8
+                                                    },
+                                         "errors":  [
+
+                                                    ],
+                                         "heapUsedJSBytesAtEnd":  3562560,
+                                         "caveat":  "Disposable browser native layout/scroll QA. No authenticated game, Tampermonkey, IndexedDB, source authority, 102-hour uptime, or measured game FPS."
+                                     }
+                    },
+                    {
+                        "engine":  "native-chromium-layout",
+                        "viewportWidth":  390,
+                        "evidence":  {
+                                         "status":  "pass",
+                                         "synthetic":  true,
+                                         "environment":  "native-Chromium-real-CSS-and-scroll",
+                                         "width":  390,
+                                         "mode":  "mobile",
+                                         "sourceRows":  1000,
+                                         "logicalHuntHours":  102,
+                                         "capturedCount":  334,
+                                         "failedCount":  666,
+                                         "currentCapturedMaxRows":  100,
+                                         "currentFailedMaxRows":  100,
+                                         "historyAttemptsMaxRows":  100,
+                                         "checks":  {
+                                                        "currentMounted100":  true,
+                                                        "currentExactTotals":  true,
+                                                        "currentDeepPages":  true,
+                                                        "capturedShowsSixIV":  true,
+                                                        "capturedExpanded":  true,
+                                                        "currentKeyboardSort":  true,
+                                                        "currentSortRestored":  true,
+                                                        "mobileCurrentScrollOwner":  true,
+                                                        "currentNextBounded":  true,
+                                                        "currentExtendedChancePrecision":  true,
+                                                        "currentNoHorizontalOverflow":  true,
+                                                        "currentControlProportions":  true,
+                                                        "currentPagerGeometry":  true,
+                                                        "currentDeepJumpReadable":  true,
+                                                        "mobileCurrentPagerNotObscured":  true,
+                                                        "historyInitiallyBounded":  true,
+                                                        "historyExtendedChancePrecision":  true,
+                                                        "historyDeepPage":  true,
+                                                        "historyKeyboardExpanded":  true,
+                                                        "mobileHistoryScrollOwner":  true,
+                                                        "historyNavigationBounded":  true,
+                                                        "historyNoHorizontalOverflow":  true,
+                                                        "historyControlProportions":  true,
+                                                        "historyPagerGeometry":  true,
+                                                        "historyDeepJumpReadable":  true,
+                                                        "mobileHistoryPagerNotObscured":  true,
+                                                        "singlePagePagersHidden":  true,
+                                                        "singlePageCountersIntact":  true,
+                                                        "current":  true,
+                                                        "history":  true,
+                                                        "singlePage":  true
+                                                    },
+                                         "dimensions":  {
+                                                            "current":  {
+                                                                            "viewport":  390,
+                                                                            "viewWidth":  388,
+                                                                            "scopeScrollOverflow":  0,
+                                                                            "documentScrollOverflow":  0,
+                                                                            "tables":  [
+                                                                                           {
+                                                                                               "id":  "captured-body",
+                                                                                               "wrapWidth":  370,
+                                                                                               "tableWidth":  370,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+
+                                                                                                                    ]
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "failed-body",
+                                                                                               "wrapWidth":  370,
+                                                                                               "tableWidth":  370,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+
+                                                                                                                    ]
+                                                                                           }
+                                                                                       ],
+                                                                            "controls":  [
+                                                                                             {
+                                                                                                 "id":  "captured-page-prev",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-next",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-jump",
+                                                                                                 "width":  68,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-go",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-prev",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-next",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-jump",
+                                                                                                 "width":  68,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-go",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             }
+                                                                                         ],
+                                                                            "pagers":  [
+                                                                                           {
+                                                                                               "height":  100,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           },
+                                                                                           {
+                                                                                               "height":  100,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           }
+                                                                                       ],
+                                                                            "jumpInputs":  [
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  32.34,
+                                                                                                   "contentWidth":  60,
+                                                                                                   "appearance":  "textfield"
+                                                                                               },
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  32.34,
+                                                                                                   "contentWidth":  60,
+                                                                                                   "appearance":  "textfield"
+                                                                                               }
+                                                                                           ]
+                                                                        },
+                                                            "history":  {
+                                                                            "viewport":  390,
+                                                                            "viewWidth":  388,
+                                                                            "scopeScrollOverflow":  0,
+                                                                            "documentScrollOverflow":  0,
+                                                                            "tables":  [
+                                                                                           {
+                                                                                               "id":  "history-attempts-body",
+                                                                                               "wrapWidth":  368,
+                                                                                               "tableWidth":  366,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+
+                                                                                                                    ]
+                                                                                           }
+                                                                                       ],
+                                                                            "controls":  [
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-prev",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-next",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-jump",
+                                                                                                 "width":  68,
+                                                                                                 "height":  44
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-go",
+                                                                                                 "width":  44,
+                                                                                                 "height":  44
+                                                                                             }
+                                                                                         ],
+                                                                            "pagers":  [
+                                                                                           {
+                                                                                               "height":  100,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           }
+                                                                                       ],
+                                                                            "jumpInputs":  [
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  32.34,
+                                                                                                   "contentWidth":  60,
+                                                                                                   "appearance":  "textfield"
+                                                                                               }
+                                                                                           ]
+                                                                        }
+                                                        },
+                                         "timing":  {
+                                                        "currentInitialHydrationMs":  29.6,
+                                                        "currentDoubleJumpMs":  31.2,
+                                                        "historyHydrateMs":  15.6
+                                                    },
+                                         "errors":  [
+
+                                                    ],
+                                         "heapUsedJSBytesAtEnd":  3599754,
+                                         "caveat":  "Disposable browser native layout/scroll QA. No authenticated game, Tampermonkey, IndexedDB, source authority, 102-hour uptime, or measured game FPS."
+                                     }
+                    },
+                    {
+                        "engine":  "native-chromium-layout",
+                        "viewportWidth":  400,
+                        "evidence":  {
+                                         "status":  "pass",
+                                         "synthetic":  true,
+                                         "environment":  "native-Chromium-real-CSS-and-scroll",
+                                         "width":  400,
+                                         "mode":  "desktop",
+                                         "sourceRows":  1000,
+                                         "logicalHuntHours":  102,
+                                         "capturedCount":  334,
+                                         "failedCount":  666,
+                                         "currentCapturedMaxRows":  100,
+                                         "currentFailedMaxRows":  100,
+                                         "historyAttemptsMaxRows":  100,
+                                         "checks":  {
+                                                        "currentMounted100":  true,
+                                                        "currentExactTotals":  true,
+                                                        "currentDeepPages":  true,
+                                                        "capturedShowsSixIV":  true,
+                                                        "capturedExpanded":  true,
+                                                        "currentKeyboardSort":  true,
+                                                        "currentSortRestored":  true,
+                                                        "currentNextBounded":  true,
+                                                        "currentExtendedChancePrecision":  true,
+                                                        "currentNoHorizontalOverflow":  true,
+                                                        "currentControlProportions":  true,
+                                                        "currentPagerGeometry":  true,
+                                                        "currentDeepJumpReadable":  true,
+                                                        "historyInitiallyBounded":  true,
+                                                        "historyExtendedChancePrecision":  true,
+                                                        "historyDeepPage":  true,
+                                                        "historyKeyboardExpanded":  true,
+                                                        "historyNavigationBounded":  true,
+                                                        "historyNoHorizontalOverflow":  true,
+                                                        "historyControlProportions":  true,
+                                                        "historyPagerGeometry":  true,
+                                                        "historyDeepJumpReadable":  true,
+                                                        "singlePagePagersHidden":  true,
+                                                        "singlePageCountersIntact":  true,
+                                                        "current":  true,
+                                                        "history":  true,
+                                                        "singlePage":  true
+                                                    },
+                                         "dimensions":  {
+                                                            "current":  {
+                                                                            "viewport":  400,
+                                                                            "viewWidth":  388,
+                                                                            "scopeScrollOverflow":  0,
+                                                                            "documentScrollOverflow":  0,
+                                                                            "tables":  [
+                                                                                           {
+                                                                                               "id":  "captured-body",
+                                                                                               "wrapWidth":  366,
+                                                                                               "tableWidth":  356,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+
+                                                                                                                    ]
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "failed-body",
+                                                                                               "wrapWidth":  366,
+                                                                                               "tableWidth":  356,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+
+                                                                                                                    ]
+                                                                                           }
+                                                                                       ],
+                                                                            "controls":  [
+                                                                                             {
+                                                                                                 "id":  "captured-page-prev",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-next",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-jump",
+                                                                                                 "width":  62,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-go",
+                                                                                                 "width":  30,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-prev",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-next",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-jump",
+                                                                                                 "width":  62,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-go",
+                                                                                                 "width":  30,
+                                                                                                 "height":  28
+                                                                                             }
+                                                                                         ],
+                                                                            "pagers":  [
+                                                                                           {
+                                                                                               "height":  37,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           },
+                                                                                           {
+                                                                                               "height":  37,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           }
+                                                                                       ],
+                                                                            "jumpInputs":  [
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  29.11,
+                                                                                                   "contentWidth":  54,
+                                                                                                   "appearance":  "textfield"
+                                                                                               },
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  29.11,
+                                                                                                   "contentWidth":  54,
+                                                                                                   "appearance":  "textfield"
+                                                                                               }
+                                                                                           ]
+                                                                        },
+                                                            "history":  {
+                                                                            "viewport":  400,
+                                                                            "viewWidth":  388,
+                                                                            "scopeScrollOverflow":  0,
+                                                                            "documentScrollOverflow":  0,
+                                                                            "tables":  [
+                                                                                           {
+                                                                                               "id":  "history-attempts-body",
+                                                                                               "wrapWidth":  368,
+                                                                                               "tableWidth":  356,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+
+                                                                                                                    ]
+                                                                                           }
+                                                                                       ],
+                                                                            "controls":  [
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-prev",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-next",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-jump",
+                                                                                                 "width":  62,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-go",
+                                                                                                 "width":  30,
+                                                                                                 "height":  28
+                                                                                             }
+                                                                                         ],
+                                                                            "pagers":  [
+                                                                                           {
+                                                                                               "height":  37,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           }
+                                                                                       ],
+                                                                            "jumpInputs":  [
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  29.11,
+                                                                                                   "contentWidth":  54,
+                                                                                                   "appearance":  "textfield"
+                                                                                               }
+                                                                                           ]
+                                                                        }
+                                                        },
+                                         "timing":  {
+                                                        "currentInitialHydrationMs":  51.3,
+                                                        "currentDoubleJumpMs":  32.5,
+                                                        "historyHydrateMs":  12.1
+                                                    },
+                                         "errors":  [
+
+                                                    ],
+                                         "heapUsedJSBytesAtEnd":  3391622,
+                                         "caveat":  "Disposable browser native layout/scroll QA. No authenticated game, Tampermonkey, IndexedDB, source authority, 102-hour uptime, or measured game FPS."
+                                     }
+                    },
+                    {
+                        "engine":  "native-chromium-layout",
+                        "viewportWidth":  415,
+                        "evidence":  {
+                                         "status":  "pass",
+                                         "synthetic":  true,
+                                         "environment":  "native-Chromium-real-CSS-and-scroll",
+                                         "width":  415,
+                                         "mode":  "desktop",
+                                         "sourceRows":  1000,
+                                         "logicalHuntHours":  102,
+                                         "capturedCount":  334,
+                                         "failedCount":  666,
+                                         "currentCapturedMaxRows":  100,
+                                         "currentFailedMaxRows":  100,
+                                         "historyAttemptsMaxRows":  100,
+                                         "checks":  {
+                                                        "currentMounted100":  true,
+                                                        "currentExactTotals":  true,
+                                                        "currentDeepPages":  true,
+                                                        "capturedShowsSixIV":  true,
+                                                        "capturedExpanded":  true,
+                                                        "currentKeyboardSort":  true,
+                                                        "currentSortRestored":  true,
+                                                        "currentNextBounded":  true,
+                                                        "currentExtendedChancePrecision":  true,
+                                                        "currentNoHorizontalOverflow":  true,
+                                                        "currentControlProportions":  true,
+                                                        "currentPagerGeometry":  true,
+                                                        "currentDeepJumpReadable":  true,
+                                                        "historyInitiallyBounded":  true,
+                                                        "historyExtendedChancePrecision":  true,
+                                                        "historyDeepPage":  true,
+                                                        "historyKeyboardExpanded":  true,
+                                                        "historyNavigationBounded":  true,
+                                                        "historyNoHorizontalOverflow":  true,
+                                                        "historyControlProportions":  true,
+                                                        "historyPagerGeometry":  true,
+                                                        "historyDeepJumpReadable":  true,
+                                                        "singlePagePagersHidden":  true,
+                                                        "singlePageCountersIntact":  true,
+                                                        "current":  true,
+                                                        "history":  true,
+                                                        "singlePage":  true
+                                                    },
+                                         "dimensions":  {
+                                                            "current":  {
+                                                                            "viewport":  415,
+                                                                            "viewWidth":  403,
+                                                                            "scopeScrollOverflow":  0,
+                                                                            "documentScrollOverflow":  0,
+                                                                            "tables":  [
+                                                                                           {
+                                                                                               "id":  "captured-body",
+                                                                                               "wrapWidth":  381,
+                                                                                               "tableWidth":  371,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+
+                                                                                                                    ]
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "failed-body",
+                                                                                               "wrapWidth":  381,
+                                                                                               "tableWidth":  371,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+
+                                                                                                                    ]
+                                                                                           }
+                                                                                       ],
+                                                                            "controls":  [
+                                                                                             {
+                                                                                                 "id":  "captured-page-prev",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-next",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-jump",
+                                                                                                 "width":  62,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-go",
+                                                                                                 "width":  30,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-prev",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-next",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-jump",
+                                                                                                 "width":  62,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-go",
+                                                                                                 "width":  30,
+                                                                                                 "height":  28
+                                                                                             }
+                                                                                         ],
+                                                                            "pagers":  [
+                                                                                           {
+                                                                                               "height":  37,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           },
+                                                                                           {
+                                                                                               "height":  37,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           }
+                                                                                       ],
+                                                                            "jumpInputs":  [
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  29.11,
+                                                                                                   "contentWidth":  54,
+                                                                                                   "appearance":  "textfield"
+                                                                                               },
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  29.11,
+                                                                                                   "contentWidth":  54,
+                                                                                                   "appearance":  "textfield"
+                                                                                               }
+                                                                                           ]
+                                                                        },
+                                                            "history":  {
+                                                                            "viewport":  415,
+                                                                            "viewWidth":  403,
+                                                                            "scopeScrollOverflow":  0,
+                                                                            "documentScrollOverflow":  0,
+                                                                            "tables":  [
+                                                                                           {
+                                                                                               "id":  "history-attempts-body",
+                                                                                               "wrapWidth":  383,
+                                                                                               "tableWidth":  371,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+
+                                                                                                                    ]
+                                                                                           }
+                                                                                       ],
+                                                                            "controls":  [
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-prev",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-next",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-jump",
+                                                                                                 "width":  62,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-go",
+                                                                                                 "width":  30,
+                                                                                                 "height":  28
+                                                                                             }
+                                                                                         ],
+                                                                            "pagers":  [
+                                                                                           {
+                                                                                               "height":  37,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           }
+                                                                                       ],
+                                                                            "jumpInputs":  [
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  29.11,
+                                                                                                   "contentWidth":  54,
+                                                                                                   "appearance":  "textfield"
+                                                                                               }
+                                                                                           ]
+                                                                        }
+                                                        },
+                                         "timing":  {
+                                                        "currentInitialHydrationMs":  30.1,
+                                                        "currentDoubleJumpMs":  43.7,
+                                                        "historyHydrateMs":  21.5
+                                                    },
+                                         "errors":  [
+
+                                                    ],
+                                         "heapUsedJSBytesAtEnd":  4446474,
+                                         "caveat":  "Disposable browser native layout/scroll QA. No authenticated game, Tampermonkey, IndexedDB, source authority, 102-hour uptime, or measured game FPS."
+                                     }
+                    },
+                    {
+                        "engine":  "native-chromium-layout",
+                        "viewportWidth":  620,
+                        "evidence":  {
+                                         "status":  "pass",
+                                         "synthetic":  true,
+                                         "environment":  "native-Chromium-real-CSS-and-scroll",
+                                         "width":  620,
+                                         "mode":  "desktop",
+                                         "sourceRows":  1000,
+                                         "logicalHuntHours":  102,
+                                         "capturedCount":  334,
+                                         "failedCount":  666,
+                                         "currentCapturedMaxRows":  100,
+                                         "currentFailedMaxRows":  100,
+                                         "historyAttemptsMaxRows":  100,
+                                         "checks":  {
+                                                        "currentMounted100":  true,
+                                                        "currentExactTotals":  true,
+                                                        "currentDeepPages":  true,
+                                                        "capturedShowsSixIV":  true,
+                                                        "capturedExpanded":  true,
+                                                        "currentKeyboardSort":  true,
+                                                        "currentSortRestored":  true,
+                                                        "currentNextBounded":  true,
+                                                        "currentExtendedChancePrecision":  true,
+                                                        "currentNoHorizontalOverflow":  true,
+                                                        "currentControlProportions":  true,
+                                                        "currentPagerGeometry":  true,
+                                                        "currentDeepJumpReadable":  true,
+                                                        "historyInitiallyBounded":  true,
+                                                        "historyExtendedChancePrecision":  true,
+                                                        "historyDeepPage":  true,
+                                                        "historyKeyboardExpanded":  true,
+                                                        "historyNavigationBounded":  true,
+                                                        "historyNoHorizontalOverflow":  true,
+                                                        "historyControlProportions":  true,
+                                                        "historyPagerGeometry":  true,
+                                                        "historyDeepJumpReadable":  true,
+                                                        "singlePagePagersHidden":  true,
+                                                        "singlePageCountersIntact":  true,
+                                                        "current":  true,
+                                                        "history":  true,
+                                                        "singlePage":  true
+                                                    },
+                                         "dimensions":  {
+                                                            "current":  {
+                                                                            "viewport":  620,
+                                                                            "viewWidth":  608,
+                                                                            "scopeScrollOverflow":  0,
+                                                                            "documentScrollOverflow":  0,
+                                                                            "tables":  [
+                                                                                           {
+                                                                                               "id":  "captured-body",
+                                                                                               "wrapWidth":  586,
+                                                                                               "tableWidth":  576,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+
+                                                                                                                    ]
+                                                                                           },
+                                                                                           {
+                                                                                               "id":  "failed-body",
+                                                                                               "wrapWidth":  586,
+                                                                                               "tableWidth":  576,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+
+                                                                                                                    ]
+                                                                                           }
+                                                                                       ],
+                                                                            "controls":  [
+                                                                                             {
+                                                                                                 "id":  "captured-page-prev",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-next",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-jump",
+                                                                                                 "width":  62,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "captured-page-go",
+                                                                                                 "width":  30,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-prev",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-next",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-jump",
+                                                                                                 "width":  62,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "failed-page-go",
+                                                                                                 "width":  30,
+                                                                                                 "height":  28
+                                                                                             }
+                                                                                         ],
+                                                                            "pagers":  [
+                                                                                           {
+                                                                                               "height":  37,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           },
+                                                                                           {
+                                                                                               "height":  37,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           }
+                                                                                       ],
+                                                                            "jumpInputs":  [
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  29.11,
+                                                                                                   "contentWidth":  54,
+                                                                                                   "appearance":  "textfield"
+                                                                                               },
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  29.11,
+                                                                                                   "contentWidth":  54,
+                                                                                                   "appearance":  "textfield"
+                                                                                               }
+                                                                                           ]
+                                                                        },
+                                                            "history":  {
+                                                                            "viewport":  620,
+                                                                            "viewWidth":  608,
+                                                                            "scopeScrollOverflow":  0,
+                                                                            "documentScrollOverflow":  0,
+                                                                            "tables":  [
+                                                                                           {
+                                                                                               "id":  "history-attempts-body",
+                                                                                               "wrapWidth":  588,
+                                                                                               "tableWidth":  576,
+                                                                                               "wrapScroll":  0,
+                                                                                               "visibleCellOverflow":  false,
+                                                                                               "textClipped":  false,
+                                                                                               "clippedCells":  [
+
+                                                                                                                ],
+                                                                                               "overflowElements":  [
+
+                                                                                                                    ]
+                                                                                           }
+                                                                                       ],
+                                                                            "controls":  [
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-prev",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-next",
+                                                                                                 "width":  42,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-jump",
+                                                                                                 "width":  62,
+                                                                                                 "height":  28
+                                                                                             },
+                                                                                             {
+                                                                                                 "id":  "history-attempts-page-go",
+                                                                                                 "width":  30,
+                                                                                                 "height":  28
+                                                                                             }
+                                                                                         ],
+                                                                            "pagers":  [
+                                                                                           {
+                                                                                               "height":  37,
+                                                                                               "longStatusOverflow":  0,
+                                                                                               "totalOverflow":  0,
+                                                                                               "allControlsInside":  true,
+                                                                                               "longStatusInside":  true
+                                                                                           }
+                                                                                       ],
+                                                                            "jumpInputs":  [
+                                                                                               {
+                                                                                                   "sixDigitsWidth":  29.11,
+                                                                                                   "contentWidth":  54,
+                                                                                                   "appearance":  "textfield"
+                                                                                               }
+                                                                                           ]
+                                                                        }
+                                                        },
+                                         "timing":  {
+                                                        "currentInitialHydrationMs":  52.2,
+                                                        "currentDoubleJumpMs":  68.5,
+                                                        "historyHydrateMs":  29.4
+                                                    },
+                                         "errors":  [
+
+                                                    ],
+                                         "heapUsedJSBytesAtEnd":  6073999,
+                                         "caveat":  "Disposable browser native layout/scroll QA. No authenticated game, Tampermonkey, IndexedDB, source authority, 102-hour uptime, or measured game FPS."
+                                     }
+                    }
+                ]
+}

@@ -23,11 +23,13 @@ import {
   saveCurrentRarityPreference
 } from "./current-rarity-preferences.js";
 import { createCurrentLootView } from "./current-loot-view.js";
+import { createSegmentedEncounterList } from "./segmented-encounter-list.js";
 
 const RARE_PLUS_KEYS = new Set(["rare", "epic", "legendary", "mythical"]);
 const RARITY_LABELS = new Map(RARITIES);
-const LIST_RENDER_BATCH = 100;
+export const CURRENT_LIST_PAGE_SIZE = 100;
 const LIST_LOAD_THRESHOLD_PX = 48;
+const DISPLAY_IV_KEYS = ["hp", "atk", "spa", "def", "spd", "spe"];
 
 function genderInfo(value) {
   const key = String(value || "").trim().toLowerCase();
@@ -91,30 +93,45 @@ function scheduleFrame(callback) {
 }
 
 function createListState(prefix) {
-  return {
+  const state = {
     prefix,
     // `null` means All (*), including an unexpected future/unknown rarity.
     filters: { rarities: null, qualityMin: null, ivMin: null, shiny: "*" },
     sort: { ...DEFAULT_ENCOUNTER_SORT },
     byId: new Map(),
-    visible: [],
+    shinyCount: 0,
+    visible: null,
     rows: new Map(),
     expandedIds: new Set(),
     renderToken: 0,
     rendering: false,
+    // Bounded DOM viewport, independent of the full session's rank list.
+    pageStart: 0,
+    // Head inserts before a deep page shift its 100-row navigation grid.
+    // A nonzero origin creates one short leading page, not overlapping pages.
+    pageOrigin: 0,
     renderedCount: 0
   };
+  state.visible = createSegmentedEncounterList((left, right) =>
+    compareEncounters(left, right, state.sort));
+  return state;
 }
 
 function encounterChanged(previous, next) {
   if (!previous) return true;
   return previous.updatedAtMs !== next.updatedAtMs ||
     previous.captureAtMs !== next.captureAtMs ||
+    // Raw/legacy source corrections do not necessarily bump updatedAtMs.
+    // Capture UI displays rarity and EACH IV, not just qualityMultiplier/
+    // ivTotal. Full-source reconciliation must update those visible fields.
+    previous.quality !== next.quality ||
     previous.qualityMultiplier !== next.qualityMultiplier ||
     previous.ivTotal !== next.ivTotal ||
+    DISPLAY_IV_KEYS.some(key => !Object.is(previous.ivs?.[key], next.ivs?.[key])) ||
     previous.isShiny !== next.isShiny ||
     previous.capsuleName !== next.capsuleName ||
     previous.captureChance !== next.captureChance ||
+    previous.speciesId !== next.speciesId ||
     previous.speciesName !== next.speciesName ||
     previous.gender !== next.gender ||
     previous.nature !== next.nature;
@@ -206,7 +223,7 @@ export function createCurrentView(shadow, {
     });
 
     for (const header of shadow.querySelectorAll(`[data-encounter-sort="${prefix}"]`)) {
-      header.addEventListener("click", () => {
+      const activateSort = () => {
         const key = header.dataset.sortKey;
         if (state.sort.key === key) {
           state.sort.direction = state.sort.direction === "desc" ? "asc" : "desc";
@@ -215,17 +232,54 @@ export function createCurrentView(shadow, {
         }
         updateSortIndicators(prefix);
         rebuildEncounterList(prefix, { resetScroll: false });
+      };
+      header.addEventListener("click", activateSort);
+      header.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        activateSort();
       });
     }
 
     const tableWrap = shadow.getElementById(`${prefix}-body`).closest(".table-wrap");
     tableWrap?.addEventListener("scroll", () => {
-      if (state.rendering || state.renderedCount >= state.visible.length) return;
+      if (state.rendering || tableWrap.scrollTop <= 0 ||
+          nextPageStart(state) >= state.visible.length) return;
       const remaining = tableWrap.scrollHeight - tableWrap.scrollTop - tableWrap.clientHeight;
-      if (remaining <= LIST_LOAD_THRESHOLD_PX) appendEncounterBatch(prefix);
+      if (remaining <= LIST_LOAD_THRESHOLD_PX) {
+        showEncounterPage(prefix, nextPageStart(state),
+          { resetScroll: true });
+      }
     }, { passive: true });
 
+    shadow.getElementById(prefix + "-page-prev").addEventListener("click", () => {
+      showEncounterPage(prefix, previousPageStart(state),
+        { resetScroll: true });
+    });
+    shadow.getElementById(prefix + "-page-next").addEventListener("click", () => {
+      showEncounterPage(prefix, nextPageStart(state),
+        { resetScroll: true });
+    });
+    const jump = shadow.getElementById(prefix + "-page-jump");
+    const jumpToRow = () => {
+      const rowNumber = Number(jump.value);
+      if (!Number.isSafeInteger(rowNumber) || rowNumber < 1) {
+        jump.value = state.visible.length ? String(state.pageStart + 1) : "";
+        return;
+      }
+      showEncounterPage(prefix, Math.floor((rowNumber - 1) / CURRENT_LIST_PAGE_SIZE) *
+        CURRENT_LIST_PAGE_SIZE, { resetScroll: true, alignLastPage: true });
+      jump.value = state.visible.length ? String(state.pageStart + 1) : "";
+    };
+    shadow.getElementById(prefix + "-page-go").addEventListener("click", jumpToRow);
+    jump.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      jumpToRow();
+    });
+
     updateSortIndicators(prefix);
+    updatePageControls(prefix);
   }
 
   function render({
@@ -233,9 +287,12 @@ export function createCurrentView(shadow, {
     encounters = [],
     sessionId = null,
     encounterSnapshotVersion = 0,
-    lootDataRevision = encounterSnapshotVersion
+    lootDataRevision = encounterSnapshotVersion,
+    encounterDelta = null,
+    currentSessionSpecies = null
   }) {
     const sessionChanged = currentSessionId !== sessionId;
+    const previousListVersion = lastEncounterSnapshotVersion;
     const encounterSnapshotChanged =
       sessionChanged || lastEncounterSnapshotVersion !== encounterSnapshotVersion;
     currentSessionId = sessionId;
@@ -244,18 +301,28 @@ export function createCurrentView(shadow, {
 
     renderMetrics(metrics);
     renderRarities(metrics);
-    lootView.render({ sessionId, lootDataRevision, encounters });
+    lootView.render({
+      sessionId, lootDataRevision, encounters,
+      changedRows: encounterDelta?.changes,
+      changedRowsFromRevision: encounterDelta?.fromRevision
+    });
 
     const titleMode = metrics?.activityKind === "expedition" && metrics?.status === "running"
       ? "expedition" : "hunt";
     if (encounterSnapshotChanged || titleMode !== lastTitleMode) {
       const heading = shadow.querySelector(".status-row > span");
-      const latestTarget = titleMode === "expedition" ? null : latestSpeciesEncounter(encounters);
+      const latestTarget = titleMode === "expedition" ? null : currentSessionSpecies || latestSpeciesEncounter(encounters);
       heading.textContent = titleMode === "expedition"
         ? "EXPEDITION" : latestTarget ? speciesLabel(latestTarget) : "Hunt";
       lastTitleMode = titleMode;
     }
     if (!encounterSnapshotChanged) return;
+
+    // Ordinary terminal updates add one row; preserve the existing sort and
+    // rendered DOM instead of regrouping every encounter accumulated in the Hunt.
+    if (!sessionChanged && encounterDelta?.fromListVersion === previousListVersion
+      && encounterDelta.toListVersion === encounterSnapshotVersion
+      && applyTerminalDelta(encounterDelta.changes)) return;
 
     const grouped = { captured: [], failed: [] };
     for (const encounter of encounters) {
@@ -265,8 +332,42 @@ export function createCurrentView(shadow, {
 
     syncEncounterData("captured", grouped.captured, sessionChanged);
     syncEncounterData("failed", grouped.failed, sessionChanged);
-    updateShinyBadge("captured", grouped.captured.filter((encounter) => encounter.isShiny).length);
-    updateShinyBadge("failed", grouped.failed.filter((encounter) => encounter.isShiny).length);
+    for (const prefix of ["captured", "failed"]) {
+      lists[prefix].shinyCount = grouped[prefix].filter((encounter) => encounter.isShiny).length;
+    }
+    updateShinyBadge("captured", lists.captured.shinyCount);
+    updateShinyBadge("failed", lists.failed.shinyCount);
+  }
+
+  function applyTerminalDelta(changes) {
+    if (!Array.isArray(changes) || lists.captured.rendering || lists.failed.rendering) return false;
+    const additions = { captured: [], failed: [] };
+    for (const change of changes) {
+      const previous = change?.previous;
+      const next = change?.next;
+      const priorGroup = previous?.captureResult === "success" ? "captured"
+        : previous?.captureResult === "failed" ? "failed" : null;
+      const nextGroup = next?.captureResult === "success" ? "captured"
+        : next?.captureResult === "failed" ? "failed" : null;
+      // Corrections, removals and result changes remain on the complete safe
+      // reconciliation path, which also preserves focus and expansion state.
+      if (priorGroup) return false;
+      if (nextGroup) {
+        if (!next?.encounterId || lists[nextGroup].byId.has(next.encounterId)) return false;
+        additions[nextGroup].push(next);
+      }
+    }
+    for (const prefix of ["captured", "failed"]) {
+      const state = lists[prefix];
+      for (const encounter of additions[prefix]) {
+        state.byId.set(encounter.encounterId, encounter);
+        if (encounter.isShiny) state.shinyCount += 1;
+        upsertVisibleEncounter(prefix, encounter, { knownNew: true });
+      }
+      updateCount(prefix);
+      updateShinyBadge(prefix, state.shinyCount);
+    }
+    return true;
   }
 
   function renderHudSummary(metrics) {
@@ -398,6 +499,8 @@ export function createCurrentView(shadow, {
     const state = lists[prefix];
     for (const header of shadow.querySelectorAll(`[data-encounter-sort="${prefix}"]`)) {
       const indicator = header.querySelector("[data-sort-indicator]");
+      header.setAttribute("aria-sort", header.dataset.sortKey !== state.sort.key
+        ? "none" : state.sort.direction === "asc" ? "ascending" : "descending");
       if (!indicator) continue;
       indicator.textContent = header.dataset.sortKey === state.sort.key
         ? state.sort.direction === "desc" ? "▼" : "▲"
@@ -407,49 +510,106 @@ export function createCurrentView(shadow, {
 
   function rebuildEncounterList(prefix, { resetScroll = true } = {}) {
     const state = lists[prefix];
-    const body = shadow.getElementById(`${prefix}-body`);
-    const tableWrap = body.closest(".table-wrap");
-    const previousScrollTop = tableWrap?.scrollTop || 0;
-    const previousRenderedCount = state.renderedCount;
-    state.renderToken += 1;
+    const priorAnchorId = resetScroll
+      ? null : state.visible.get(state.pageStart)?.encounterId ?? null;
 
-    state.visible = sortEncounters(
+    state.visible.replaceSorted(sortEncounters(
       [...state.byId.values()].filter((encounter) => passesEncounterFilters(encounter, state.filters)),
       state.sort
-    );
-    state.rows.clear();
-    state.rendering = false;
-    state.renderedCount = 0;
-    body.replaceChildren();
-    if (resetScroll && tableWrap) tableWrap.scrollTop = 0;
+    ));
     updateCount(prefix);
-
-    const targetCount = resetScroll
-      ? LIST_RENDER_BATCH
-      : Math.max(LIST_RENDER_BATCH, previousRenderedCount);
-    appendEncounterBatch(prefix, {
-      targetCount,
-      restoreScrollTop: resetScroll ? null : previousScrollTop
-    });
+    const anchorRank = priorAnchorId
+      ? state.visible.findIndex((item) => item.encounterId === priorAnchorId) : -1;
+    // Refilter/re-sort is a new ordering. Select the canonical full-width
+    // block CONTAINING the old anchor rather than opening a 1-row tail.
+    showEncounterPage(prefix, resetScroll ? 0
+      : anchorRank >= 0 ? Math.floor(anchorRank / CURRENT_LIST_PAGE_SIZE) *
+        CURRENT_LIST_PAGE_SIZE : Math.floor(state.pageStart / CURRENT_LIST_PAGE_SIZE) *
+        CURRENT_LIST_PAGE_SIZE,
+    { resetScroll, alignLastPage: true });
   }
 
-  function appendEncounterBatch(prefix, { targetCount = null, restoreScrollTop = null } = {}) {
-    const state = lists[prefix];
-    if (state.rendering || state.renderedCount >= state.visible.length) return;
+  function nextPageStart(state) {
+    return state.pageStart === 0 && state.pageOrigin > 0
+      ? state.pageOrigin : state.pageStart + CURRENT_LIST_PAGE_SIZE;
+  }
 
-    const token = state.renderToken;
+  function previousPageStart(state) {
+    return state.pageStart <= state.pageOrigin ? 0
+      : state.pageStart - CURRENT_LIST_PAGE_SIZE;
+  }
+
+  function updatePageControls(prefix) {
+    const state = lists[prefix];
+    const total = state.visible.length;
+    const start = total ? state.pageStart + 1 : 0;
+    const end = total ? Math.min(nextPageStart(state), total) : 0;
+    const status = total
+      ? formatNumber(start) + "–" + formatNumber(end) + " de " + formatNumber(total)
+      : "0 de 0";
+    shadow.getElementById(prefix + "-page-status").textContent = status;
+    shadow.getElementById(prefix + "-page-prev").disabled = state.pageStart <= 0;
+    shadow.getElementById(prefix + "-page-next").disabled =
+      nextPageStart(state) >= total;
+    const input = shadow.getElementById(prefix + "-page-jump");
+    input.max = String(total);
+    // Background capture events can arrive while someone is typing a long
+    // rank in this field. Never rewrite their in-progress numeric entry.
+    if (shadow.activeElement !== input) {
+      input.value = total ? String(start) : "";
+    }
+    shadow.getElementById(prefix + "-page-go").disabled = total === 0;
+    // All entries are already mounted when there is only one page. Avoid
+    // displaying five inert navigation controls below a ten-row/empty list.
+    const controls = shadow.getElementById(prefix + "-page-prev")
+      .closest(".encounter-page-controls");
+    const singlePage = total <= CURRENT_LIST_PAGE_SIZE && state.pageStart === 0;
+    if (singlePage && !controls.hidden && controls.contains(shadow.activeElement)) {
+      shadow.querySelector(`[data-encounter-sort="${prefix}"]`)
+        ?.focus({ preventScroll: true });
+    }
+    controls.hidden = singlePage;
+  }
+
+  function showEncounterPage(prefix, requestedStart = 0, {
+    resetScroll = true, alignLastPage = false
+  } = {}) {
+    const state = lists[prefix];
+    const body = shadow.getElementById(prefix + "-body");
+    const tableWrap = body.closest(".table-wrap");
+    // A jump beyond the final item lands on the LAST FULL page, not a
+    // nearly empty one-row window at rank N-1.
+    const maxStart = state.visible.length
+      ? Math.floor((state.visible.length - 1) / CURRENT_LIST_PAGE_SIZE) *
+        CURRENT_LIST_PAGE_SIZE : 0;
+    // Incremental head insertions can preserve an anchored page at a rank
+    // that is NOT divisible by 100, including a partial final page. Prev/Next
+    // must be inverse operations on that offset grid. Only an explicit Go
+    // normalizes an out-of-range jump to the canonical final block.
+    const maxAllowedStart = alignLastPage ? maxStart :
+      Math.max(0, state.visible.length - 1);
+    const pageStart = Math.min(Math.max(0, Math.trunc(requestedStart) || 0),
+      maxAllowedStart);
+    if (alignLastPage) state.pageOrigin = 0;
+    const previousScrollTop = tableWrap?.scrollTop || 0;
+    const focusedElement = shadow.activeElement;
+    const focusedId = state.rows.has(focusedElement?.dataset?.encounterId)
+      ? focusedElement.dataset.encounterId : null;
+    const token = ++state.renderToken;
+    state.pageStart = pageStart;
+    state.renderedCount = 0;
     state.rendering = true;
+    state.rows.clear();
+    body.replaceChildren();
+    if (resetScroll && tableWrap) tableWrap.scrollTop = 0;
+    updatePageControls(prefix);
+
     scheduleFrame(() => {
       if (token !== state.renderToken) return;
-
-      const body = shadow.getElementById(`${prefix}-body`);
-      const tableWrap = body.closest(".table-wrap");
       const fragment = document.createDocumentFragment();
-      const start = state.renderedCount;
-      const end = Math.min(start + LIST_RENDER_BATCH, state.visible.length);
-
-      for (let index = start; index < end; index += 1) {
-        const encounter = state.visible[index];
+      const end = Math.min(nextPageStart(state), state.visible.length);
+      for (let index = pageStart; index < end; index += 1) {
+        const encounter = state.visible.get(index);
         const main = createEncounterRow(prefix, encounter);
         const rowState = { main, detail: null };
         state.rows.set(encounter.encounterId, rowState);
@@ -463,57 +623,84 @@ export function createCurrentView(shadow, {
         }
       }
 
-      body.appendChild(fragment);
-      state.renderedCount = end;
+      body.replaceChildren(fragment);
+      state.renderedCount = end - pageStart;
       state.rendering = false;
-
-      const requestedTarget = Number.isFinite(targetCount)
-        ? Math.min(targetCount, state.visible.length)
-        : null;
-      if (requestedTarget != null && state.renderedCount < requestedTarget) {
-        appendEncounterBatch(prefix, { targetCount, restoreScrollTop });
-        return;
-      }
-
-      if (restoreScrollTop != null && tableWrap) {
+      if (!resetScroll && tableWrap) {
         tableWrap.scrollTop = Math.min(
-          restoreScrollTop,
+          previousScrollTop,
           Math.max(0, tableWrap.scrollHeight - tableWrap.clientHeight)
         );
+      } else if (resetScroll && shadow.host?.dataset?.uiMode === "mobile") {
+        // On mobile the whole view, not this table-wrap, owns vertical scroll.
+        // Bring the selected 100-row window's header back into view.
+        tableWrap?.scrollIntoView?.({ block: "start", inline: "nearest" });
+      }
+      if (focusedId) {
+        const currentFocus = shadow.activeElement;
+        // Do not steal focus if a user reached a different control while
+        // this scheduled frame was pending.
+        if (!currentFocus || currentFocus === focusedElement ||
+            currentFocus.isConnected === false) {
+          const target = state.rows.get(focusedId)?.main ||
+            state.rows.values().next().value?.main;
+          target?.focus({ preventScroll: true });
+        }
       }
     });
   }
 
-  function upsertVisibleEncounter(prefix, encounter) {
+  function upsertVisibleEncounter(prefix, encounter, { knownNew = false } = {}) {
     const state = lists[prefix];
-    const existingIndex = state.visible.findIndex((item) => item.encounterId === encounter.encounterId);
+    const existingIndex = knownNew ? -1 : state.visible.findIndex((item) => item.encounterId === encounter.encounterId);
 
     if (existingIndex >= 0) {
+      const old = state.visible.get(existingIndex);
+      // A correction that remains in the same sort position and still passes
+      // the active filters only needs to refresh its own rendered row. Sorting
+      // and recreating up to thousands of DOM rows for a field-only update
+      // produced long-Hunt main-thread work unrelated to the visible change.
+      if (passesEncounterFilters(encounter, state.filters) &&
+          compareEncounters(old, encounter, state.sort) === 0) {
+        state.visible.set(existingIndex, encounter);
+        const rendered = state.rows.get(encounter.encounterId);
+        if (rendered) {
+          const hadFocus = shadow.activeElement === rendered.main;
+          const replacement = createEncounterRow(prefix, encounter);
+          if (rendered.detail) {
+            const detail = createDetailRow(prefix, encounter);
+            rendered.detail.replaceWith(detail);
+            rendered.detail = detail;
+            replacement.setAttribute("aria-expanded", "true");
+          }
+          rendered.main.replaceWith(replacement);
+          rendered.main = replacement;
+          if (hadFocus) replacement.focus({ preventScroll: true });
+        }
+        return;
+      }
       rebuildEncounterList(prefix, { resetScroll: false });
       return;
     }
 
     if (!passesEncounterFilters(encounter, state.filters)) return;
 
-    const previousVisibleCount = state.visible.length;
-    const previousRenderedCount = state.renderedCount;
-    const hadRenderedAll = previousRenderedCount >= previousVisibleCount;
-
-    let low = 0;
-    let high = state.visible.length;
-    while (low < high) {
-      const mid = Math.floor((low + high) / 2);
-      if (compareEncounters(encounter, state.visible[mid], state.sort) < 0) high = mid;
-      else low = mid + 1;
+    // New rows update the canonical sorted ranks, but ONLY the selected
+    // 100-row viewport owns DOM nodes. A head insert before a deep page
+    // advances its absolute rank to preserve the same visible encounters.
+    const low = state.visible.insert(encounter);
+    if (low < state.pageStart) {
+      state.pageStart++;
+      state.pageOrigin = (state.pageOrigin + 1) % CURRENT_LIST_PAGE_SIZE;
+      updatePageControls(prefix);
+      return;
     }
-
-    state.visible.splice(low, 0, encounter);
-    const desiredRenderedCount = hadRenderedAll
-      ? Math.min(previousRenderedCount + 1, state.visible.length)
-      : previousRenderedCount;
-
-    if (low >= desiredRenderedCount) {
-      state.renderedCount = desiredRenderedCount;
+    if (state.pageStart === 0 && state.pageOrigin > 0 && low < state.pageOrigin) {
+      state.pageOrigin = (state.pageOrigin + 1) % CURRENT_LIST_PAGE_SIZE;
+    }
+    const pageEnd = Math.min(nextPageStart(state), state.visible.length);
+    if (low >= pageEnd) {
+      updatePageControls(prefix);
       return;
     }
 
@@ -523,8 +710,8 @@ export function createCurrentView(shadow, {
     state.rows.set(encounter.encounterId, rowState);
 
     let nextRow = null;
-    for (let index = low + 1; index < desiredRenderedCount; index += 1) {
-      nextRow = state.rows.get(state.visible[index].encounterId)?.main || null;
+    for (let index = low + 1; index < pageEnd; index += 1) {
+      nextRow = state.rows.get(state.visible.get(index).encounterId)?.main || null;
       if (nextRow) break;
     }
     if (nextRow) body.insertBefore(main, nextRow);
@@ -537,15 +724,22 @@ export function createCurrentView(shadow, {
       main.after(detail);
     }
 
-    const overflowEncounter = state.visible[desiredRenderedCount];
+    const overflowEncounter = state.visible.get(pageEnd);
     if (overflowEncounter) {
       const overflowRows = state.rows.get(overflowEncounter.encounterId);
+      const focusedOverflow = shadow.activeElement === overflowRows?.main;
       overflowRows?.detail?.remove();
       overflowRows?.main.remove();
       state.rows.delete(overflowEncounter.encounterId);
+      if (focusedOverflow) {
+        const lastRetainedId = state.visible.get(pageEnd - 1)?.encounterId;
+        const survivor = state.rows.get(lastRetainedId)?.main || main;
+        survivor.focus({ preventScroll: true });
+      }
     }
 
-    state.renderedCount = desiredRenderedCount;
+    state.renderedCount = pageEnd - state.pageStart;
+    updatePageControls(prefix);
   }
 
   function createEncounterRow(prefix, encounter) {
@@ -680,6 +874,54 @@ export function createCurrentView(shadow, {
     shadow.getElementById(`${prefix}-count`).textContent = pokemonLabel(lists[prefix].visible.length);
   }
 
+  function suspend() {
+    // Called ONLY while Current is hidden. Retain the small filter/sort
+    // settings and listeners, but drop per-encounter references and DOM.
+    // Reopen must force ONE sorted hydration, not 91k incremental insertions.
+    currentSessionId = undefined;
+    currentHuntStartedAtMs = null;
+    lastEncounterSnapshotVersion = -1;
+    lastTitleMode = null;
+    for (const prefix of ["captured", "failed"]) {
+      const state = lists[prefix];
+      state.renderToken += 1; // Fence queued requestAnimationFrame callbacks.
+      state.rendering = false;
+      state.renderedCount = 0;
+      state.pageStart = 0;
+      state.pageOrigin = 0;
+      state.byId.clear();
+      state.visible.replaceSorted([]);
+      state.rows.clear();
+      state.expandedIds.clear();
+      state.shinyCount = 0;
+      shadow.getElementById(prefix + "-body").replaceChildren();
+      updatePageControls(prefix);
+    }
+    lootView.suspend();
+  }
+
+  function retentionSnapshot() {
+    return {
+      captured: {
+        cachedRows: lists.captured.byId.size,
+        sortedRows: lists.captured.visible.length,
+        renderedRows: lists.captured.rows.size,
+        pageStart: lists.captured.pageStart,
+        pageOrigin: lists.captured.pageOrigin,
+        pageSize: CURRENT_LIST_PAGE_SIZE
+      },
+      failed: {
+        cachedRows: lists.failed.byId.size,
+        sortedRows: lists.failed.visible.length,
+        renderedRows: lists.failed.rows.size,
+        pageStart: lists.failed.pageStart,
+        pageOrigin: lists.failed.pageOrigin,
+        pageSize: CURRENT_LIST_PAGE_SIZE
+      },
+      loot: lootView.retentionSnapshot()
+    };
+  }
+
   function refreshCatchChance() {
     for (const [prefix, state] of Object.entries(lists)) {
       for (const [encounterId, row] of state.rows) {
@@ -697,5 +939,6 @@ export function createCurrentView(shadow, {
     }
   }
 
-  return { render, refreshCatchChance, refreshLootCatalog: () => lootView.refreshCatalog() };
+  return { render, suspend, retentionSnapshot, refreshCatchChance,
+    refreshLootCatalog: () => lootView.refreshCatalog() };
 }

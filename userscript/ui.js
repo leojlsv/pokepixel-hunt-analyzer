@@ -17,6 +17,9 @@ const ALPHA_KEY = "pokepixel_hunt_analyzer_alpha_v1";
 const EDGE_GAP = 8;
 const MIN_PANEL_WIDTH_PX = 430;
 const MIN_PANEL_HEIGHT_PX = 280;
+// Memory-only, non-destructive. Brief tab/panel switches preserve their DOM;
+// long-hidden Current/History may be reconstructed from the unchanged IDB.
+export const HIDDEN_VIEW_CACHE_IDLE_MS = 120_000;
 const ALPHA_LEVELS = [1, 0.9, 0.8, 0.7, 0.6, 0.5];
 const MOBILE_LAUNCHER_DRAG_THRESHOLD_PX = 8;
 const DESKTOP_LAUNCHER_DRAG_THRESHOLD_PX = 4;
@@ -43,7 +46,8 @@ export function createUi({
   onLoadHistorySessions,
   onLoadHistorySessionEncounters,
   getLootItemCatalog,
-  onClearAll = null
+  onClearAll = null,
+  onRequestCurrentRefresh = null
 }) {
   const uiStateStore = createUiStateStore(localStorage);
   const initialUiState = uiStateStore.read();
@@ -71,6 +75,14 @@ export function createUi({
   let navigationEpoch = 0;
   let clearAllBusy = false;
   let clearAllActive = false;
+  let currentHiddenSinceMs = Date.now();
+  let historyHiddenSinceMs = Date.now();
+  let currentSuspended = false;
+  let currentWakePending = false;
+  let currentWakeGeneration = 0;
+  let historySuspended = false;
+  let currentSuspensions = 0;
+  let historySuspensions = 0;
 
   mount();
 
@@ -225,17 +237,158 @@ export function createUi({
       tab.classList.toggle("active", tab.dataset.view === activeView);
     }
     saveUiState({ view: activeView });
+    noteViewVisibility();
     flushVisibleCurrent();
+    loadVisibleHistory();
+  }
 
-    if (activeView === "history") {
-      historyView.ensureLoaded().catch((error) => {
-        console.error("PokePixel Hunt Analyzer (History):", error);
-      });
+  function currentIsVisible() {
+    return activeView === "current" && !panel.hidden &&
+      !shadow.getElementById("view-current").hidden;
+  }
+
+  function historyIsVisible() {
+    return activeView === "history" && !panel.hidden &&
+      !shadow.getElementById("view-history").hidden;
+  }
+
+  function showColdCurrentStatus(message) {
+    // The cold UI contains no encounter rows. Nothing in Current's old
+    // metrics/rarity/Loot summaries may be presented as fresh if the required
+    // IndexedDB read fails. Closed HUD has its own authoritative aggregate.
+    const title = shadow.querySelector(".status-row > span");
+    if (title) title.textContent = message;
+    for (const id of [
+      "captured-count", "failed-count", "current-loot-count",
+      "seen", "captured", "failed", "capture-rate",
+      "hunt-time", "hunt-status",
+      "trainer-exp-hour", "trainer-exp-total",
+      "pokemon-exp-hour", "pokemon-exp-total",
+      "dollars-total", "dollars-hour", "profit-total", "expenses-total",
+      "rare-failed-count",
+      "current-loot-gold", "current-loot-value",
+      "current-loot-autosell", "current-loot-total",
+      "current-loot-coverage"
+    ]) {
+      const node = shadow.getElementById(id);
+      if (!node) continue;
+      node.textContent = "—";
+      node.removeAttribute("title");
+    }
+    for (const cell of shadow.querySelectorAll("#rarity-body [data-field]")) {
+      cell.textContent = "—";
+    }
+    for (const id of [
+      "rarity-shiny-count", "captured-shiny-count", "failed-shiny-count"
+    ]) {
+      const badge = shadow.getElementById(id);
+      if (badge) badge.hidden = true;
+    }
+    const profit = shadow.getElementById("profit-total");
+    if (profit) profit.style.color = "";
+    for (const id of ["pause-resume", "end-hunt"]) {
+      const button = shadow.getElementById(id);
+      if (button) button.disabled = true;
     }
   }
 
+  function noteViewVisibility() {
+    const now = Date.now();
+    if (currentIsVisible()) {
+      currentHiddenSinceMs = null;
+      if (currentSuspended) {
+        currentSuspended = false;
+        latestCurrentState = null;
+        currentRenderPending = false;
+        showColdCurrentStatus("Loading Current…");
+        // A previously in-flight old read may finish after this wake. Hold
+        // its view publication until the on-demand full reconcile has
+        // completed (the main refresh gate coalesces overlapping work).
+        if (typeof onRequestCurrentRefresh === "function") {
+          currentWakePending = true;
+          const generation = ++currentWakeGeneration;
+          Promise.resolve()
+            .then(() => onRequestCurrentRefresh())
+            .then(() => {
+              if (generation !== currentWakeGeneration) return;
+              currentWakePending = false;
+              flushVisibleCurrent();
+            })
+            .catch(error => {
+              if (generation !== currentWakeGeneration) return;
+              currentWakePending = false;
+              latestCurrentState = null;
+              currentRenderPending = false;
+              if (currentIsVisible()) {
+                showColdCurrentStatus("Current unavailable · retrying…");
+              }
+              console.error("PokePixel Hunt Analyzer (Current cache resume):", error);
+            });
+        }
+      }
+    } else if (currentHiddenSinceMs === null) {
+      currentHiddenSinceMs = now;
+    }
+
+    if (historyIsVisible()) {
+      historyHiddenSinceMs = null;
+      historySuspended = false;
+    } else if (historyHiddenSinceMs === null) {
+      historyHiddenSinceMs = now;
+    }
+  }
+
+  function maybeReleaseHiddenViews(now = Date.now()) {
+    if (!Number.isFinite(now)) return;
+    // Other UI owners (e.g. the Misc tab managed by Closed HUD) can toggle
+    // view-current.hidden without invoking switchView/setPanelOpen.
+    noteViewVisibility();
+    // Only the already existing 1s ticker calls this. No new timers, workers,
+    // IndexedDB transactions, persistent flags or quota/storage mutations.
+    if (!currentIsVisible() && !currentSuspended &&
+      currentHiddenSinceMs !== null &&
+      now >= currentHiddenSinceMs + HIDDEN_VIEW_CACHE_IDLE_MS) {
+      currentView.suspend();
+      latestCurrentState = null; // Otherwise retains the full encounter array.
+      currentRenderPending = false;
+      currentWakePending = false;
+      currentWakeGeneration += 1;
+      currentSuspended = true;
+      currentSuspensions++;
+    }
+    if (!historyIsVisible() && !historySuspended &&
+      historyHiddenSinceMs !== null &&
+      now >= historyHiddenSinceMs + HIDDEN_VIEW_CACHE_IDLE_MS) {
+      historyView.suspend();
+      historySuspended = true;
+      historySuspensions++;
+    }
+  }
+
+  function retentionSnapshot() {
+    return {
+      currentSuspended, historySuspended, currentSuspensions, historySuspensions,
+      current: currentView.retentionSnapshot(),
+      history: historyView.retentionSnapshot(),
+      pendingCurrentRows: latestCurrentState?.encounters?.length ?? 0
+    };
+  }
+
+  function loadVisibleHistory() {
+    if (!historyIsVisible()) return;
+    // Misc is managed by a separate UI owner. It temporarily clicks History
+    // to park Current, then synchronously hides History. Do not start a full
+    // 20-session IDB hydration during that intermediate visible state.
+    queueMicrotask(() => {
+      if (!historyIsVisible()) return;
+      historyView.ensureLoaded().catch((error) => {
+        console.error("PokePixel Hunt Analyzer (History):", error);
+      });
+    });
+  }
+
   function flushVisibleCurrent() {
-    if (activeView !== "current" || panel.hidden || !currentRenderPending) return;
+    if (!currentIsVisible() || currentWakePending || !currentRenderPending) return;
     currentView.render(latestCurrentState);
     currentRenderPending = false;
   }
@@ -245,21 +398,34 @@ export function createUi({
       sessionId: state?.sessionId ?? null,
       lootDataRevision: state?.lootDataRevision ?? null,
       status: state?.metrics?.status ?? null,
-      activityKind: state?.metrics?.activityKind ?? null
+      activityKind: state?.metrics?.activityKind ?? null,
+      // Potion expenses are stored on the session, without an encounter-row
+      // revision. Invalidate History's cached Profit/Expenses on those writes.
+      potionsUsed: state?.metrics?.potionsUsed ?? null,
+      potionsCost: state?.metrics?.potionsCost ?? null
     };
     if (lastHistorySource && (
       lastHistorySource.sessionId !== source.sessionId
       || lastHistorySource.lootDataRevision !== source.lootDataRevision
       || lastHistorySource.status !== source.status
       || lastHistorySource.activityKind !== source.activityKind
+      || lastHistorySource.potionsUsed !== source.potionsUsed
+      || lastHistorySource.potionsCost !== source.potionsCost
     )) {
       // Keep loaded History pages across tab navigation only while the
       // authoritative Current encounter revision has not changed.
       historyView.invalidate();
     }
     lastHistorySource = source;
-    latestCurrentState = state;
-    currentRenderPending = true;
+    // A suspended hidden Current must NOT silently reacquire the large array
+    // from a timer/event render. The visible path always gets fresh state.
+    if (currentSuspended && !currentIsVisible()) {
+      latestCurrentState = null;
+      currentRenderPending = false;
+    } else {
+      latestCurrentState = state;
+      currentRenderPending = true;
+    }
     flushVisibleCurrent();
     if (activeView === "history") historyView.refreshLootCatalog();
   }
@@ -281,7 +447,11 @@ export function createUi({
   function setPanelOpen(open) {
     if (!open) navigationEpoch += 1;
     panel.hidden = !open;
-    if (open) flushVisibleCurrent();
+    noteViewVisibility();
+    if (open) {
+      flushVisibleCurrent();
+      loadVisibleHistory();
+    }
     if (uiMode === "mobile") launcher.hidden = open;
     if (resizeHandle) resizeHandle.hidden = !open;
     saveUiState({ open });
@@ -337,8 +507,8 @@ export function createUi({
       externalReturnFocus = invoker;
     }
 
-    setPanelOpen(true);
     switchView(route.view);
+    setPanelOpen(true);
     expandSectionForNavigation(route.collapseKey);
     if (route.historyView) {
       if (!historyView.setActiveSubview(route.historyView)) {
@@ -858,7 +1028,9 @@ export function createUi({
     },
     navigate,
     getActiveView: () => activeView,
-    needsCurrentTicker: () => activeView === "current" && !panel.hidden,
+    needsCurrentTicker: currentIsVisible,
+    maybeReleaseHiddenViews,
+    retentionSnapshot,
     getHistoryView: () => historyView?.getActiveSubview?.() || "hunts",
     getUiMode: () => uiMode
   };
